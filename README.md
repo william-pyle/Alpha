@@ -1,11 +1,11 @@
 # Alpha
 
 [![Windows installer](https://github.com/william-pyle/Alpha/actions/workflows/windows.yml/badge.svg)](https://github.com/william-pyle/Alpha/actions/workflows/windows.yml)
-[![Latest release](https://img.shields.io/github/v/release/william-pyle/Alpha?display_name=tag)](https://github.com/william-pyle/Alpha/releases/latest)
-[![Release downloads](https://img.shields.io/github/downloads/william-pyle/Alpha/total)](https://github.com/william-pyle/Alpha/releases)
+[![Latest release](https://badgen.net/github/release/william-pyle/Alpha)](https://github.com/william-pyle/Alpha/releases/latest)
+[![Release downloads](https://badgen.net/github/assets-dl/william-pyle/Alpha/total)](https://github.com/william-pyle/Alpha/releases)
 ![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4)
 [![Electron](https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Node.js](https://img.shields.io/badge/build-Node.js%2024-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://badgen.net/badge/Node.js/24/green)](https://nodejs.org/)
 
 A Windows workspace that brings agent windows, terminals, projects, knowledge,
 and questions together in one themeable desktop app.
