@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Alpha — build and run</title>
+    <style>
+      body {
+        font:
+          16px/1.7 system-ui,
+          sans-serif;
+        max-width: 900px;
+        margin: 60px auto;
+        padding: 0 24px;
+        color: #dcebf3;
+        background: #0c1520;
+      }
+      h1 {
+        font-size: 42px;
+      }
+      h2 {
+        margin-top: 40px;
+      }
+      a {
+        color: #7fe5ea;
+      }
+      pre {
+        background: #172737;
+        padding: 20px;
+        border-radius: 8px;
+        overflow: auto;
+      }
+      code {
+        font-family: Consolas, monospace;
+      }
+      li {
+        margin: 8px 0;
+      }
+      small {
+        color: #a2b7c7;
+      }
+      img {
+        width: 72px;
+      }
+    </style>
+  </head>
+  <body>
+    <img src="public/art/alpha.svg" alt="Alpha" />
+    <h1>Alpha</h1>
+    <p>
+      A Windows workspace for agent windows, projects and connected knowledge.
+    </p>
+    <p>
+      <strong>Package:</strong> com.jazcosolutions.alpha ·
+      <strong>Version:</strong> 0.1.0
+    </p>
+    <h2>Run the app</h2>
+    <p>
+      Anything created for or by Alpha uses <code>com.jazcosolutions</code> as
+      its default namespace prefix unless you specify another.
+    </p>
+    <p>
+      Open <code>release/Alpha-0.1.0-x64.exe</code> after packaging. The
+      portable executable contains its desktop runtime. Install Codex, Claude
+      Code or Git for Windows separately to use those providers; Windows
+      PowerShell is detected automatically.
+    </p>
+    <h2>Build from source</h2>
+    <p>Use Windows 10 1809 or later / Windows 11, Node.js 24 and npm.</p>
+    <pre>
+npm ci
+npm run build
+npm start</pre>
+    <p>To run checks and build the portable Windows executable:</p>
+    <pre>
+npm test
+npm run test:desktop
+npm run package</pre>
+    <p>
+      The build uses the official node-pty package's precompiled Windows
+      Node-API binaries. No native rebuild is needed for this x64 release.
+    </p>
+    <h2>Included</h2>
+    <ul>
+      <li>
+        New window: Codex, Claude Code, PowerShell and Git Bash, with New
+        Project selected by default.
+      </li>
+      <li>
+        Project-owned workspaces, simultaneous left/right, top/bottom, grid and
+        tab layouts.
+      </li>
+      <li>Dockable project-themed file and memory viewer.</li>
+      <li>
+        Shared and project-specific memory and skills, local ranked retrieval, a
+        live navigable 3D memory graph.
+      </li>
+      <li>
+        Central Questions inbox with human answers and requester delivery.
+      </li>
+      <li>
+        Window messaging through inboxes and a scoped local MCP integration.
+      </li>
+      <li>
+        Alpha, Smurfs and Rena / Higurashi themes, controller artwork, theme
+        editor and custom icons.
+      </li>
+    </ul>
+    <h2>Data and Git</h2>
+    <p>
+      User data lives in the Alpha application data folder, separate from
+      source. On a standard Windows installation this is
+      <code>%APPDATA%/Alpha</code>. Open it through Settings. Projects contain
+      <code>workspaces/</code>. Knowledge, questions, settings and session
+      records are stored in <code>alpha.json</code>; terminal history is under
+      <code>sessions/</code>.
+    </p>
+    <p>
+      The repository excludes dependencies, binaries, generated bundles, test
+      profiles, credentials and runtime data. Builds land in
+      <code>release/</code>. The included Windows workflow builds and checks the
+      app without publishing it.
+    </p>
+    <h2>How it works</h2>
+    <p>
+      See the <a href="public/help.html">user guide</a> and
+      <a href="docs/architecture.html">architecture notes</a>.
+    </p>
+    <p>
+      <small
+        >Provider accounts, models and permission settings remain with their
+        installed tools. Alpha does not bypass them. Generated visual assets are
+        included under public/art. The character themes contain original
+        illustrations of their named fictional characters.</small
+      >
+    </p>
+  </body>
+</html>
