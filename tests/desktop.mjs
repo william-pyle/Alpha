@@ -26,6 +26,13 @@ try {
       { type, payload },
     );
   const snapshot = () => page.evaluate(() => window.alpha.snapshot());
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page
+    .getByLabel("Default approval mode", { exact: true })
+    .selectOption("always");
+  await expect
+    .poll(async () => (await snapshot()).settings.defaultApprovalMode)
+    .toBe("always");
   await page
     .getByRole("button", { name: "New window", exact: true })
     .first()
@@ -35,9 +42,19 @@ try {
       .getByRole("dialog", { name: "New window" })
       .getByLabel("Associated project"),
   ).toHaveValue("");
+  const approval = page
+    .getByRole("dialog", { name: "New window" })
+    .getByLabel("Approval mode", { exact: true });
+  await expect(approval).toHaveValue("always");
+  await approval.selectOption("provider");
+  await page.getByRole("button", { name: /^Claude Code / }).click();
+  await expect(approval).toHaveValue("provider");
+  await approval.selectOption("always");
+  await page.screenshot({ path: ".test-output/always-approve.png" });
   await page
     .getByRole("button", { name: "PowerShell Ready", exact: true })
     .click();
+  await expect(approval).toHaveCount(0);
   await page.getByLabel("Project name", { exact: true }).fill("Test studio");
   await page.getByLabel("Window name").fill("Shell one");
   await page.getByRole("button", { name: "Open window", exact: true }).click();
@@ -48,6 +65,11 @@ try {
   let state = await snapshot();
   const project = state.projects[0],
     first = state.sessions[0];
+  assert.equal(first.approvalMode, "provider");
+  await assert.rejects(
+    call("session.approval", { id: first.id, approvalMode: "always" }),
+    /Stop this window/,
+  );
   await page.evaluate(
     (id) =>
       window.alpha.terminalInput(id, "Write-Output 'ALPHA_TERMINAL_OK'\r"),
@@ -190,7 +212,11 @@ try {
     (id) => window.alpha.terminalInput(id, "ignored after close"),
     first.id,
   );
-  await call("session.reopen", { id: first.id });
+  await page
+    .locator(".session-pane")
+    .filter({ hasText: "Shell one" })
+    .getByRole("button", { name: "Reopen window", exact: true })
+    .click();
   await page.evaluate(
     (id) => window.alpha.terminalInput(id, "Write-Output 'REOPEN_OK'\r"),
     first.id,
@@ -213,6 +239,7 @@ try {
         profile,
         checks: [
           "New Project launcher default",
+          "Approval default, agent-only controls and running-window protection",
           "PowerShell and Git Bash native PTYs",
           "Layout continuity",
           "Scoped retrieval",

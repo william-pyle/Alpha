@@ -128,6 +128,17 @@
       bundled desktop runtime on Windows; no active external agent conversations
       are needed for these checks.
     </p>
+    <h2>Agent approval modes</h2>
+    <p>
+      Approval mode is validated and stored per window. Provider settings adds
+      no permission override. Always approve passes
+      <code>--dangerously-bypass-approvals-and-sandbox</code> to Codex (after
+      the resume subcommand when reopening), or
+      <code>--dangerously-skip-permissions</code>
+      to Claude Code. The default applies only to new agent windows; old records
+      migrate to Provider settings. A running window cannot change mode through
+      IPC. These options do not alter Alpha's project-scoped MCP authorization.
+    </p>
     <h2>Installer and update delivery</h2>
     <p>
       GitHub Actions builds a per-user NSIS installer. Stable version tags that
@@ -148,6 +159,16 @@
     </p>
     <h2>Primary implementation references</h2>
     <ul>
+      <li>
+        <a href="https://learn.chatgpt.com/docs/developer-commands?surface=cli"
+          >Official OpenAI CLI command reference</a
+        >
+      </li>
+      <li>
+        <a href="https://code.claude.com/docs/en/cli-reference"
+          >Claude Code CLI permission flags</a
+        >
+      </li>
       <li>
         <a href="https://www.electron.build/docs/publish/"
           >electron-builder release publishing</a

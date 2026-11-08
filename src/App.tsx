@@ -332,7 +332,11 @@ export default function App() {
             <span>YOUR CREATIVE SPACE</span>
           </div>
         </button>
-        <button className="new-window primary" onClick={openWindow}>
+        <button
+          className="new-window primary"
+          aria-label="New window"
+          onClick={openWindow}
+        >
           <Plus size={18} />
           New window<span>↗</span>
         </button>
@@ -784,10 +788,56 @@ export default function App() {
                               </button>
                             </div>
                           </div>
+                          {["codex", "claude"].includes(s.provider) && (
+                            <div className="session-approval">
+                              {s.status === "running" ? (
+                                <span>
+                                  Approval mode:{" "}
+                                  <strong>
+                                    {s.approvalMode === "always"
+                                      ? "Always approve"
+                                      : "Provider settings"}
+                                  </strong>
+                                </span>
+                              ) : (
+                                <label>
+                                  Approval mode
+                                  <select
+                                    aria-label={`Approval mode for ${s.title}`}
+                                    value={s.approvalMode}
+                                    onChange={(e) =>
+                                      run("session.approval", {
+                                        id: s.id,
+                                        approvalMode: e.target.value,
+                                      })
+                                    }
+                                  >
+                                    <option value="provider">
+                                      Provider settings
+                                    </option>
+                                    <option value="always">
+                                      Always approve
+                                    </option>
+                                  </select>
+                                </label>
+                              )}
+                            </div>
+                          )}
                           <TerminalPane id={s.id} theme={theme} />
                           {s.status !== "running" && (
                             <div className="session-ended">
-                              Window stopped · terminal history retained
+                              <span>
+                                Window stopped · terminal history retained
+                              </span>
+                              <button
+                                onClick={() =>
+                                  run("session.reopen", { id: s.id })
+                                }
+                              >
+                                {["codex", "claude"].includes(s.provider)
+                                  ? "Reopen / resume"
+                                  : "Reopen window"}
+                              </button>
                             </div>
                           )}
                         </section>
@@ -1160,8 +1210,30 @@ export default function App() {
                     </div>
                   ))}
                   <p className="muted small">
-                    Alpha uses the tools you install. Each provider keeps its
-                    own login, model and permission settings.
+                    Alpha uses the tools you install. Login and model come from
+                    each provider; Alpha applies your selected approval mode.
+                  </p>
+                </section>
+                <section className="panel settings-panel">
+                  <h2>Agent approvals</h2>
+                  <label>
+                    Default approval mode
+                    <select
+                      aria-label="Default approval mode"
+                      value={state.settings.defaultApprovalMode}
+                      onChange={(e) =>
+                        run("settings", { defaultApprovalMode: e.target.value })
+                      }
+                    >
+                      <option value="provider">Provider settings</option>
+                      <option value="always">Always approve</option>
+                    </select>
+                  </label>
+                  <p className="muted small">
+                    Applies to new Codex and Claude Code windows. Always approve
+                    skips agent tool permission prompts; Codex also runs without
+                    its sandbox. You can choose a different mode in New window.
+                    Existing windows retain their saved mode when reopened.
                   </p>
                 </section>
                 <section className="panel settings-panel">

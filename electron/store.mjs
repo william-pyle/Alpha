@@ -55,14 +55,24 @@ export class Store {
             viewerMode: "docked",
             viewerTab: "memory",
             namespacePrefix: "com.jazcosolutions",
+            defaultApprovalMode: "provider",
           },
         };
     this.state.questions ||= [];
+    if (
+      !["provider", "always"].includes(this.state.settings.defaultApprovalMode)
+    )
+      this.state.settings.defaultApprovalMode = "provider";
     for (const theme of this.state.themes)
       if (theme.backdrop === undefined)
         theme.backdrop =
           defaultThemes.find((t) => t.id === theme.id)?.backdrop || "";
     this.state.sessions.forEach((s) => {
+      if (
+        !["codex", "claude"].includes(s.provider) ||
+        !["provider", "always"].includes(s.approvalMode)
+      )
+        s.approvalMode = "provider";
       if (["running", "starting"].includes(s.status)) s.status = "stopped";
     });
     this.reindex();
@@ -140,12 +150,14 @@ export class Store {
       "layout",
       "viewerMode",
       "viewerTab",
+      "defaultApprovalMode",
     ])
       if (input[k] !== undefined) {
         const allowed = {
           layout: ["columns", "rows", "grid", "tabs"],
           viewerMode: ["docked", "detached", "hidden"],
           viewerTab: ["memory", "files"],
+          defaultApprovalMode: ["provider", "always"],
         };
         if (allowed[k] && !allowed[k].includes(input[k]))
           throw new Error("Invalid setting.");

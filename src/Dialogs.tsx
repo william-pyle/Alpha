@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, Plus, ArrowRight, TerminalSquare, Sparkles } from "lucide-react";
-import type { Snapshot, RecordItem } from "./types";
+import type { Snapshot, RecordItem, ApprovalMode } from "./types";
 
 export function Modal({
   title,
@@ -61,6 +61,9 @@ export function NewWindow({
   onLaunch: (id: string) => void;
 }) {
   const [provider, setProvider] = useState("codex"),
+    [approvalMode, setApprovalMode] = useState<ApprovalMode>(
+      state.settings.defaultApprovalMode,
+    ),
     [projectId, setProjectId] = useState(""),
     [projectName, setProjectName] = useState(""),
     [workspaceId, setWorkspaceId] = useState(""),
@@ -80,6 +83,7 @@ export function NewWindow({
           setBusy(true);
           const s = await run("session.launch", {
             provider,
+            approvalMode,
             projectId: projectId || null,
             projectName,
             workspaceId: workspaceId || undefined,
@@ -166,6 +170,25 @@ export function NewWindow({
         </label>
         {["codex", "claude"].includes(provider) && (
           <label>
+            Approval mode
+            <select
+              aria-label="Approval mode"
+              aria-describedby="approval-mode-help"
+              value={approvalMode}
+              onChange={(e) => setApprovalMode(e.target.value as ApprovalMode)}
+            >
+              <option value="provider">Provider settings</option>
+              <option value="always">Always approve</option>
+            </select>
+            <small id="approval-mode-help" className="muted">
+              {approvalMode === "always"
+                ? "Skips agent tool permission prompts. Codex also runs without its sandbox."
+                : "Uses the provider's configured approval behavior."}
+            </small>
+          </label>
+        )}
+        {["codex", "claude"].includes(provider) && (
+          <label>
             Initial task <span className="muted">optional</span>
             <textarea
               value={task}
@@ -177,7 +200,7 @@ export function NewWindow({
         )}
         <footer>
           <span className="muted small">
-            Uses your installed tools and their existing settings.
+            Uses your installed tools, login and model.
           </span>
           <button
             className="primary"

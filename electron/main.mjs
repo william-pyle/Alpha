@@ -21,6 +21,7 @@ import {
   detectProviders,
   providerArguments,
   existingCodexInstructions,
+  approvalModeFor,
 } from "./providers.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url)),
@@ -175,6 +176,12 @@ async function launch(input) {
     throw new Error(
       "Install this provider on Windows first, then refresh providers in Settings.",
     );
+  const approvalMode = approvalModeFor(
+    provider.id,
+    previous?.approvalMode ??
+      input.approvalMode ??
+      store.state.settings.defaultApprovalMode,
+  );
   const project = input.projectId
     ? store.project(input.projectId)
     : store.createProject(input.projectName);
@@ -185,6 +192,7 @@ async function launch(input) {
     projectId: project.id,
     workspaceId,
     provider: provider.id,
+    approvalMode,
     title: String(input.title || provider.label).slice(0, 100),
     status: "starting",
     created: new Date().toISOString(),
@@ -216,6 +224,7 @@ async function launch(input) {
       token,
       prompt,
       resume: Boolean(previous),
+      approvalMode,
       existingInstructions:
         provider.id === "codex" ? existingCodexInstructions() : "",
     });
@@ -407,6 +416,14 @@ async function action(type, p = {}) {
       return launch(p);
     case "session.reopen":
       return launch({ reopenId: p.id });
+    case "session.approval": {
+      const s = sessionEntry(p.id);
+      if (["running", "starting"].includes(s.status))
+        throw new Error("Stop this window before changing its approval mode.");
+      s.approvalMode = approvalModeFor(s.provider, p.approvalMode);
+      store.save();
+      break;
+    }
     case "session.close":
       closeSession(p.id);
       break;

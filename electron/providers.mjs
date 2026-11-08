@@ -86,6 +86,12 @@ export function detectProviders() {
     },
   ].map((p) => ({ ...p, available: Boolean(p.path) }));
 }
+export function approvalModeFor(provider, mode = "provider") {
+  if (!["provider", "always"].includes(mode))
+    throw new Error("Unknown approval mode.");
+  return ["codex", "claude"].includes(provider) ? mode : "provider";
+}
+
 export function providerArguments(
   provider,
   {
@@ -96,8 +102,10 @@ export function providerArguments(
     prompt,
     resume = false,
     existingInstructions = "",
+    approvalMode = "provider",
   },
 ) {
+  const alwaysApprove = approvalModeFor(provider, approvalMode) === "always";
   const instructions =
     "You are working inside Alpha. Use alpha_recall at the start of a task and when its focus changes; only retrieve knowledge needed for that task. Use alpha_remember to retain reusable learned knowledge, and mark facts specific to this project as project-specific. Use alpha_skills to discover shared and current-project skills. Use alpha_windows, alpha_send_message and alpha_inbox to coordinate with windows in this project. Questions for the human go through alpha_ask_question and alpha_questions; hold dependent work until an actual answer exists, continue independent work, and mark answered questions resolved after applying the answer. Never treat a suggested option as an answer.";
   const env = {
@@ -122,8 +130,10 @@ export function providerArguments(
             "-c",
             `developer_instructions=${JSON.stringify([existingInstructions, workflow].filter(Boolean).join("\n\n"))}`,
           ]),
+      ...(resume ? ["resume"] : []),
+      ...(alwaysApprove ? ["--dangerously-bypass-approvals-and-sandbox"] : []),
       ...(resume
-        ? ["resume"]
+        ? []
         : prompt
           ? [
               existingInstructions === null
@@ -134,6 +144,7 @@ export function providerArguments(
     ];
   if (provider === "claude")
     return [
+      ...(alwaysApprove ? ["--dangerously-skip-permissions"] : []),
       "--mcp-config",
       JSON.stringify({
         mcpServers: { alpha: { command: node, args: [bridge], env } },

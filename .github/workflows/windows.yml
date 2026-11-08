@@ -25,6 +25,7 @@ jobs:
       - run: npm test
       - run: node tests/desktop.mjs
       - run: node tests/update-ui.mjs
+      - run: node tests/approvals-desktop.mjs
       - name: Build installer and update metadata
         run: npx electron-builder --win nsis --x64 --publish never
       - name: Test packaged app

@@ -55,9 +55,23 @@
       workspaces live inside their project.
     </p>
     <p>
-      Agent windows use the installed provider's login, model and permissions.
-      If a provider is unavailable, install it separately and use
+      Agent windows use the installed provider's login and model. If a provider
+      is unavailable, install it separately and use
       <strong>Settings → Installed tools → Refresh</strong>.
+    </p>
+    <h2>Agent approval modes</h2>
+    <p>
+      New window offers Provider settings or Always approve for Codex and Claude
+      Code. Set Settings → Agent approvals → Default approval mode to Always
+      approve to use it for all new agent windows. Each window saves its choice
+      and retains it when reopened.
+    </p>
+    <p>
+      Always approve skips agent tool permission prompts. Codex also runs
+      without its sandbox. Provider startup trust, sign-in, administrator policy
+      and Windows security prompts may still apply. Running windows keep their
+      launch mode; stop a window to change its mode, then choose Reopen /
+      resume. PowerShell and Git Bash do not use agent approval modes.
     </p>
     <h2>Arrange your work</h2>
     <p>

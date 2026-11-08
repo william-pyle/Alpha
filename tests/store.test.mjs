@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { Store, inside } from "../electron/store.mjs";
-import { providerArguments } from "../electron/providers.mjs";
+import { providerArguments, approvalModeFor } from "../electron/providers.mjs";
 
 const make = () => {
   fs.mkdirSync(".test-output", { recursive: true });
@@ -126,7 +126,7 @@ test("the three themes validate edits and preserve restore defaults", () => {
   s.resetTheme("alpha");
   assert.equal(s.state.themes[0].displayName, "Alpha");
 });
-test("provider integration adds scoped tools without changing models or permissions", () => {
+test("default provider integration preserves models and configured permissions", () => {
   for (const provider of ["codex", "claude"]) {
     const args = providerArguments(provider, {
       bridge: "C:/Alpha/bridge.mjs",
@@ -143,4 +143,77 @@ test("provider integration adds scoped tools without changing models or permissi
     );
     assert.ok(args.join(" ").includes("alpha_ask_question"));
   }
+});
+
+test("Always approve uses provider-native flags for new and resumed windows", () => {
+  for (const [provider, flag] of [
+    ["codex", "--dangerously-bypass-approvals-and-sandbox"],
+    ["claude", "--dangerously-skip-permissions"],
+  ]) {
+    for (const resume of [false, true]) {
+      const args = providerArguments(provider, {
+        bridge: "bridge.cjs",
+        node: "Alpha.exe",
+        endpoint: "http://127.0.0.1:1234",
+        token: "test",
+        prompt: "Task",
+        resume,
+        approvalMode: "always",
+      });
+      assert.equal(args.filter((arg) => arg === flag).length, 1);
+      assert.ok(args.includes(provider === "codex" ? "-c" : "--mcp-config"));
+      assert.equal(
+        args.includes(provider === "codex" ? "resume" : "--resume"),
+        resume,
+      );
+      if (provider === "codex" && resume)
+        assert.ok(args.indexOf(flag) > args.indexOf("resume"));
+      assert.ok(!args.includes("--model"));
+    }
+  }
+  assert.deepEqual(
+    providerArguments("powershell", { approvalMode: "always" }),
+    ["-NoLogo"],
+  );
+  assert.deepEqual(providerArguments("gitbash", { approvalMode: "always" }), [
+    "--login",
+    "-i",
+  ]);
+  assert.throws(() => approvalModeFor("codex", "invalid"), /approval mode/);
+});
+
+test("approval defaults persist while existing window modes remain independent", () => {
+  const store = make();
+  assert.equal(store.state.settings.defaultApprovalMode, "provider");
+  store.state.sessions.push({
+    id: "existing",
+    provider: "codex",
+    status: "stopped",
+    approvalMode: "provider",
+  });
+  store.state.sessions.push({
+    id: "approved",
+    provider: "claude",
+    status: "stopped",
+    approvalMode: "always",
+  });
+  store.settings({ defaultApprovalMode: "always" });
+  assert.throws(
+    () => store.settings({ defaultApprovalMode: true }),
+    /Invalid setting/,
+  );
+  const recovered = new Store(store.root);
+  assert.equal(recovered.state.settings.defaultApprovalMode, "always");
+  assert.equal(recovered.state.sessions[0].approvalMode, "provider");
+  assert.equal(recovered.state.sessions[1].approvalMode, "always");
+});
+
+test("older profiles migrate without silently bypassing permissions", () => {
+  const store = make();
+  delete store.state.settings.defaultApprovalMode;
+  store.state.sessions = [{ id: "old", provider: "codex", status: "stopped" }];
+  store.save();
+  const recovered = new Store(store.root);
+  assert.equal(recovered.state.settings.defaultApprovalMode, "provider");
+  assert.equal(recovered.state.sessions[0].approvalMode, "provider");
 });

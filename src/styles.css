@@ -1860,6 +1860,34 @@ html[data-atmosphere="summer"] .overview .eyebrow {
   background-position: center !important;
 }
 
+.session-approval {
+  padding: 7px 14px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.session-approval label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.session-approval select {
+  width: auto;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.session-ended {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.session-ended button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
 .update-banner {
   display: flex;
   align-items: center;

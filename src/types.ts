@@ -37,11 +37,13 @@ export type RecordItem = {
   created: string;
   updated: string;
 };
+export type ApprovalMode = "provider" | "always";
 export type Session = {
   id: string;
   projectId: string;
   workspaceId: string;
   provider: string;
+  approvalMode: ApprovalMode;
   title: string;
   status: string;
   created: string;
@@ -98,6 +100,7 @@ export type Snapshot = {
   messages: Message[];
   questions: Question[];
   settings: {
+    defaultApprovalMode: ApprovalMode;
     themeId: string;
     activeProjectId: string | null;
     layout: string;

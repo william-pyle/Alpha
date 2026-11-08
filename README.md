@@ -20,8 +20,8 @@ and questions together in one themeable desktop app.
 
 The installer includes the desktop runtime. Install **Codex**, **Claude Code**, or
 **Git for Windows** separately to use those providers. Alpha detects Windows
-PowerShell automatically. Provider accounts, models, and permissions stay with
-the tools you install.
+PowerShell automatically. Provider accounts and models stay with the tools you
+install; Alpha lets you choose the approval mode for each agent window.
 
 The current installer is unsigned. If you used the original **0.1.0 portable
 preview**, run the installer once to enable future update prompts. Your existing
@@ -57,6 +57,8 @@ portable edition does not update itself; use the installer edition for updates.
 
 - **New window:** Codex, Claude Code, PowerShell, and Git Bash. The project dropdown
   starts at **New Project**.
+- **Always approve:** choose the agent permission mode per window or set a default
+  under **Settings → Agent approvals**.
 - **Project-owned workspaces:** each project's workspaces live in its own
   `workspaces/` folder.
 - **Multiple visible windows:** side-by-side, top/bottom, grid, and tab layouts.
@@ -71,6 +73,21 @@ portable edition does not update itself; use the installer edition for updates.
 
 This is an early release. Retrieval uses local ranked text search, and importing
 an existing workspace is not automatic. Phone Access is excluded.
+
+### Agent approval modes
+
+In **New window**, choose **Provider settings** or **Always approve** for Codex
+and Claude Code. To use it for all new agent windows, set **Settings → Agent
+approvals → Default approval mode → Always approve**.
+
+Always approve skips the provider's agent tool permission prompts. Codex also
+disables its sandbox. Provider startup trust, sign-in, administrator policy, and
+Windows security prompts may still apply. PowerShell and Git Bash do not use
+agent approval modes.
+
+Each window saves its own mode. Running windows keep their launch mode; to change
+an existing window, stop it, choose its approval mode, then use **Reopen / resume**.
+Changing the default affects new windows only.
 
 ## Build from source
 

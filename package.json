@@ -1,7 +1,7 @@
 {
   "name": "alpha-desktop",
   "productName": "Alpha",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A project-centered Windows workspace for agents, terminals and knowledge.",
   "type": "module",
