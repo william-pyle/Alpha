@@ -14,8 +14,8 @@
     "test:desktop": "npm run build && node tests/desktop.mjs",
     "package": "npm run build && electron-builder --win nsis --x64 --publish never && node scripts/check-release.mjs --artifacts",
     "icons": "node scripts/icons.mjs",
-    "format": "prettier --write src electron integration/alpha-tools.mjs scripts tests docs README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
-    "format:check": "prettier --check src electron integration/alpha-tools.mjs scripts tests docs README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
+    "format": "prettier --write src electron integration/alpha-tools.mjs scripts tests docs README.md README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
+    "format:check": "prettier --check src electron integration/alpha-tools.mjs scripts tests docs README.md README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
     "package:portable": "npm run build && electron-builder --win portable --x64 --publish never",
     "test:updates": "node --test tests/updates.test.mjs"
   },
