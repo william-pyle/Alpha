@@ -1,7 +1,7 @@
 {
   "name": "alpha-desktop",
   "productName": "Alpha",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A project-centered Windows workspace for agents, terminals and knowledge.",
   "type": "module",
@@ -12,15 +12,18 @@
     "build": "npm run icons && node scripts/bridge.mjs && tsc --noEmit && vite build",
     "test": "node --test tests/*.test.mjs",
     "test:desktop": "npm run build && node tests/desktop.mjs",
-    "package": "npm run build && electron-builder --win portable --x64",
+    "package": "npm run build && electron-builder --win nsis --x64 --publish never && node scripts/check-release.mjs --artifacts",
     "icons": "node scripts/icons.mjs",
     "format": "prettier --write src electron integration/alpha-tools.mjs scripts tests docs README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
-    "format:check": "prettier --check src electron integration/alpha-tools.mjs scripts tests docs README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml"
+    "format:check": "prettier --check src electron integration/alpha-tools.mjs scripts tests docs README.html public/help.html package.json tsconfig.json vite.config.ts index.html .github/workflows/windows.yml",
+    "package:portable": "npm run build && electron-builder --win portable --x64 --publish never",
+    "test:updates": "node --test tests/updates.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
+    "electron-updater": "6.8.11",
     "lucide-react": "1.70.0",
     "node-pty": "1.1.0",
     "react": "19.3.1",
@@ -37,6 +40,7 @@
     "electron": "45.2.3",
     "electron-builder": "26.18.0",
     "esbuild": "^0.28.2",
+    "js-yaml": "5.5.0",
     "png-to-ico": "^3.0.2",
     "prettier": "^3.9.10",
     "sharp": "^0.35.5",
@@ -59,14 +63,40 @@
       "integration/**/*"
     ],
     "win": {
-      "target": "portable",
-      "artifactName": "Alpha-${version}-${arch}.${ext}",
+      "target": "nsis",
       "icon": "public/art/alpha.ico"
     },
     "appId": "com.jazcosolutions.alpha",
-    "npmRebuild": false
+    "npmRebuild": false,
+    "nsis": {
+      "artifactName": "Alpha-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Alpha",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "Alpha-${version}-${arch}-portable.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "william-pyle",
+        "repo": "Alpha",
+        "releaseType": "release"
+      }
+    ]
   },
   "overrides": {
     "minimatch@>=7.0.0": "^11.0.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/william-pyle/Alpha.git"
+  },
+  "homepage": "https://github.com/william-pyle/Alpha"
 }

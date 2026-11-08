@@ -1859,3 +1859,43 @@ html[data-atmosphere="summer"] .overview .eyebrow {
   background-size: cover !important;
   background-position: center !important;
 }
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 32px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--accent);
+}
+.update-copy {
+  flex: 1;
+  min-width: 220px;
+}
+.update-banner h2 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+.update-banner p {
+  margin: 0;
+  font-size: 13px;
+}
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.update-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.update-progress progress {
+  width: min(300px, 80%);
+  accent-color: var(--accent);
+}

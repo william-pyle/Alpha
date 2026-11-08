@@ -14,6 +14,8 @@ import http from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { randomUUID, randomBytes } from "node:crypto";
 import pty from "node-pty";
+import electronUpdater from "electron-updater";
+import { UpdateController } from "./updates.mjs";
 import { Store, inside, required } from "./store.mjs";
 import {
   detectProviders,
@@ -43,6 +45,7 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 let store,
+  updates,
   providers,
   mainWindow,
   viewerWindow,
@@ -53,7 +56,11 @@ const live = new Map(),
   tokens = new Map(),
   watchers = new Map();
 function snapshot() {
-  return { ...store.state, providers: providers.map(({ path: _, ...p }) => p) };
+  return {
+    ...store.state,
+    updates: updates.snapshot(),
+    providers: providers.map(({ path: _, ...p }) => p),
+  };
 }
 function broadcast() {
   const state = snapshot();
@@ -352,6 +359,17 @@ async function tool(type, payload, sessionId) {
 async function action(type, p = {}) {
   let result;
   switch (type) {
+    case "updates.check":
+      return updates.check(true);
+    case "updates.download":
+      return updates.download();
+    case "updates.install":
+      return updates.install();
+    case "updates.dismiss":
+      updates.dismiss();
+      return true;
+    case "updates.releases":
+      return shell.openExternal(updates.state.releasesUrl);
     case "project.create":
       result = store.createProject(p.name);
       watchProject(result.id);
@@ -492,6 +510,41 @@ async function action(type, p = {}) {
 async function boot() {
   await app.whenReady();
   store = new Store(app.getPath("userData"));
+  updates = new UpdateController({
+    updater: electronUpdater.autoUpdater,
+    version: app.getVersion(),
+    releasesUrl: "https://github.com/william-pyle/Alpha/releases",
+    disabledReason: process.env.ALPHA_TEST
+      ? "Automatic checks are disabled in isolated desktop tests."
+      : !app.isPackaged
+        ? "Install Alpha using the Windows installer to receive automatic updates."
+        : process.env.PORTABLE_EXECUTABLE_DIR
+          ? "This is the portable edition. Install Alpha from GitHub releases to enable automatic updates."
+          : !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))
+            ? "This build does not have a configured update feed. Install Alpha from GitHub releases."
+            : "",
+    onChange: () => broadcast(),
+    confirmInstall: async () => {
+      const active = store.state.sessions.filter(
+        (s) => s.status === "running",
+      ).length;
+      const choice = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: "Install Alpha update?",
+        message: `Restart Alpha to install version ${updates.state.availableVersion}?`,
+        detail: active
+          ? `This stops ${active} running window${active === 1 ? "" : "s"}. Finish any active work first. Saved projects, knowledge, questions and window history will remain.`
+          : "Your saved projects, knowledge, questions and window history will remain.",
+        buttons: ["Keep working", "Restart and install"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      return choice.response === 1;
+    },
+    beforeInstall: () => {
+      store.save();
+    },
+  });
   providers = detectProviders();
   protocol.handle("alpha", (request) => {
     const url = new URL(request.url);
@@ -612,6 +665,7 @@ async function boot() {
   store.state.projects.forEach((p) => watchProject(p.id));
   mainWindow = newWindow();
   appearance();
+  updates.start();
   mainWindow.on("close", (event) => {
     if (quitting) return;
     const active = store.state.sessions.filter(
@@ -637,6 +691,7 @@ async function boot() {
     app.quit();
   });
   app.on("before-quit", () => {
+    updates.stop();
     quitting = true;
     for (const runtime of live.values()) {
       try {

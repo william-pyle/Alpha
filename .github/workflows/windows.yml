@@ -1,7 +1,8 @@
-name: Windows build
+name: Windows installer
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -16,11 +17,53 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/check-release.mjs
+      - run: npm run format:check
       - run: npm run build
       - run: npm test
       - run: node tests/desktop.mjs
-      - run: npm run package
+      - run: node tests/update-ui.mjs
+      - name: Build installer and update metadata
+        run: npx electron-builder --win nsis --x64 --publish never
+      - name: Test packaged app
+        run: node tests/desktop.mjs
+        env:
+          ALPHA_EXECUTABLE: ${{ github.workspace }}\release\win-unpacked\Alpha.exe
+      - name: Verify release files
+        run: node scripts/check-release.mjs --artifacts
       - uses: actions/upload-artifact@v4
         with:
-          name: Alpha-Windows
-          path: release/Alpha-*.exe
+          name: Alpha-Windows-installer
+          path: |
+            release/Alpha-Setup-*.exe
+            release/Alpha-Setup-*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/') && github.repository == 'william-pyle/Alpha'
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Alpha-Windows-installer
+          path: release
+      - name: Publish tested installer to GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $artifacts = @(Get-ChildItem -LiteralPath release -File | ForEach-Object { $_.FullName })
+          gh release create $env:RELEASE_TAG @artifacts --draft --verify-tag --title "Alpha $env:RELEASE_TAG" --generate-notes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release edit $env:RELEASE_TAG --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

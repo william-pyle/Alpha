@@ -33,6 +33,7 @@ import MemoryGraph from "./MemoryGraph";
 import Viewer from "./Viewer";
 import Questions from "./Questions";
 import ThemeEditor from "./ThemeEditor";
+import Updates from "./Updates";
 import { Modal, NewWindow, RecordEditor } from "./Dialogs";
 
 export default function App() {
@@ -468,6 +469,7 @@ export default function App() {
             </button>
           </div>
         </header>
+        <Updates state={state.updates} run={run} compact />
         <div
           className={
             "work-area " +
@@ -1174,9 +1176,12 @@ export default function App() {
                     Open Alpha data folder
                   </button>
                 </section>
+                <Updates state={state.updates} run={run} />
                 <section className="panel settings-panel">
                   <h2>About Alpha</h2>
-                  <p>Version 0.1.0 · Windows desktop</p>
+                  <p>
+                    Version {state.updates.currentVersion} · Windows desktop
+                  </p>
                   <p className="muted">com.jazcosolutions.alpha</p>
                   <p className="muted small">
                     Default namespace for anything created for or by Alpha:
@@ -1227,7 +1232,9 @@ export default function App() {
           <button onClick={() => setView("questions")}>
             {pending} pending questions
           </button>
-          <span className="status-version">Alpha 0.1.0</span>
+          <span className="status-version">
+            Alpha {state.updates.currentVersion}
+          </span>
         </footer>
       </div>
       {modalContent}

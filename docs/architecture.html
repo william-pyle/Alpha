@@ -128,8 +128,37 @@
       bundled desktop runtime on Windows; no active external agent conversations
       are needed for these checks.
     </p>
+    <h2>Installer and update delivery</h2>
+    <p>
+      GitHub Actions builds a per-user NSIS installer. Stable version tags that
+      match package.json publish the installer, blockmap and latest.yml
+      together. The packaged app-update.yml pins the feed to william-pyle/Alpha.
+      electron-updater validates download checksums; an Authenticode certificate
+      has not yet been configured. Release write access exists only in the
+      publishing job. Neither source nor application contains a GitHub token.
+    </p>
+    <p>
+      The main process owns UpdateController and all network/installer actions.
+      Renderer IPC exposes only check, download, defer, install and the fixed
+      release page. Both autoDownload and autoInstallOnAppQuit are false.
+      Restart requires a native confirmation, with an active-window count.
+      Checks run after 15 seconds and every six hours; concurrent operations are
+      suppressed. Development, portable and isolated test runs do not
+      auto-update.
+    </p>
     <h2>Primary implementation references</h2>
     <ul>
+      <li>
+        <a href="https://www.electron.build/docs/publish/"
+          >electron-builder release publishing</a
+        >
+      </li>
+      <li>
+        <a
+          href="https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater"
+          >electron-updater source and supported targets</a
+        >
+      </li>
       <li>
         <a href="https://www.electronjs.org/docs/latest/tutorial/security"
           >Electron security and process boundaries</a

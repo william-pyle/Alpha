@@ -70,7 +70,27 @@ export type Question = {
   created: string;
   answeredAt: string | null;
 };
+export type UpdateState = {
+  status:
+    | "disabled"
+    | "idle"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "installing"
+    | "error";
+  currentVersion: string;
+  availableVersion: string | null;
+  releasesUrl: string;
+  message: string;
+  progress: number;
+  lastCheckedAt: string | null;
+  dismissed: boolean;
+};
 export type Snapshot = {
+  updates: UpdateState;
   projects: Project[];
   records: RecordItem[];
   sessions: Session[];
