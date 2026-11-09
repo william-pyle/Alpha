@@ -10,12 +10,12 @@ Alpha is a Windows desktop workspace built from the MrMak 0.5.1 codebase. It kee
 the familiar **Workspace and Chats windows**, navigation, terminals, history,
 files, settings, desktop dictation and permission controls.
 
-Version **0.2.1** adds the shared library and newer editable cards to the MrMak-based
+Version **0.2.2** adds the shared library and newer editable cards to the MrMak-based
 Alpha application introduced in 0.2.0.
 
 ## Install
 
-Download **Alpha-Setup-0.2.1-x64.exe** from the
+Download **Alpha-Setup-0.2.2-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.

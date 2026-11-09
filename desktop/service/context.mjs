@@ -43,12 +43,14 @@ export class ContextLibrary {
   }
   async read(file, offset = 0) {
     const actual = await realpath(path.resolve(this.repo, file));
+    const repoRoot = await realpath(this.repo);
+    const sharedRoot = this.sharedRoot && await realpath(this.sharedRoot);
     const trustedSkill = (await Promise.all(this.skillRoots.map(root => realpath(root).catch(() => null)))).some(root => root && within(root, actual));
-    const shared = this.sharedRoot && within(await realpath(this.sharedRoot), actual);
-    const relative = path.relative(shared ? this.sharedRoot : this.repo, actual);
+    const shared = sharedRoot && within(sharedRoot, actual);
+    const relative = path.relative(shared ? sharedRoot : repoRoot, actual);
     const privateFile = relative.split(/[\\/]/).some(part => part.startsWith('.'));
     const credential = /(?:^|[/\\])(?:\.env(?:\..*)?|auth\.[^/\\]+|tokens?\.[^/\\]+|credentials\.[^/\\]+|settings\.local\.json)$/i.test(actual);
-    if ((!within(this.repo, actual) && !shared && !trustedSkill) || (!trustedSkill && privateFile) || credential || !/\.(md|txt|json|toml|ya?ml|html|css|mjs|py)$/i.test(actual)) throw new Error('Read a project context document or shared library resource. Private runtime and credential files are excluded.');
+    if ((!within(repoRoot, actual) && !shared && !trustedSkill) || (!trustedSkill && privateFile) || credential || !/\.(md|txt|json|toml|ya?ml|html|css|mjs|py)$/i.test(actual)) throw new Error('Read a project context document or shared library resource. Private runtime and credential files are excluded.');
     if ((await stat(actual)).size > 2 * 1024 * 1024) throw new Error('Choose a context document smaller than 2 MB.');
     const text = await readFile(actual, 'utf8'), start = Math.max(0, Number(offset) || 0);
     return { path: actual, text: text.slice(start, start + 24000), nextOffset: start + 24000 < text.length ? start + 24000 : null };

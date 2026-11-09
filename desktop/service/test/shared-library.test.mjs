@@ -68,3 +68,18 @@ test('package rejects private files and produces both providers from one maintai
   const f=await fixture();await f.put('.env','PRIVATE_FIXTURE=not-a-real-secret');
   await assert.rejects(f.bundle('1.0.0'),/local state/);
 });
+
+test('context reads canonicalize project and library aliases before checking private paths', async () => {
+  const f = await fixture(); await installLibrary(await f.bundle('1.0.0'), f.installed);
+  const repo = path.join(f.root,'project'); await mkdir(path.join(repo,'knowledge'),{recursive:true});
+  await writeFile(path.join(repo,'knowledge/project.md'),'Project knowledge');
+  const projectAlias = path.join(f.root,'project-alias'), libraryAlias = path.join(f.root,'library-alias');
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+  await symlink(repo, projectAlias, linkType); await symlink(f.installed, libraryAlias, linkType);
+  const library = new ContextLibrary(projectAlias,{sharedRoot:libraryAlias,personalRoots:[]});
+  assert.match((await library.read(path.join(libraryAlias,'knowledge/shared.json'))).text,/lesson/);
+  assert.equal((await library.read('knowledge/project.md')).text,'Project knowledge');
+  await assert.rejects(library.read(path.join(libraryAlias,'.alpha-library/state.json')),/Private runtime/);
+  const outside = path.join(f.root,'outside.md'); await writeFile(outside,'Outside context');
+  await assert.rejects(library.read(outside),/Private runtime/);
+});
