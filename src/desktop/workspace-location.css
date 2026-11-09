@@ -1,0 +1,4 @@
+.workspace-location input{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line,#ffffff25);border-radius:7px;background:var(--surface-solid);color:inherit;padding:9px;font:12px var(--font-body)}
+.workspace-location button{max-width:100%;white-space:normal}
+.workspace-location [role=status]{margin-top:16px;padding:12px;border:1px solid var(--line,#ffffff25);border-radius:8px}
+.workspace-location [role=alert]{overflow-wrap:anywhere}

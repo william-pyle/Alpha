@@ -26,11 +26,12 @@ import { Dictation } from './dictation.mjs';
 import { Updates } from './updates.mjs';
 import { CardDocuments } from './card-documents.mjs';
 import { installLibrary } from './shared-library.mjs';
+import { WorkspaceLocation } from './workspace-location.mjs';
 import product from './package.json' with { type: 'json' };
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
-export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, dictationOptions, checkUpdates = false, sharedLibrary: libraryOptions }) {
+export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, dictationOptions, checkUpdates = false, sharedLibrary: libraryOptions, workspaceLocation: locationOptions }) {
   repo = await realpath(repo);
   stateDir ||= path.join(repo, '.alpha');
   const dictation = dictationOptions?.dictation || new Dictation(repo);
@@ -77,6 +78,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const broadcast = (type, value) => { for (const ws of clients) send(ws, type, value); };
   const updates = new Updates({ directory: path.join(stateDir, 'updates'), version: product.version, native, activeCount: () => sessions.active().filter(s => s.status === 'running').length, changed: update => broadcast('update', { update }) });
   const nativeSettings = new NativeSettings(native, value => broadcast('native-settings', value));
+  const workspaceLocation = new WorkspaceLocation({ repo, ...locationOptions, native, changed: value => broadcast('workspace-location', value) });
   const show = (window, extra = {}) => { native({ type: 'window', action: 'show', window }); broadcast('navigate', { window, ...extra }); };
   const focus = id => { sessions.get(id); selectedId = id; settings.selectedId = id; scheduleSettings(); show('chats', { sessionId: id }); return { selectedId: id }; };
   const registry = async () => readJson(path.join(repo, 'workspace', 'workspace.json'), { entities: [] });
@@ -206,6 +208,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && cardImage) return json(response, 201, await cards.image(decodeURIComponent(cardImage[1]), Number(cardImage[2]), request, url.searchParams.get('name')));
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? (50 * 1024 * 1024 * 6 + 64 * 1024) : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
         if (method === 'GET' && url.pathname === '/api/updates') return json(response, 200, updates.state);
+        if (method === 'GET' && url.pathname === '/api/workspace/location') return json(response, 200, await workspaceLocation.state());
+        if (method === 'POST' && url.pathname === '/api/workspace/location/save') return json(response, 200, await workspaceLocation.set(data));
+        if (method === 'POST' && url.pathname === '/api/workspace/location/cancel') return json(response, 200, await workspaceLocation.cancel());
+        if (method === 'POST' && url.pathname === '/api/workspace/location/browse') return json(response, 200, await workspaceLocation.browse());
         if (method === 'POST' && url.pathname === '/api/updates/check') return json(response, 200, await updates.check());
         if (method === 'POST' && url.pathname === '/api/updates/download') return json(response, 200, await updates.download());
         if (method === 'POST' && url.pathname === '/api/updates/install') return json(response, 200, await updates.install(data.confirmed));
@@ -389,9 +395,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   return {
     origin, contentOrigin: files.origin, token, sessions, coordinator, quick, workspace, cards, files, projects, knowledge, integrations,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
-      nativeMessage: event => nativeSettings.receive(event),
+      nativeMessage: event => { nativeSettings.receive(event); workspaceLocation.receive(event); },
       async close() {
-        if (closing) return; closing = true; updates.close(); mcp.close(); nativeSettings.close(); await files.writes.catch(() => {});
+        if (closing) return; closing = true; updates.close(); mcp.close(); nativeSettings.close(); workspaceLocation.close(); await files.writes.catch(() => {});
       watcher?.close(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await workspace.writes;
       dictation.close();
       for (const ws of wss.clients) ws.terminate();

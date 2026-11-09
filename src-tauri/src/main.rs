@@ -124,33 +124,31 @@ fn start_file_drag(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
     });
 }
 
-fn repo_path(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let config = configuration_folder(app)?.join("repository.json");
+fn repo_path(app: &tauri::AppHandle, node: &PathBuf, resolver: &PathBuf, app_dir: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let supplied = args.iter().position(|v| v == "--repo").and_then(|i| args.get(i + 1)).map(PathBuf::from);
-    let saved = fs::read_to_string(&config).ok().and_then(|s| serde_json::from_str::<String>(&s).ok()).map(PathBuf::from);
-    let current = std::env::current_dir().ok().filter(|root| root.join("workspace/workspace.json").is_file());
-    let mut selected = supplied.or(saved).or(current);
-    if selected.is_none() {
-        let root = app.path().app_data_dir()?.join("Workspace");
-        for folder in ["workspace", "projects", "knowledge", "processes", "inbox"] { fs::create_dir_all(root.join(folder))?; }
-        let registry = root.join("workspace/workspace.json");
-        if !registry.exists() { fs::write(registry, "{\"entities\":[]}")?; }
-        selected = Some(root);
-    }
+    let mut supplied = args.iter().position(|v| v == "--repo").and_then(|i| args.get(i + 1)).map(PathBuf::from);
+    let config = configuration_folder(app)?;
+    let documents = app.path().document_dir().or_else(|_| app.path().home_dir().map(|root| root.join("Documents")))?;
+    let default_root = documents.join("Alpha");
+    let legacy = app.path().app_data_dir()?.join("Workspace");
     loop {
-        if let Some(ref root) = selected {
-            if root.join("workspace/workspace.json").is_file() {
-                fs::create_dir_all(config.parent().unwrap())?;
-                fs::write(&config, serde_json::to_string(&root.to_string_lossy())?)?;
-                return Ok(root.to_owned());
-            }
+        let mut command = Command::new(node);
+        command.arg(resolver).arg("--config").arg(&config).arg("--default").arg(&default_root)
+            .arg("--legacy").arg(&legacy).arg("--app-dir").arg(app_dir);
+        if let Some(ref root) = supplied { command.arg("--repo").arg(root); }
+        let result = hidden(&mut command).output()?;
+        if result.status.success() {
+            let response: serde_json::Value = serde_json::from_slice(&result.stdout)?;
+            let root = response["root"].as_str().ok_or("Workspace location was not returned")?;
+            return Ok(normalize_node_path(PathBuf::from(root)));
         }
-        selected = rfd::FileDialog::new().set_title("Choose your Alpha Workspace repository").pick_folder();
-        if selected.is_none() { return Err("No Workspace repository selected".into()); }
-        if !selected.as_ref().unwrap().join("workspace/workspace.json").is_file() {
-            rfd::MessageDialog::new().set_title("Choose the Workspace folder").set_description("Select the repository folder containing workspace/workspace.json.").show();
-        }
+        let message = String::from_utf8_lossy(&result.stderr);
+        let choice = rfd::MessageDialog::new().set_title("Alpha Workspace could not open")
+            .set_description(format!("{message}\nYour original files have been kept. Choose OK to select another Workspace folder, or Cancel to quit."))
+            .set_buttons(rfd::MessageButtons::OkCancel).show();
+        if choice != rfd::MessageDialogResult::Ok { return Err("Workspace selection cancelled".into()); }
+        supplied = rfd::FileDialog::new().set_title("Choose the Alpha Workspace root").pick_folder();
+        if supplied.is_none() { return Err("Workspace selection cancelled".into()); }
     }
 }
 
@@ -279,22 +277,23 @@ fn main() {
             if std::env::args().any(|arg| arg == "--quit") { app.handle().exit(0); return Ok(()); }
             #[cfg(windows)]
             window_identity::initialize(app.handle())?;
-            let repo = repo_path(app.handle())?;
             let resource_dir = app.path().resource_dir()?;
             let runtime = resource_dir.join("runtime");
             let runtime_node = if cfg!(windows) { runtime.join("node.exe") } else { runtime.join("node") };
             let (node, script, ui) = if runtime_node.is_file() {
                 (runtime_node, runtime.join("service/main.mjs"), runtime.join("ui"))
             } else {
-                (PathBuf::from("node"), repo.join("desktop/service/main.mjs"), repo.join("dist"))
+                (PathBuf::from("node"), PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../desktop/service/main.mjs"), PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist"))
             };
             let script = normalize_node_path(script);
+            let repo = repo_path(app.handle(), &node, &script.with_file_name("workspace-location.mjs"), &resource_dir)?;
             let logs = app.path().app_log_dir()?; fs::create_dir_all(&logs)?;
             let log = fs::OpenOptions::new().create(true).append(true).open(logs.join("service.log"))?;
             let mut command = Command::new(node);
             let library_root = if let Some(root) = std::env::var_os("ALPHA_TEST_DIR") { PathBuf::from(root).join("SharedLibrary") } else { app.path().app_data_dir()?.join("SharedLibrary") };
             command.arg(script).arg("--repo").arg(&repo).arg("--ui").arg(ui).current_dir(&repo)
                 .arg("--library-root").arg(library_root)
+                .arg("--config").arg(configuration_folder(app.handle())?).arg("--app-dir").arg(&resource_dir)
                 .env("ALPHA_PARENT_PID", std::process::id().to_string()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
             #[cfg(target_os = "macos")]
             command.env("PATH", login_path::discover());
@@ -377,6 +376,20 @@ fn main() {
                                 let paths: Vec<PathBuf> = paths.iter().filter_map(|p| p.as_str().map(PathBuf::from)).collect();
                                 if !paths.is_empty() { start_file_drag(&app_handle, paths); }
                             }
+                        },
+                        "pick-workspace-folder" => {
+                            let handle = app_handle.clone();
+                            let request_id = event["requestId"].as_str().unwrap_or("").to_owned();
+                            let start = event["path"].as_str().unwrap_or("").to_owned();
+                            std::thread::spawn(move || {
+                                let mut dialog = rfd::FileDialog::new().set_title("Choose the Alpha Workspace root").set_directory(start);
+                                if let Some(window) = handle.get_webview_window("workspace") { dialog = dialog.set_parent(&window); }
+                                let selected = dialog.pick_folder();
+                                let reply = serde_json::json!({ "type": "workspace-folder-picked", "requestId": request_id, "path": selected });
+                                if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                    if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                                }
+                            });
                         },
                         "pick-files" => {
                             if let (Some(window), Some(request_id)) = (app_handle.get_webview_window("chats"), event["requestId"].as_str()) {

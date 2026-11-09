@@ -10,6 +10,10 @@ Its img2threejs module retains its Apache-2.0 license and notices in
 JavaScript and Rust dependencies are recorded in their lockfiles and retain
 their respective licenses. The packaged Node runtime includes NODE-LICENSE.txt.
 
+The Windows installer template is adapted from Tauri CLI 2.11.4, commit
+8909f221d1515955fc843808032bdc5d62209c96. Its MIT license is retained in
+`src-tauri/installer/TAURI-LICENSE-MIT`; the source URL is recorded in the template.
+
 Codex, Claude Code, PowerShell and Git for Windows are separate products.
 Alpha does not bundle provider accounts or grant access to their services.
 

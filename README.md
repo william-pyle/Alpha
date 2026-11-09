@@ -10,12 +10,12 @@ Alpha is a Windows desktop workspace built from the MrMak 0.5.1 codebase. It kee
 the familiar **Workspace and Chats windows**, navigation, terminals, history,
 files, settings, desktop dictation and permission controls.
 
-Version **0.2.2** adds the shared library and newer editable cards to the MrMak-based
-Alpha application introduced in 0.2.0.
+Version **0.2.3** adds a selectable Workspace location in Settings and the installer.
+The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.2-x64.exe** from the
+Download **Alpha-Setup-0.2.3-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.
@@ -41,10 +41,28 @@ PowerShell is detected on Windows; Git Bash comes with Git for Windows.
   **Settings → Alpha updates → Check for updates**. Choose **Download update**,
   then **Restart and install**. Restart confirmation reports running terminals.
 
-Alpha opens a fresh local Workspace on first launch. To use an existing Workspace
-repository, launch `alpha-desktop.exe --repo "C:\path\to\workspace"`. The folder
-must contain `workspace/workspace.json`. Runtime state stays under `.alpha` in
-that selected repository, separate from MrMak's state.
+## Workspace folder
+
+Fresh installations let you choose the Workspace folder during setup, defaulting
+to **Documents\Alpha**. Updates preserve the current folder, including Workspaces
+created in AppData by earlier releases.
+
+In **Settings → Workspace location**, enter a path or click **Browse…**. Choose
+**Copy current Workspace** for a new or empty destination, or **Open existing
+Workspace** for a folder that already contains `workspace/workspace.json`.
+Click **Save location**, then quit Alpha from its tray menu and reopen it when ready.
+The change is applied before the next service starts; saving it does not interrupt chats.
+You can cancel a pending change in Settings.
+
+Copies include Workspace files, settings and Alpha chat history. The original folder
+is retained, and existing destination files are never overwritten. Linked folders
+require a manual copy followed by **Open existing Workspace**. Provider-managed
+conversation data remains with its CLI. Shared library files and application preferences
+keep their separate application-data location.
+
+You can also launch `alpha-desktop.exe --repo "C:\path\to\workspace"` to select an
+existing Workspace or initialize an empty folder. This explicit choice replaces any
+pending location change. Project runtime state stays under `.alpha` in the selected root.
 
 ## Shared library and editable cards
 
@@ -83,6 +101,7 @@ npm test
 npm run build
 npm run desktop:test:ui
 npm run desktop:build -- --bundles nsis
+npm run desktop:test:installer
 node scripts/release.mjs
 ```
 

@@ -6,12 +6,13 @@ import DictationSettings from '../components/DictationSettings'
 import { useDictation } from './useDictation'
 import ThemePicker from '../components/ThemePicker'
 import Updates from './Updates'
+import WorkspaceLocation from './WorkspaceLocation'
 import { isMac, shellName } from './platform'
 
 type NativeSettings = { available: boolean; winKey: boolean; label?: string; error?: string }
 export default function WorkspaceSettings({ onClose }: { onClose: () => void }) {
   const dictation = useDictation()
-  const { settings, repo } = useDesktop()
+  const { settings } = useDesktop()
   const [native, setNative] = useState<NativeSettings>({ available: false, winKey: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -38,7 +39,7 @@ export default function WorkspaceSettings({ onClose }: { onClose: () => void }) 
       <label>Terminal appearance<select disabled={busy} value={settings.terminalAppearance || 'original'} onChange={event => void change({ terminalAppearance: event.target.value as Settings['terminalAppearance'] })}><option value="original">Original CLI colors</option><option value="focus">Alpha Focus · muted colors</option></select></label><p>Original preserves CLI colors, including added and removed lines. Focus uses muted colors. Your choice is saved for all chats and applies immediately without restarting them.</p>
       <label className="setting-toggle"><span>Always approve<small>Default for new chats.</small></span><input type="checkbox" checked={settings.defaultBypass} disabled={busy} onChange={event => void change({ defaultBypass: event.target.checked })} /></label>
     </section><DictationSettings info={dictation.info} onChange={dictation.choose} /><section><h3>Alpha</h3><label>Voice<select disabled={busy} value={settings.voiceName || 'cedar'} onChange={event => void change({ voiceName: event.target.value })}><option value="cedar">Cedar</option><option value="marin">Marin</option></select></label><label>Coordinator reasoning<select disabled={busy} value={settings.coordinatorEffort || 'medium'} onChange={event => void change({ coordinatorEffort: event.target.value as Settings['coordinatorEffort'] })}><option value="medium">Medium</option><option value="high">High</option></select></label><p>Voice changes apply to your next conversation.</p></section>
-      <section><h3>Project</h3><p className="settings-repo">{repo}</p><p>Skills, knowledge and processes belong to this repository.</p></section>
+      <WorkspaceLocation />
       <Updates />
       {error && <p className="desk-error-inline" role="alert">{error}</p>}
     </div></div>
