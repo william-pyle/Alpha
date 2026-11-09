@@ -127,6 +127,7 @@ export class Sessions extends EventEmitter {
 
   async launch(session, resumeId, nativeWatch) {
     let env = childEnvironment(this.repo);
+    if (this.sharedRoot) env.ALPHA_SHARED_LIBRARY = this.sharedRoot;
     let opencodeMajor;
     if (session.agent === 'opencode') {
       opencodeMajor = await opencodeVersion(env);

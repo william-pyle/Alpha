@@ -18,6 +18,7 @@ export interface FileEntry { name: string; path: string; directory: boolean; siz
 export interface Folder { path: string; parent: string; entries: FileEntry[]; truncated: boolean; mode: string }
 export interface Preview { path: string; name: string; size: number; kind: 'document' | 'image' | 'video' | 'audio' | 'text' | 'unsupported'; url?: string; text?: string; revision?: string; reason?: string }
 export interface DesktopState {
+  sharedLibrary?: { root: string; version: string; skills: string[]; files: number; conflicts: { path: string; reason: string; incoming: string }[] } | null
   ready: boolean; connected: boolean; error: string | null; repo: string; contentBase: string
   agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]
   settings: Settings; coordinator: string; voice: { configured: boolean; owner: VoiceOwner | null }

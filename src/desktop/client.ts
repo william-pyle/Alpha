@@ -143,3 +143,10 @@ export async function transcribeDesktopAudio(recording: import('../voice/voice-d
   if (!response.ok) throw new Error(result.error || 'Could not transcribe this recording.')
   return result
 }
+
+export async function uploadCardImage(entityId: string, step: number, file: File): Promise<{ image: string }> {
+  const response = await fetch(`/api/workspace/cards/${encodeURIComponent(entityId)}/${step}/images?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' }, body: file })
+  const value = await response.json()
+  if (!response.ok) throw new Error(value.error || 'The image could not be added.')
+  return value
+}

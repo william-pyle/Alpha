@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { realFile, saveJson, sleep } from './util.mjs';
+import { validateCard, cardText, CARD_MAX_BYTES } from './card-schema.mjs';
 
 const execute = promisify(execFile);
 export const localDay = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -54,6 +55,7 @@ export class Workspace {
     if (!selected) return result;
     const relative = path.join(entity.folder, selected.path.split('?')[0]);
     const { file } = await realFile(path.join(this.repo, 'workspace'), relative);
+    if (selected.viewer === 'card' && file.endsWith('.card.json') && (await stat(file)).size <= CARD_MAX_BYTES) return { ...result, text: cardText(validateCard(JSON.parse(await readFile(file, 'utf8')))).slice(0, 12000) };
     if (!/\.(html?|md|txt)$/i.test(file) || (await stat(file)).size > 3 * 1024 * 1024) return { ...result, note: 'The card uses a visual or large report. Open it for the full content.' };
     const text = await readFile(file, 'utf8');
     result.text = stripCodeBlocks(text).replace(/<[^<>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 12000);
@@ -85,11 +87,13 @@ export class Workspace {
         entity.updated = localDay();
         // Preserve other agents' latest registry changes instead of saving a stale snapshot.
         if (await readFile(this.file, 'utf8') !== source) continue;
-        try { await saveJson(this.file, registry); }
+        try { await saveJson(this.file, registry, { beforeReplace: async () => {
+          if (await readFile(this.file, 'utf8') !== source) throw Object.assign(new Error('Workspace changed while saving.'), { code: 'ESTALE' });
+        } }); }
         catch (error) {
           // Windows indexers/readers can briefly lock atomic replacements. Retry
           // from a fresh registry so another agent's edits are still retained.
-          if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt === 5) throw error;
+          if (!['EPERM', 'EACCES', 'EBUSY', 'ESTALE'].includes(error.code) || attempt === 5) throw error;
           await sleep(40 * (attempt + 1));
           continue;
         }

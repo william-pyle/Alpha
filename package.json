@@ -1,7 +1,7 @@
 {
   "name": "alpha-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/install-service.mjs",
@@ -9,14 +9,16 @@
     "build": "tsc -b && vite build",
     "lint": "eslint src",
     "preview": "vite preview",
-    "desktop:service": "node desktop/service/main.mjs",
+    "desktop:service": "node desktop/service/main.mjs --library-bundle .cache/shared-library",
     "desktop:prepare": "node desktop/prepare.mjs",
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
     "desktop:test": "node --test desktop/service/test/*.test.mjs",
-    "desktop:test:ui": "node desktop/service/test/alpha-ui.mjs",
+    "desktop:test:ui": "node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs",
     "test": "npm run desktop:test",
-    "package": "npm run desktop:build -- --bundles nsis"
+    "package": "npm run desktop:build -- --bundles nsis",
+    "library:build": "node scripts/package-library.mjs",
+    "predesktop:service": "npm run library:build"
   },
   "dependencies": {
     "@types/three": "^0.185.4",

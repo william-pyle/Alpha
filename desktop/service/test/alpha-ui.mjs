@@ -4,6 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
+import { packageLibrary } from '../../../scripts/package-library.mjs';
 
 await mkdir('.test-output', { recursive: true });
 const repo = await mkdtemp(path.resolve('.test-output/alpha-workflow-'));
@@ -12,7 +13,8 @@ await mkdir(path.join(repo, 'knowledge'));
 await writeFile(path.join(repo, 'knowledge/notes.md'), '# Desktop notes\n\nKeep the existing file workflow.');
 await writeFile(path.join(repo, 'workspace/example/report.html'), '<!doctype html><html data-mak-report="document"><body><h1>Example project report</h1><p>The existing Workspace report flow.</p></body></html>');
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'example', title: 'Example project', description: 'An isolated desktop test', folder: 'example', category: 'project', status: 'active', sample: true, created: '2026-11-08', steps: [{ name: 'Report', path: 'report.html' }] }] }));
-const service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {}, probe: async () => ({ status: 'available' }) } });
+const bundle = path.join(repo, 'library-bundle'); await packageLibrary(bundle);
+const service = await createService({ repo, uiDir: path.resolve('dist'), sharedLibrary: { bundle, root: path.join(repo, 'SharedLibrary') }, mcpOptions: { home: repo, env: {}, probe: async () => ({ status: 'available' }) } });
 const call = async (route, data) => {
   const response = await fetch(service.origin + '/api' + route, { method: data === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data) });
   assert.ok(response.ok, await response.clone().text()); return response.json();
@@ -71,6 +73,13 @@ try {
   await workspace.getByRole('treeitem', { name: /^knowledge$/ }).click();
   await workspace.getByRole('treeitem', { name: /^notes.md/ }).click();
   await expect(workspace.getByRole('heading', { name: 'Desktop notes' })).toBeVisible();
+  await workspace.getByRole('button', { name: 'Toggle skills', exact: true }).click();
+  await expect(workspace.getByRole('button', { name: 'Shared library', exact: true })).toHaveAttribute('aria-pressed','true');
+  await expect(workspace.getByRole('treeitem', { name: /^workspace-authoring$/ })).toBeVisible();
+  await workspace.getByRole('button', { name: 'Knowledge', exact: true }).click();
+  await workspace.getByRole('treeitem', { name: /^voice-dictation.md/ }).click();
+  await expect(workspace.getByRole('heading', { name: 'Local dictation', exact: true })).toBeVisible();
+  assert.equal((await call('/library')).skills.length,20);
   await chats.reload(); await expect(chats.locator('html')).toHaveAttribute('data-alpha-theme', 'higurashi');
   const saved = JSON.parse(await readFile(path.join(repo, '.alpha/settings.json')));
   assert.equal(saved.appTheme, 'higurashi'); assert.equal(saved.defaultBypass, true);

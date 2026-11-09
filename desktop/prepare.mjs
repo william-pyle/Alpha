@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, writeFile, access, realpath, rm } from 'node:fs/pr
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { packageLibrary } from '../scripts/package-library.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = path.join(repo, '.cache', 'desktop-runtime');
@@ -77,6 +78,7 @@ if (process.platform === 'darwin') {
   }
 }
 await cp(path.join(repo, 'dist'), path.join(runtime, 'ui'), { recursive: true });
+await packageLibrary(path.join(runtime, 'shared-library'), path.join(repo, 'shared-library'));
 // Vite deliberately does not copy the enormous workspace junction. Bundle only UI assets.
 try { await access(path.join(repo, 'public', 'assets')); await cp(path.join(repo, 'public', 'assets'), path.join(runtime, 'ui', 'assets'), { recursive: true }); } catch { /* Optional brand assets. */ }
 await writeFile(path.join(runtime, 'README.txt'), `Alpha local runtime for ${process.platform}. User repositories, keys and CLI logins are not included.\n`);

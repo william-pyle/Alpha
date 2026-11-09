@@ -3,6 +3,10 @@
 Alpha is derived from the MIT-licensed MrMak 0.5.1 application. The original
 copyright notice is retained in [LICENSE](LICENSE).
 
+The shared library contains reusable material from the official MrMak repository.
+Its img2threejs module retains its Apache-2.0 license and notices in
+`shared-library/.agents/skills/img2threejs/`. Source: https://github.com/img2threejs/img2threejs.
+
 JavaScript and Rust dependencies are recorded in their lockfiles and retain
 their respective licenses. The packaged Node runtime includes NODE-LICENSE.txt.
 

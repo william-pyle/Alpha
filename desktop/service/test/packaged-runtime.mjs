@@ -11,7 +11,7 @@ const repo = await mkdtemp(path.resolve('.test-output/packaged-runtime-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 for (const file of ['node.exe', 'service/main.mjs', 'service/node_modules/node-pty/package.json', 'ui/index.html', 'ui/help.html', 'ui/art/alpha.png', 'ui/art/smurfs.png', 'ui/art/rena.png', 'NODE-LICENSE.txt']) await access(path.join(runtime, file));
-const child = spawn(path.join(runtime, 'node.exe'), [path.join(runtime, 'service/main.mjs'), '--repo', repo, '--ui', path.join(runtime, 'ui')], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ALPHA_TEST: '1' } });
+const child = spawn(path.join(runtime, 'node.exe'), [path.join(runtime, 'service/main.mjs'), '--repo', repo, '--ui', path.join(runtime, 'ui'), '--library-root', path.join(repo, 'SharedLibrary')], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ALPHA_TEST: '1' } });
 let stderr = ''; child.stderr.on('data', data => { stderr += data; });
 const exited = new Promise(resolve => child.once('exit', resolve));
 const lines = createInterface({ input: child.stdout });
@@ -28,6 +28,12 @@ try {
     assert.ok(response.ok, await response.clone().text()); return response.json();
   };
   assert.deepEqual((await call('/bootstrap')).agents.map(agent => agent.id), ['codex', 'claude', 'shell', 'gitbash']);
+  const library = await call('/library');
+  assert.equal(library.skills.length,20); assert.equal(library.conflicts.length,0);
+  await access(path.join(library.root,'knowledge/voice-dictation.md'));
+  await access(path.join(library.root,'.claude/skills/workspace-authoring/SKILL.md'));
+  const card = await call('/workspace/cards', { title: 'Packaged editable card', template: 'research' });
+  assert.equal((await call(`/workspace/cards/${card.entity.id}/0`)).document.format,'mrmak-card');
   assert.equal((await fetch(url.origin + '/mobile')).status, 404);
   for (const asset of ['/art/alpha.png', '/art/smurfs.png', '/art/rena.png', '/help.html']) assert.equal((await fetch(url.origin + asset)).status, 200);
   const help = await call('/help'); assert.ok(help.url, 'Packaged Help opens a preview');
@@ -37,8 +43,8 @@ try {
   let output = '';
   for (let attempt = 0; attempt < 60; attempt++) { output = (await call(`/sessions/${session.id}/screen`)).screen; if (output.includes('PACKAGED_TERMINAL_OK')) break; await delay(250); }
   assert.ok(output.includes('PACKAGED_TERMINAL_OK'), 'Bundled Node loads the bundled native terminal and runs PowerShell: ' + output);
-  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed'] }, null, 2));
-  console.log('Packaged runtime passed: bundled Node, production UI, themes, Help and real native terminal.');
+  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed', '20 installed shared skills and support files', 'Editable Research card creation and reading'] }, null, 2));
+  console.log('Packaged runtime passed: bundled Node, UI, themes, Help, shared library, editable cards and real native terminal.');
 } finally {
   child.stdin.end('quit\n');
   await Promise.race([exited, delay(10000, undefined, { ref: false })]);

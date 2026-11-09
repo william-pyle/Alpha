@@ -10,16 +10,17 @@ Alpha is a Windows desktop workspace built from the MrMak 0.5.1 codebase. It kee
 the familiar **Workspace and Chats windows**, navigation, terminals, history,
 files, settings, desktop dictation and permission controls.
 
-Version **0.2.0** replaces the earlier experimental Alpha application.
+Version **0.2.1** adds the shared library and newer editable cards to the MrMak-based
+Alpha application introduced in 0.2.0.
 
 ## Install
 
-Download **Alpha-Setup-0.2.0-x64.exe** from the
+Download **Alpha-Setup-0.2.1-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
-libraries, theme artwork, icons and Help. It installs WebView2 if needed.
+libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.
 
-If you installed Alpha 0.1.x, install 0.2.0 once from GitHub to switch to this
+If you installed Alpha 0.1.x, install the latest release once from GitHub to switch to this
 replacement. The previous Electron application and its data format are retired;
 0.1.x data is not automatically imported. Subsequent releases use the updater in
 this application. The installer is currently unsigned.
@@ -45,6 +46,32 @@ repository, launch `alpha-desktop.exe --repo "C:\path\to\workspace"`. The folder
 must contain `workspace/workspace.json`. Runtime state stays under `.alpha` in
 that selected repository, separate from MrMak's state.
 
+## Shared library and editable cards
+
+The installer includes **20 reusable skills** from the official MrMak source,
+with general knowledge, workflows, helper scripts, references, licenses and report
+templates. Open **Skills → Shared library** to browse them or switch to **This project**.
+Project skills override shared skills of the same name. Optional tools and accounts
+are separate installations.
+
+Add future release content in this repository under `shared-library/knowledge/`,
+`shared-library/processes/` or `shared-library/.agents/skills/`. Builds automatically
+include new files and generate complete Codex and Claude copies. No per-file list
+is required. Commit additions and publish the next version tag normally.
+
+The installed library lives under `%APPDATA%/com.jazcosolutions.alpha/SharedLibrary`.
+Updates add new defaults and replace unchanged defaults. Local edits and deletions
+are preserved; **Review incoming files** opens conflicting package versions.
+Editing an installed library does not automatically publish it: copy changes into
+the source package and commit them when they should ship to other installations.
+
+Use **+ New card** for an editable Gallery or Research page. Edit titles, notes,
+images, prompts, links and statuses; reorder entries, preview and save. Existing
+HTML and Markdown remain supported. The compatible `mrmak-card` version 1 JSON
+format is documented in [the bundled guide](shared-library/docs/editable-cards.md).
+Saves keep recovery copies and refuse to overwrite a newer edit from another window
+or agent. Drafts are recoverable within the same window session; save before closing.
+
 ## Build on Windows
 
 Use Node.js 24, Rust, the Visual Studio C++ build tools and WebView2.
@@ -67,6 +94,7 @@ Workspace records, CLI logins and runtime state are excluded.
 ## Attribution
 
 Based on the MIT-licensed [MrMak](https://github.com/witnesstodark/mr-mak-workspace) release
-`v0.5.1`. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
+`v0.5.1`, with editable cards and the shared library from its 0.6.3 source.
+See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
 The character themes include previously generated illustrations of their named
 fictional characters.

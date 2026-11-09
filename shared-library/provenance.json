@@ -1,0 +1,1976 @@
+{
+  "sourceRepository": "https://github.com/witnesstodark/mr-mak-workspace",
+  "sourceCommit": "cf1e1260253a61499dc67fe2332a330bf1b85c14",
+  "files": [
+    {
+      "path": ".agents/skills/3d-production-routing/SKILL.md",
+      "sourceSha256": "f2ad5014457315fb3053bf40beb5db6ae0864881926577b20e12d1eb42da17e3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/blender-game-animation/references/engine-handoff.md",
+      "sourceSha256": "b2987e82b7288f9a84d412f37560e095f78902d7298e2a28e06e6164ee2386cb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/blender-game-animation/SKILL.md",
+      "sourceSha256": "7a7f0a9484b340d50a1936a6db78ae002753937fa4160ad0527921ef3e84899d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/01a_apose_front.md",
+      "sourceSha256": "1fd91c12c0dc8b2ef5ae2189e69dcf53b60b920ade101288c917acba666c2164",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/01b_character_sheet.md",
+      "sourceSha256": "448e66df65dba969e4268a6680e94ac6c130098488b53d1fc4aec95abe16507a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/02_parts_body.md",
+      "sourceSha256": "304229f59d4f4e1df4c5d47852bbc4a004947586434b04589db0944c6b84680a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/03_parts_paired.md",
+      "sourceSha256": "f148af0493051ba70f98f0c1c52e55a726427dfde0dd5e4222ee75889d535cad",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/04_parts_accessory.md",
+      "sourceSha256": "e8ea72a9a8503c1d5bfbf3c39d949550c9f19c188a392f77e8e20d80c50f9cf8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/05_parts_hair.md",
+      "sourceSha256": "314e762852c7bc6290cb06aaa2bac95260c0c76c74bfa40a9b09c822c115dc26",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/06_multiview.md",
+      "sourceSha256": "8a99bb113b8e2b07553063c9a308cd68fec37c45dc21fff1651f536f0b802897",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/07_360_video.md",
+      "sourceSha256": "aaf257e7419a59489b19d4b8e0f5026882987271f527b402ebcce764f6e81941",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/prompts/08_3q_classifier.md",
+      "sourceSha256": "3b38c21d277de102e63b05b51bbc74fba650c0ce696df3456e27450ab855f631",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/character-sheet-pipeline/SKILL.md",
+      "sourceSha256": "aef760804739c61ce3f219e22926f9ef9bb57e6f086e3e1615b1bf8c07484d04",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/examples/concept.json",
+      "sourceSha256": "17774c4f139ee9df4af7cfa9e0cd43cad7fb6cfea64ca251ace98a754fa15de6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/examples/edit.json",
+      "sourceSha256": "c409bfaba3b3b2a736634d8653ad5cd24dc0840d50a6fe184e6f76f833a0444d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/examples/WALKTHROUGH.md",
+      "sourceSha256": "554a10dfa14e8aa1a9c237230e54ee92472b6da7ed9f2698084f8759365ee9bc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/references/mcp-workflow.md",
+      "sourceSha256": "1d3997b98fbdaee142bfea82eadd7390f17e584c102d5d3b0dfe81ee62d5108b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/references/prompting-and-review.md",
+      "sourceSha256": "618a26451e2a6c96c796800c5e2d7b18342e1af0092a3d844a4ca8f8df920544",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/references/setup.md",
+      "sourceSha256": "1db0559aba11cacebfa3157b39a8b82fbf9956428152db804d8abc46ac20d146",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/scripts/fal_job.py",
+      "sourceSha256": "b44bff78d2ea681dcb6666262cb7dd4d9a954dc9c3a4dfe9aa8dfb15048e6b51",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/scripts/requirements.txt",
+      "sourceSha256": "2b09e471b329bf9cfb5b4c247b7350d5564737e4a9da82cf7d9f381d9a5a4983",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/scripts/test_fal_job.py",
+      "sourceSha256": "8b5b182237868fa9a5ee98c2287b4bd196323001a52aa1a89c3e31bcdff37f97",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/fal-ai-generation/SKILL.md",
+      "sourceSha256": "b5a60f0c271fb5527738d5be06b604e157c9f33413725a17f0a389128192071c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/feature-handoff/SKILL.md",
+      "sourceSha256": "f6b9ca40151312f97736edd5bc4b542f472e34c57ae0efce3fcb443320385a42",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-animation-integration/SKILL.md",
+      "sourceSha256": "a50971f36c026c921e79643528b865d38fbb9d65e78948c7ee518f761b824fe2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-audio-workflow/SKILL.md",
+      "sourceSha256": "1f09cc3621131ddd6fc9e152d4f59a2a418a06eb45f77ddd068be6e27d3be0b0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-level-design/SKILL.md",
+      "sourceSha256": "98899eab7501c01614ffe2567e1176e267ee31316d7426ae93f13e2dac01db57",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-ui-workflow/SKILL.md",
+      "sourceSha256": "df1a985713d8279978cddb5f368c18ef1efd40f15918538d6f9c50076e859f19",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-vfx-workflow/references/implementation.md",
+      "sourceSha256": "e9a575d73ae53722f16039121d594bebc0b2273bc0a4ef8f4b9814cce5f7490b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/game-vfx-workflow/SKILL.md",
+      "sourceSha256": "9ee910f9ee28c5404ddc3106388b4a4366ab1071eab83cab7d0b2b70851c6f2d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/gameplay-visual-review/SKILL.md",
+      "sourceSha256": "66c6c6147c568f54c895c9ffdf4810cbccac043f9f09d61c00678277211e8d93",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/higgsfield-workflow/SKILL.md",
+      "sourceSha256": "ddf70492822fe1e72b6736ab031b0231cb1be440036ab7a1537aa5ae8bf4be64",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/image-reference-workflow/SKILL.md",
+      "sourceSha256": "bab1e5db4134d573aac202d34d4d20290c80663913108f94bf2957e299eb81c4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/logo.svg",
+      "sourceSha256": "2f6d08b28aeb06308aaa7b3b4a634d979fd320dcfae17c18cd36aae5c206c6ec",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/atlas-cloud-logomark-black.svg",
+      "sourceSha256": "a2e7497a99c8319bbf364ec233ddfb4d5f5f8a8d4750e5b168436dced3ae762b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/atlas-cloud-logomark-white.svg",
+      "sourceSha256": "2bbf6426db8066cca05549a7d2e5cdafb1514dbbda8d10f514244e08b5bbee14",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/hyper3d-logomark-black.png",
+      "sourceSha256": "edb24609bdbe80bfd601d06fbbd0bcbfd1380f74568e2b48932e63350743988f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/hyper3d-logomark-white.png",
+      "sourceSha256": "f6b984e9886a90d518d0621d35e6c11dd3b0133e22b7c68b6ca131ab63130298",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/tripo-logomark-black.svg",
+      "sourceSha256": "5c3c47346d9a475cedfe158a7dbc5db8e3c7c3c7eb22c84975caa37ab2197f71",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/assets/sponsors/tripo-logomark-white.svg",
+      "sourceSha256": "ec904944cc378d7396427eb931da049c28193831890807f7180f9fb25453ff54",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/CHANGELOG.md",
+      "sourceSha256": "5756c668eb2e9939cc65f561765a66644207bbbca42b586bc2a3235e60ee0bb6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/CLAUDE.md",
+      "sourceSha256": "a882b579c9712d0dbe3d3d67ef12370e5b6dac7bdc423583fa455c557007ac83",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/CONTRIBUTING.md",
+      "sourceSha256": "2adb561625b6eee0e41cd3550548798ed272cc196534849ad486a7c2926fec57",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/ARCHITECTURE.md",
+      "sourceSha256": "b6d0d9257209b41b1637f33fca7da50e62c5c740073e7e304d685ab71a9ca50b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/EMISSION_TARGET_SOCKET.md",
+      "sourceSha256": "36285cd5dba927d2a744d916eec9ef5a037fc4197ba7e547947d7357aaa8abf7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/GLB_ANIMATED_CHARACTER_PROMPT.md",
+      "sourceSha256": "310a8dba8ebfc10b8390f5e067d88a0ae31f5edc1fe870860ff2f5a0445e29ea",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/GLB_CHARACTER_ANIMATION_PROMPT.md",
+      "sourceSha256": "e34f0193590f80917f7e2ac2c7ed034179a1f2c6268662ff4dfbc13e921fd81e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/GLB_CHARACTER_POLISH_PROMPT.md",
+      "sourceSha256": "43ae51659fe493b73ca3fc81a242c2cf1f0071a45c46a4ef04cc32aecfd8c610",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/GLB_CHARACTER_PROMPT.md",
+      "sourceSha256": "61181686cee933f4f1a1668e8ae3dd5b074b294454e0424635f891ea0b7132e8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/HAIR_PIPELINE.md",
+      "sourceSha256": "7ca97ee8e74168c1bdf3d0794308996319471eefd108a8ebcfaca55921ed3c3c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/integrations/reference_fidelity_tooling.md",
+      "sourceSha256": "fcf0ec71df9298510a6e5d42ec353afc13609ad33eb8a59087c45bb336a8fbb0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/issue-triage.md",
+      "sourceSha256": "501ec65f9ff5a9da8ac28bed22ee6664b0b598345f97fcc9da1c0e407dc82149",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/materials/IMAGE_MATERIAL_ANALYSIS.md",
+      "sourceSha256": "b936ef7c349e1cf26680d783e922fab5f9e13679ab82d5dae583051bf8bc6dcc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/materials/material-reference.json",
+      "sourceSha256": "6f10a05f7224944413c68adf236911446c79e369ec8d62a779eca79464a61325",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/materials/README.md",
+      "sourceSha256": "f21487d5e546c95857a9fd1a6b4ecbc3cec2afbe72314f8fa53771ff6352cc63",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/materials/THREEJS_MATERIAL_REFERENCE.md",
+      "sourceSha256": "24dea84c65b24e37a53359c1c35f794f4b466ae1cd49eeedb1c17cb4ced44967",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/pipelines/character-rigging-animation-1.5.2.md",
+      "sourceSha256": "fb1aa7c45a82effcb563b2c0669ebb596c91c219d686ccdfe4329cb3fed9ae9c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/raw/img2threejs-skill-dataset.json",
+      "sourceSha256": "811c15f51e47d51fe087654c7a0e37842322f3cf2a49250c0f03961fbe0d19e8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/RESEARCH_TRELLIS2_TO_IMG2THREEJS.md",
+      "sourceSha256": "5022e02717c95f32a8b40f74a4bba089da025aa2a8de6739d8dd09b02fe553c3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/specs/render-profile.v2.example.json",
+      "sourceSha256": "d6a0938723ffe5170a1a7fc460eb094c01f567fd23119dea0256c3c0d37a171b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/specs/render-profile.v2.schema.json",
+      "sourceSha256": "afd54b473bad6d147b08ceef3d859a59f9767706a4168eb9fc488b1a7febf7b0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/specs/vocabulary/core_3d.jsonl",
+      "sourceSha256": "0251ddbee282bb1be030ebe2df9eb95b051399a357b75e9bebadeafa0a20c455",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/specs/vocabulary/core_3d_reconstruction.jsonl",
+      "sourceSha256": "6b47dbad2e6e2a6b2d351451787e6f4fad4543acd0f1cfa0c011dde9f63523cc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/specs/vocabulary/README.md",
+      "sourceSha256": "5e07e1841b36d8a48e9dcebffcb24277c68247357ce44c0312760e79abc1d22a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/STAGE_R_BACKLOG.md",
+      "sourceSha256": "e67b99f56b776915afff881af6d511a2748268843509444e67b3b4edb1215f2e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/STAGE_R_TEST_PLAN.md",
+      "sourceSha256": "8388d542f778e6c1f78cce8c9423fa01ef7e998833ecb1a2738ae49a826fa05f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/standard-prompts/build.md",
+      "sourceSha256": "b3511c64008c750f63cc2d8b1d3ee9563ad5d15d764cbce57937066933aa8894",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/standard-prompts/glb-force-measured.md",
+      "sourceSha256": "59bf31a0dfcdbc894500cbaacc592923b5da939101ff410ac1d39616396283d4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/standard-prompts/polish.md",
+      "sourceSha256": "c9cfcda272b8202bcd4d2ac94b98610c07adc5bf0652a4d58c720fead9c099c0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/standard-prompts/README.md",
+      "sourceSha256": "c387768b592988646905ade2f81a1014986b69ce14f2c1f058b67618858db1b5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/standard-prompts/vfx.md",
+      "sourceSha256": "43f5489f4518d8bea8b405fe64c83acaaf84f65b66347a4a86957723d361efb4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/TOKEN_COST.md",
+      "sourceSha256": "0e27cd0eebd07b64836cd2ab7b3b7db71d1572ff1629167e10f14fb9bf35dcbe",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/docs/UPGRADE_PLAN.md",
+      "sourceSha256": "a81cdaa16ee8624f4b53943f022f995a59532e84c4f79a5017a10d095a7643eb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/artifact_cache.py",
+      "sourceSha256": "7836d89e0b59f1d8381ebd2d71f4573d404c059dbb2f2fc3c663eadf3bce832c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/chirality.py",
+      "sourceSha256": "b3343e5d8a51f5a6c416326701b7b070b32c58dce4c51ea5d5135738e9e20069",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/color_metrics.py",
+      "sourceSha256": "e4b720e9c95dd716e6710bc4e4aa61d1e1e9652ce5b658d3bacdc89a1a1b7b75",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/domains/__init__.py",
+      "sourceSha256": "c747de5cad1f86c6d11ff7db53fc3257fcf72b944a995d4202a4c510429bc683",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/domains/character.py",
+      "sourceSha256": "fac9b134e4e949287c3da9117adeab20514751796b92fd30d066e622a3b898f9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/feature_acceptance_policy.py",
+      "sourceSha256": "8420285e2b465f9acfb73113376385779943a8829808e42e0c619666cb734c0c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/glb_container.py",
+      "sourceSha256": "548bada07364cb394616ec293af3440a9d520109933181401e2f8b5afdf947ea",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/image_hash.py",
+      "sourceSha256": "9002eb6c38bd2d37ccb32a57bc8fee835239b7c015b65a0d6b95afd0a31e887c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/jpeg.py",
+      "sourceSha256": "24ff90402f052e1a83fdb8e9bf354aeda492948054e4c7e4f3ab87793978d2d4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/material_physics.py",
+      "sourceSha256": "18bfe5f2be0664233bd86cd7c233c346ae4014094ef69f253dc6cb7da0c7047e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/pipeline_routing.py",
+      "sourceSha256": "de1cbf8c1fdc612482ae9101f66572dd52040af9eac2f30e02f332e7bb91967f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/scalp_field.py",
+      "sourceSha256": "99431b38de9a2f136508555f01f383aaeadbd77e3be688ede7f88f551aa7532c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/sdf_primitives.py",
+      "sourceSha256": "e562816b702ce66a0b8e63fe8e47f72cceced7ca814b61b5e9ca0cf6ef2e2d52",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/spec_augmentation.py",
+      "sourceSha256": "6dc6d125be5d73dcad50bb0bf2a26ea13677d3f9ea8ca49b88091db288491e43",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/spec_search.py",
+      "sourceSha256": "dd1af8e64bf6b88e91ff70dede7fb1b556c6a5c34406001b52a2ae6d6e5bdee9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/spec_search_profiles.json",
+      "sourceSha256": "fe2277a6ea2e6d8c6c07b2867d66756b6680b307022872a79427fc0bfb6ffe89",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/status_banner.py",
+      "sourceSha256": "c45f344037dc4cb34cf957df4232637e6f9d201e501f54701cd6a540218623e9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/subdivision.py",
+      "sourceSha256": "4ecc0a3cea72c720eba726faa03e583f748b03a60a895f48534e5fe7c3b0a5fb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/targets.py",
+      "sourceSha256": "8afb693afb4672662b68745aa7eb689551cc03b4f0462d0c866f4a2e77a676f7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/vertex_paint.py",
+      "sourceSha256": "f283eaec707a4e1fd416e1906553c719733219f59d8194505cfa9af2f4c0fb1c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/_shared/workflow_state.py",
+      "sourceSha256": "37cc953c1f0cb4243261bc77fb6a00e63fe047b14c13b721e0b40ea0f5e33afa",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/materials/__init__.py",
+      "sourceSha256": "6e5f7f7859216d5a3bd0e1120365ca8e4680e8c6134318680e083e6cd059213c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/materials/compatibility.py",
+      "sourceSha256": "d13f219dcdaadb47884e544936f5a7dfdc7ec311b3413fed7df956eb07b1e929",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/materials/reference.py",
+      "sourceSha256": "3a8df74e97d790ff031925ab6ab9007150a584452e9e14b0858b1644247863db",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/next.py",
+      "sourceSha256": "baa906d1ec206fede7b2a0b6a12496a373ba111f12b556fa760c68abb6624c81",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/report.py",
+      "sourceSha256": "3613d8bbb36654ba00bbf3aa9fdb0fafd36953ce6aeca7de31508f30a064934e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/requirements.txt",
+      "sourceSha256": "ba54ff109c11e499749a42fd6a4e4eb5b1055073a57df55d606c9f243befbeb4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/analyze_texture.py",
+      "sourceSha256": "2f210763cc955de739fb28162549c27de3ccc06954e10efc312d736b5961494c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/bind_detail_properties.py",
+      "sourceSha256": "8b43c0be4032602010eed78a90b589384ab60758d7f379f8d7e1ad83425cbdc1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/build_detail_inventory.py",
+      "sourceSha256": "02f51c5c1abfca40b8c3523f17ead2d8a3911d7b3745501187165e984296d94a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/camera_fitting_math.py",
+      "sourceSha256": "b5dc03079b01402ef81149361e39b1580f2086d295d937ebd2eb9f9bf5574aca",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/camera_fitting_solver.py",
+      "sourceSha256": "016210424511bac7338d9ff28d960b95526338fe0d042cb9061d81751fe67801",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/camera_fitting_types.py",
+      "sourceSha256": "312a74484b0d3dfe8019f0f7bd523fc15958d798851134b1c6c8118f89724b0e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/camera_image_helpers.py",
+      "sourceSha256": "7f974f55dc3f72ab193a040d048b174bf49d898642f9bfe776d3a3faf60cd443",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/check_intake_correctness.py",
+      "sourceSha256": "c6db7a46c314e7b0f4de62050b676a348121202e0fb8f438727b3b3581b318e2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/check_reference_admission.py",
+      "sourceSha256": "fc2a733e4c0decf986a50ebc35015f99e9ae7d657475a5555376bd7d6d4682e1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/delight_albedo.py",
+      "sourceSha256": "afe6d59f5058469892ca367320fb3394f3d645d61c4a78015672713bebf5e716",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/detect_reference_effects.py",
+      "sourceSha256": "7a1902b46cd58984e148fdeebcf82721f948f493909f4fd96076fa8c5ad4947b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/extract_gradient_stops.py",
+      "sourceSha256": "543c51a1bc1a205b674a3c9588651437d0231f326343f4281112e8d1c0235c3f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/extract_hair_evidence.py",
+      "sourceSha256": "06da81c364f0b198bdd3637d2ae7219d6236c0d0920ef7a27a70584c05cddd2e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/extract_landmarks.py",
+      "sourceSha256": "a66d7122f10af3ad1a0037b482c283807852caa1b0e9a11937f26587cd9e038e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/extract_part_color_recipe.py",
+      "sourceSha256": "62c1d4ea4e992e6bf4cbd125bb3c5329fafed91e7cdcb4426b47985613006142",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/extract_pbr_evidence.py",
+      "sourceSha256": "f7a121d241e9403646f7eaee9d62f757941b90b251e279bc9ed6cc22bba74b63",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/label_glb_nodes.py",
+      "sourceSha256": "3b4e0ac7c5b03a23e7a3d1bd0df45741d94bd6631e0e34a12b5fbde179755ff3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/material_region_analysis.py",
+      "sourceSha256": "9128783a04fa28117cd10f031d0dbac133c89fca7f0254b23ca21d9e63f8a476",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/probe_glb.py",
+      "sourceSha256": "f76d305b60a4a011f889191dbec37d1cc9ee23a1f2e1ef9c3d96cca3794ddeb3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/probe_image.py",
+      "sourceSha256": "94ab35c290d8e354a6a84d48cee81e60c76f4fd280cf2a9ef7f6f53ebbe2a9d5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/run_vision_adapter.py",
+      "sourceSha256": "d882185cdd05358eeecbb8e5d16b7ffb8ab5eace73a0c3fe1c68c639b747490c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/search_specs.py",
+      "sourceSha256": "bc15d4cdc0f3908a4522d46de68746a8e6700754736522a1d2779aed168dc05a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/semantic_decomposition.py",
+      "sourceSha256": "ee839e55db8bebac87d11e20901a1923a8ae3ffa38f05064386dc239818b08af",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage1_intake/solve_camera_pose.py",
+      "sourceSha256": "6d4ad1319b2e07e9e20e99b330abc331000b2e5f6c623e41e74ccd1d35ff731e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/apply_material_analysis.py",
+      "sourceSha256": "807b24042313b7210d4b9074324f0c78855453ad02927fb34e7265b7e8647129",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/derive_geometry.py",
+      "sourceSha256": "1efd6dd16673188e6a38ab55c342a08c62ad0e68e6a9ff9cf5efa81427b18656",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/hair_profile.py",
+      "sourceSha256": "84099ce1066b8ef0ad0656171fbc0db596fde474af61e8c2634b936a984b4365",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/humanoid_proportions.py",
+      "sourceSha256": "f43da5015bdbc7869e4f76db2bc40a00d701d4861a8854cb616e863e55d19e2d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/new_pre_spec_assessment.py",
+      "sourceSha256": "5edad29b1a149689199819751de3a274e6ff4e940a88fe1fe2bd6b5d8b5dbd89",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/new_sculpt_spec.py",
+      "sourceSha256": "2028f79b21ab42021be1482ef40636698513bda1ec3f3c8bc5e96f69bce3f1a9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage2_spec/validate_sculpt_spec.py",
+      "sourceSha256": "ac5e625dc5bee80d1da6b46a9ddcf2bdaf21d920da7a8be327116b6d15df5334",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/bake_projected_texture.py",
+      "sourceSha256": "7848958d5f1d9141dbed24c619166421b9bea6f15a82bc12a9cfada6218b1b3c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/decimate.py",
+      "sourceSha256": "51c9d56686dff9b8ce83d14f347662a7fe64968f712dd1caa1b036f5f6a5a2a5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/emit_target.py",
+      "sourceSha256": "46dd4504dfa7bd1a721d9c6555cc62e738e3ed8bbe924d5e1a093d542d222ddb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/generate_threejs_factory.py",
+      "sourceSha256": "ab398f689dae632a1434122f4222682fb01640f19f99a8e6dbc0721465279d35",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/module_cache.py",
+      "sourceSha256": "49ede6a51899a771e9668bfb568c9b9f8636ad9cef0c60a92aedc61ffccd3cdc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/morph_targets.py",
+      "sourceSha256": "9d6b7220da14c42ac28c2ce4be5258386e592b3891aa8bcd3c32a4da21f5c804",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/orchestrate_passes.py",
+      "sourceSha256": "54ab6c372d013a0d8fa1f7c7254b5754dc58c5c2a5502006881c0e9ee1e926a4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/run_gates.py",
+      "sourceSha256": "21b930eff6fc6814e1eb7c593087411d7de5fb041494023cb99279b97059dd8f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/uv_unwrap.py",
+      "sourceSha256": "63a2bf1be982fff7ca8cd424fcfad30029b59272a523b931625906205dcf2406",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage3_build/visual_hull.py",
+      "sourceSha256": "3d08f5d3f258008756b2292467703838ad4457b1ab7ad66c5e0fcdc23585f2d4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/_fit_divine_eye.py",
+      "sourceSha256": "ca3ec2fb0732c43a98cd2ec59f1444261153d9cc4bdd8f1f2bce7ad08b8f96b2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/append_review.py",
+      "sourceSha256": "0769f2169ff5e276c191fd16b0df8ebd4be0ea555a0b141135cda7eaac6698bb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/attachment_anchor.py",
+      "sourceSha256": "ee7383d7dc6a6583778904fc3e4a12dd8392bd496aa771a0075e89e4a40d3fb7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/calibrate_eye.py",
+      "sourceSha256": "51fc2cad8a6215cc909a00f255490669506db2cadf61efdec39c30001183429e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/check_part_coverage.py",
+      "sourceSha256": "ef806daf7b44e36a4f62284b8c233a5bdfb59bd3ee1b03cee6022eca01ec7183",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/compare_region_passes.py",
+      "sourceSha256": "fda52935e880435b097b9eccd0d2e0d36f9555dfc8e943adf52cc6e982681dac",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/correction_loop.py",
+      "sourceSha256": "0078aaf38c27ebe4d1f87e559c5fe2077998d2a463dc25c3933aa01c87d87db6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/diagnose_render.py",
+      "sourceSha256": "21cd6111a560ba9f8f66290b0f6a2c1c3637d73dc9904a6c2398d11fabfe3d19",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/diagnose_render_multi_angle.py",
+      "sourceSha256": "eaab01750df112810e4c28e37c37fbdaf5c876a3dd63f2940272d65e98fba055",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/divine_eye.py",
+      "sourceSha256": "8b09d9bdd23b11605605aaaaa326eedb07958bf6596a861c097d0ecb224c8315",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/fit_params.py",
+      "sourceSha256": "51581e54c0ed33ec2f91fe6f9a3dbdd6ab6b26fa18907f571add393991e53da7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/geometry_integrity.py",
+      "sourceSha256": "ff47eaf829ed1fa6518eb6a41f097d8667959173c17bd7835ba0c67f9ebc6930",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/hair_gate.py",
+      "sourceSha256": "1aef94a76ffb72a8595d04be557f850fcf8b4a0aa5f1761724b103dc55fbf51d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/interior_difference.py",
+      "sourceSha256": "34fb24b6858d66fb19b00d7395102985ed92085f47cb6d4453cfd4054f6017b3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/joint_loops.py",
+      "sourceSha256": "eaedbf75761d1942ca48575856c2012920e2b05fdf222c83d429f70607d1ba51",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/make_comparison_sheet.py",
+      "sourceSha256": "5715e1c0fffb0cb1aa3325e73aed4f17cce3d19f22f45c41f05b0bed2854ba16",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/material_comparator.py",
+      "sourceSha256": "ec29099feacca09b09bb23609faa6cc29dca88590d907098576da801d61c16d3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/material_feedback.py",
+      "sourceSha256": "6a4fdab8cc83acc13a4776bad72032d94dc8e4b7c603f5dd05abd33a524836eb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/material_gate.py",
+      "sourceSha256": "55aaea26e5cced921c5cc129b9c00405b5a0bb0af0e14e9b691b5ce5801ffb4f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/material_views.py",
+      "sourceSha256": "c6d74f46548e71b7a810c6bb61e2321040028db533b3270cbd87dfd80bcc9130",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/mesh_reference_compare.py",
+      "sourceSha256": "f148103ae09a4360dc1993dfe0706543b9aba03e56222a49dc078ff63431e1bc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/multi_pass.py",
+      "sourceSha256": "ddc8f8f4fe4e85ce30e98ecc1f0b8336f2453e96dda522def62337e7c30d136f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/objectness.py",
+      "sourceSha256": "21c02d9dd4aa5116df4c7e760687666b9c3e1ff8d146b8c6c501826d9809659f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/pairwise_penetration.py",
+      "sourceSha256": "b72d55943a40426fef2ec1e5ef40651560d4c9ee8f72256da852c0eff0c13ee1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/per_feature.py",
+      "sourceSha256": "e9ada454a49479e53d9b968301fbadf4686164bb4d4ee62bcb96a8b3a0d4f854",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/render_bridge.py",
+      "sourceSha256": "138b2c51b4754fb723bce021716b6fcb632ef57afecd687b5f2867a27257ee34",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/scalp_exposure.py",
+      "sourceSha256": "c78574bd7baa0342fff6e24e8440733a50a1c1131fa98f199eb959a13bce6830",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/self_intersection.py",
+      "sourceSha256": "f6581c1ccca653832ae9ef5e7b7fae7be7e29f1403e42355a906203b222f784a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/swept_arc_gate.py",
+      "sourceSha256": "97135532f7db3d0daaedb746e05201212c0d108035866782694ce30b8a70790e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/turntable_gate.py",
+      "sourceSha256": "56f503855c3449c7cc0a807731e3c00c1603f076271100c6dcf16926f64e0d25",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/validate_render_profile.py",
+      "sourceSha256": "7211c865e58efd5c1c0bb04f45a1fb4c0a7a90dcb58479a2d3b398e61b50b15c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/vertex_region_gate.py",
+      "sourceSha256": "463c13256c94880c6f859730c378a0966f82806bfe9199dd8fb468839619f101",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage4_review/vlm_gate.py",
+      "sourceSha256": "0dfd6a611a346d760aa0f571adccd39a695da4c1a64683b416a5b42f45825f03",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/__init__.py",
+      "sourceSha256": "2a1f269f535afbec777a5b7d7cdef7bd22ea50cdb0476eb955d8dfdee0273c8b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/action_design.py",
+      "sourceSha256": "44c31d89bccc7b8e61a1bf8299072358c533a267aaa4d1a1bdb6754d40407fdf",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/clip_features.py",
+      "sourceSha256": "45d65b147aa93089507c101308f1595b2ff017fc20564b003138152db5b5df37",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/CONTRACT_1.5.2.md",
+      "sourceSha256": "fa57266b73bda01fcd920a96b600ac0a1ffdd44c689c491854c23881b8634be3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/emit_animation_runtime.py",
+      "sourceSha256": "892615f0a4162b853e9c60922850f212a42c707fa215cdb986ead42cf077856d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/emit_rig.py",
+      "sourceSha256": "2443094b64aa8b1ec94abec56051c873de5494ef29dfab262ca9daf0a69fcce8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/geodesic_skinning.py",
+      "sourceSha256": "119c1b075d9b677727262603af7dab76adfdded4357895fc1b51068c5fd067e3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/glb_rig_reference.py",
+      "sourceSha256": "f32580326a87ec5f7bbe4f5caad5e0f928da297892fb50f116ed49fb9829cd7e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/mesh_parity.py",
+      "sourceSha256": "aa3f616cfeed906b404c5ed9703cac9dbb957c3113609c10d8754c449ab513be",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/NOTES.md",
+      "sourceSha256": "0eeafa282acc00a0a57235e8406d787c7c98b89979378f73d57d181b3be8646d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/rig_gates.py",
+      "sourceSha256": "d49560a4187978d9922d7953af0e7500432a580c2844642415a96204271929e8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/rig_spec.py",
+      "sourceSha256": "2ba3ae8b6d34016808c32b32cd9279df31610957a83100fbf83bd85f88927d12",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/skin_conditioning.py",
+      "sourceSha256": "249c88e83a5f21c7f980d33336a45f4aa48149f924e9b72778fc5ad0c793cfb1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/stage5_rig/validate_rig_payload.py",
+      "sourceSha256": "83427529c214027b2ac64c3344a29b54878b5baba2244560ea82b7901ba5ac16",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/state.py",
+      "sourceSha256": "18be29f53eff17d1178a09522b7f7bb8c90fca65c306b6514959b9df4fa7367f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/implicit_character_torso_limb.json",
+      "sourceSha256": "5fa1fabf791d6dd8f79f07bf33fb264d7db4421dab0c3855c1b225468c9d2f5f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/knife_review_scene.json",
+      "sourceSha256": "31772034e335824f3a4ba221445606f2b74ba8f2da2a2a398ec9e0e727998ac9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/reference_target_conformance_spec.json",
+      "sourceSha256": "d9aed0f517f9fcad13a661edb6dd1ab82f0ab50bcce4795b0c373ca5ab827bb0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/reference_target_oracle.ts",
+      "sourceSha256": "d90c6efb5e00d34d57af7e3f1e368f0af06611347aa35d3846b759e83e868f16",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/stand_proud_hair_on_head.json",
+      "sourceSha256": "970066409daab77efc2746f0f224c359413defea5a9db2ee0d85fe7323304c32",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/subdivision_cage.json",
+      "sourceSha256": "d98c787d89851c4ed79a0ac52b059a250a2dd2f44d2805cc7d8e8d35184ac6d4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/fixtures/visual_hull_two_views.json",
+      "sourceSha256": "fdd2686657be1ec0db8ba1e7f0b66e08edaad4689e34b8018857daccf3d622a2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/oracle_support.py",
+      "sourceSha256": "b2fc1cb08712b3971cb14b60b5f0864b5f2c63183747e93c47698dc5b2f3f918",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/showcase_test_support.py",
+      "sourceSha256": "455a37433c376bf739caef1d7591d0b4bb845921d07d106ffcbeebd58febb440",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_action_design.py",
+      "sourceSha256": "f636d06b8edb98a4e207957e7fda5dc7d452d8d85dbbbf9aa23958b974715e05",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_albedo_color_space.py",
+      "sourceSha256": "221f4dec18b32f4b29985439e6998ecb599d705b7f1c3eb327002281db7cbc34",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_analyze_texture.py",
+      "sourceSha256": "4df54f026bac2a8b20fd108db6c2c5e58bb1c149d6cfe02bf279d667b9cf2e43",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_attachment_anchor.py",
+      "sourceSha256": "91bcb020efabe9c5acf5576d0360eed18c10453f1ad8012c8a4f8e2715ca49a4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_attachment_does_not_override_primitive.py",
+      "sourceSha256": "e8d47f4bcfb5ad0f80be45b702519a081ac829cb638b2ee93dff9a10d0652417",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_calibrate_eye.py",
+      "sourceSha256": "234ccc8092ea972bdcb5a0d4dbe23a260c4aed34b2729cd5d606270f930cfb1c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_camera_fitting.py",
+      "sourceSha256": "97583f9c4a1a9eb063101fe317262524340299356d2dd93afae4ae40d113a9e9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_camera_fitting_cli.py",
+      "sourceSha256": "c49ceeb5ce90584db5110a49db6033b700e3191005032d2a45578c867141e97f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_camera_fitting_safety.py",
+      "sourceSha256": "be3c2aa664c11027280400d4a59e91f068d8d9c9fbe3a36d621a0f66a52f4be3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_character_rig_derivation.py",
+      "sourceSha256": "64ff1555e4c4e537533f9412a85bd886bb6175c96013b60ec2eb38ab7f3d053c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_chirality.py",
+      "sourceSha256": "0d4721df336a5c1e3b7669715e251bb7ad9f690d541d704f5be46562de3c0abc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_clip_features.py",
+      "sourceSha256": "9e8aaa4e49ca5e2cf26c9d493ee3e72eb53ebcf567dcd60913644b91567b16b9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_color_metrics.py",
+      "sourceSha256": "3589e1b57250083d69f273c88dbebfda36ea2cd85e86a40b1e88ace751525eb0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_color_recipe.py",
+      "sourceSha256": "465a2f57e6051701e33dcd4852fe6a1a524d73b133741173af83dca59c88844c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_correction_loop.py",
+      "sourceSha256": "4bade8c607b60ecf457fb5aef9b13c3d14dc82509f0d24b6f1e974295d279276",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_decimation_wiring.py",
+      "sourceSha256": "61e05673e448ec6760fc83f68fde0653443cf1f3707b4ba1af5a41946c23b449",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_divine_eye.py",
+      "sourceSha256": "2d3f380947b1eab2669a67175fceb7936ce56147e346a4540b66e71a902b556f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_domain_registry.py",
+      "sourceSha256": "3d2eb2bb6df09e0395c954aa4aac0b5e5aafc1460effe226a0230dc5e50bd39d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_domain_spec_contract.py",
+      "sourceSha256": "e0527dfef19359d6e9eed1af3ced8618a518acf4fad9f146c3f1583c6f93c750",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_emit_animation_runtime.py",
+      "sourceSha256": "87eedfb6b8068e02cfdfe916ddd69155c8e068960fdd2cd33f4b10ac30305fb0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_emit_animation_runtime_tsc_smoke.py",
+      "sourceSha256": "0b0ac470e04591f5d110ba6214ff649f6e4615063daca1fb55214dc5c93a6688",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_emit_target.py",
+      "sourceSha256": "e1bb02bf74b57719b9254cd4830c9c91a0ff7001981dc2867a3bd936cc52c9c0",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_fit_params.py",
+      "sourceSha256": "cf7b3edd9da5b6c1f1679fce52a5776f16ce8c757a8f78ab579421e34f9f4850",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_geodesic_skinning.py",
+      "sourceSha256": "38b58b8487a517956047ab7fa84c87a631e1ae5a2d892724757b30ffc19a601d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_geometry_derivation.py",
+      "sourceSha256": "16ba43e87e232c4fb7fcb90814dc4bbf0b27995450841cd438ba41e9af7519e5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_glb_reference.py",
+      "sourceSha256": "da6b69496baf78650de7f9569c9d6ef5c380c32b7897a40763ac574f6b1a6759",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_glb_rig_reference.py",
+      "sourceSha256": "cc1da8227dd90681f923cd0c59d0577562bdd39d3057bf3a242ac33063847680",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_gradient_stops.py",
+      "sourceSha256": "79334cef5b649780c253cb0dc72df88f13107e9a9c5b3ac9d44d3c846800a0f9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hair_evidence.py",
+      "sourceSha256": "cec99086a579ef049f7c95a14b2cea1161c8f92f5310f8bc5d46913a6a2b57ed",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hair_gate.py",
+      "sourceSha256": "198ab6efc2d59b40a19ab1649cb231a3998354c912431611506a222e6c41879e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hair_material.py",
+      "sourceSha256": "661edfd13b347efeba491671f8eb726c03f31a7eaba4d13e1950499db16c9954",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hair_profile.py",
+      "sourceSha256": "1f194e6662f55509629b67474b0df970f9564bb3729dc0823d3406982baa499b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hierarchy_scale.py",
+      "sourceSha256": "1bb0f0546549401abf7b9430a734eb417bebf4a7780bf7e49738faa74d10b735",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_hue_zone_parity.py",
+      "sourceSha256": "c9f474a93dc8af7b4210f97796b9f2b26060d910896a9dcfce7009fd60abeb2c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_humanoid_proportions.py",
+      "sourceSha256": "3580ec54e0ac2b48e514eddacdd3036bb6f575ea54256075cea64b45aa38f4bf",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_humanoid_silhouette_profile.py",
+      "sourceSha256": "ae67fa0d363f43ca8db8a14041df3c0a1bd73b833f2498854f521922ed9bb315",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_intake_binding.py",
+      "sourceSha256": "149d55a902ad40b2659d870f4602b65df398b97adf0009cc33f0f66aeec35b9b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_interior_difference.py",
+      "sourceSha256": "74279ab8fc7e1e98974be99cf4eb21b4510e002f98ffcf39b69bad6876f89426",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_issue_triage.py",
+      "sourceSha256": "b6b77c35fad807f3e1f39c6305e8ccd1736fc1c6edd8d1f7f1e558a8fd107aaa",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_joint_admission_gate.py",
+      "sourceSha256": "e4cff5f29e2fabee77a40489001f37cc1b9e39d52a9e2f19854c12a9d87ba306",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_joint_loops.py",
+      "sourceSha256": "a8634a316186c0463bc5b741036f7656000c99c3cd8396c46798f8d52b71a574",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_jpeg.py",
+      "sourceSha256": "6aee43eec052c124eccf6d974b6aee672e6fd322bf702891a80a40459c5ddeba",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_label_glb_nodes.py",
+      "sourceSha256": "65f31afea0927482c8f21956e05ea3710667417311471e01897037aa0be842cb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_material_physics.py",
+      "sourceSha256": "c33e196c4f7b9a9796f15f335e342e6a316dd00a6a46d94ccc933e0e11b307a9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_material_pipeline.py",
+      "sourceSha256": "d43ccd608d2ea981f75e532e2e4439bd2992f61630785def5cac46ec1a5b9bbd",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_material_reference.py",
+      "sourceSha256": "5c352c2864c65f5657bb0a5eabc832d77cf2421b5b8a3d21e841bc272cd84017",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_mesh_parity.py",
+      "sourceSha256": "bc7261b6b8c0400d94512128c1d3226eaa05e4fc54e05e4aa1db0d08f88c3dc2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_module_cache.py",
+      "sourceSha256": "b4dbf1fcc1eaeccf8716108b6249b1e97e84a681a0b525da0b69f23c083907f6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_multi_angle.py",
+      "sourceSha256": "2878d41620bb5836baeef928fa1945983590a6816f9303b3723734792c5b5826",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_objectness.py",
+      "sourceSha256": "632b90698f2761fe07c3663c9f4be3b8694235b87eebde031dc806d317aa56a7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_optional_vision_tooling.py",
+      "sourceSha256": "e8291322bf93028c2f74fbe1b5ddfa00b473ff541f9cbdaaa643a66392354acd",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_part_collision_morphs_lod.py",
+      "sourceSha256": "7f3d3bd5ed31922c6b34ff68d1f3e29458f425ced67777b89eb1fddff422c937",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_pass_identifier_authority.py",
+      "sourceSha256": "9b52fa468573ce392185cf7d569f02493b656e30eeba93bcf8b13ca236a1b379",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_per_feature.py",
+      "sourceSha256": "624d683e467c37989ffda5455c40b7f76e04ec087e666968c9ed38f7eb1b91dc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_pipeline.py",
+      "sourceSha256": "70c0d85482727ffe838e77cd13e2125ad83d1c9981cf4d54dde01abd1b96cc2e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_pipeline_routing.py",
+      "sourceSha256": "43c4df463f5b6a87edee5a11d0b30f315dcd09d7c6dd0b403fd19d5daaa09063",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_primitive_watertightness.py",
+      "sourceSha256": "f856ce584396d52dcdc04c34bf76ea7f8595ac69cc68798ca061ba815ce11703",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_recessed_and_open_shell_topology.py",
+      "sourceSha256": "5a625699166cc78651211a9f86b6c7103962607b5286b29483d9224fe88f1cbb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_reference_admission.py",
+      "sourceSha256": "efefaf95be3de735a5ae03ca5c449272ffecb9a3b30a33781a01db7655968116",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_reference_effects.py",
+      "sourceSha256": "ad58b8d13a8e36dfeb3f5d6c884941f78ee553f3cee0a505e6355e302266850c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_region_and_arc_gates.py",
+      "sourceSha256": "21f3d2bced7d665edb9a0e8a4a40a8ab2518b2fd2547738c512b2f4e584cdafe",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_release_metadata.py",
+      "sourceSha256": "f7f0d1836a511cad67178015e5bc999cf7cf5f22c6cdfb8777a29d660081c694",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_render_bridge.py",
+      "sourceSha256": "7c7651e0886fd8b392be18436d079f7a3149a470bb52d05f11e48a110d1482be",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_render_profile.py",
+      "sourceSha256": "8bbd7becf7df800285cf7ed1cf4b6862039c757ec7d21492f0c6c14162c07893",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_repetition_system_scale.py",
+      "sourceSha256": "7ee644acb4d086cd3608f0474919cd45eacf600d008430db4db9bd1b68ef35bc",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_rig_gates.py",
+      "sourceSha256": "7dd407e604a0aaf4ad210adcd7ef4cd2921a4376157d204c426dd08cca0d0355",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_rig_hierarchy_emission.py",
+      "sourceSha256": "f8d1793a1bc5dabe1ab96c6ef56fc4178b8009b4402859fbcfbb903f08757775",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_rig_milestone0.py",
+      "sourceSha256": "88bc3c68b14ff9749e2cc57af5397b67aeace4c8096ac10d58c9c3b1c9297246",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_rig_workflow_steps.py",
+      "sourceSha256": "9b8ac6aaf1e5a57883c3a88edd61275fba06ec1a456e776b4d9dcdc332a429b8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_rigid_hair_binding.py",
+      "sourceSha256": "67d6e093062637be417567635b7e350d33582eeecec2223d570b23e3287c9a59",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_run_gates.py",
+      "sourceSha256": "49653de150911d70cd005532b68aec4beea0eb36d0e52fb97878e8ac2c733d0e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_scalp_exposure.py",
+      "sourceSha256": "aa87d86a7b287b494856fcdb70be689f50dd7731ea32ad960e5e85965e6c58c3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_scalp_field.py",
+      "sourceSha256": "44fc7ac787baf86c5866609a7cc845369c7a7a2702d452ac4bda3bb38a4a98ec",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_sculpt_echo_failure_matrix.py",
+      "sourceSha256": "44711845615c781a783789ba8dacc1a35374679a71fd4c433ddad5d5977ac954",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_sculpt_echo_roundtrip.py",
+      "sourceSha256": "4b100aba1e1032f395a796fd030e643aa78c76b5a88b2358e787faa5e6283f4e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_sdf_primitives.py",
+      "sourceSha256": "0f772d4fa4c7d6243e204e4da9b89c61bbf7c5fdb7d1c243a29da37ba2f0cac9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_search_specs.py",
+      "sourceSha256": "570ab29a7e2c37859a1a671c5ff65b9950464668a2e9a3d264a99d7ccfc53ed1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_self_intersection.py",
+      "sourceSha256": "8e9c42c094f3ff995e63de87bc009a3302ffc55a2795a9ad83bdb70919c77344",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_showcase_tsc_smoke.py",
+      "sourceSha256": "190cb6c5f76c61f70b1de2eea00bdeb0c938530ccf12d87677fab52133d6892d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_skin_conditioning.py",
+      "sourceSha256": "26995544163338b7e12cee7826848f1c74dd4c94cb95f7aac5ce614a6c883efd",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_specular_wash.py",
+      "sourceSha256": "1e37458a218c6c53a2f0a3b3513aa160bfca0508b7ccdb0b4d1a876e38b09a31",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_stand_proud.py",
+      "sourceSha256": "3d9a0f0863a1a0233fbb672abda687c7250768db7fefba5978064f04c0440b52",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_stand_proud_emission.py",
+      "sourceSha256": "d2e933ce3a244e14323992398f6dfde2146e3995a48eb52a729e06897e387844",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_structure_gates.py",
+      "sourceSha256": "1d938e71525eea85c2e8b8da5fcdddd8745051dae669f31d117598488f1ed4cb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_subdivision.py",
+      "sourceSha256": "140a1f345dc61ec513cb6fa56c3d86693817404459590debe9a33aef5d79bdcd",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_suite_integrity.py",
+      "sourceSha256": "374e81d1bfdc6cfc1559bd56c7c2dc3dc6bfeb28c0538e64b1d4607303023b7a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_tapered_sweep.py",
+      "sourceSha256": "d4f65cfd2dbbbc2c8d60e1e909864787c5c81af38819a08b104d414431dcf886",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_target_reference_conformance.py",
+      "sourceSha256": "b7f5f89a5ecda7b63be0d3a83e1ad905fe2c30fb69b1328a4fc5f17601fa602d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_targets.py",
+      "sourceSha256": "af727def4a074e7ea84812a5a10ccb06ec2c8c65dbc52ab12c18843020297225",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_tessellation_tiers.py",
+      "sourceSha256": "ca3332e2d43cf7eb548d62f8026c2bb6fb27655b83eba082d52f6092ab13f11b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_textureless_material.py",
+      "sourceSha256": "01dad35bcd9d8c370a8cdae9663b88ed2f39ef459c9e1b8ba4d2d62015b83ee6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_tier1_diagnostics.py",
+      "sourceSha256": "f9087653e916a4900d36ac62fb1d7162f9aa0015669228d292ae77a54631974c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_turntable_gate.py",
+      "sourceSha256": "c8b2f40bff18bdb720776d33df81d90ee1cda40174705c5108df64a33f11d18e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_uv_unwrap.py",
+      "sourceSha256": "d5286cbae1b6cade25301af5349e491cb3d9fb72715b2e13dd63f64cd2cf0fcb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_validate_rig_payload.py",
+      "sourceSha256": "97f6ee2a2c6131af4a7719ad09dc7a9b4983b4e47694e374246390c1d67b8963",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_vertex_paint.py",
+      "sourceSha256": "6852b07f794d2cb8fcbf22695375917241e0f2f820b2e7aad67be80c84a83bcd",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_visual_hull.py",
+      "sourceSha256": "298df8b5692f49e7079c51afb1e9d698209db56747ebc4c220c52881f70760d8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_visual_hull_carve.py",
+      "sourceSha256": "ff6ed09aba9dafbb52a44d4cd289bc6c2121dfd4a055ae215498edda971485e1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_vlm_gate.py",
+      "sourceSha256": "468f26f0ef114a3024ae26c47c7a743d124fe68e0a93ffe536838b22ee2a157d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_workflow_state.py",
+      "sourceSha256": "09c33680e24dc82bdfc4074ae0751c7c015c2d40d8454120a67ff6a6b0aef357",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/forge/tests/test_ws6_docs.py",
+      "sourceSha256": "81d6f874801d22ddd5d8cfeec88de1b34724187b80300fe68555b748d49086a8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/analysis_by_synthesis_fitting.md",
+      "sourceSha256": "e3c476db5fab36472a45c13db680343ac94747f3bb70f2dcf75f0d14f8dd9014",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/geometry_patterns.md",
+      "sourceSha256": "0bdc21470da58b9fcfa600c08d72d9246dd10481368c4e9d8224e1bf90a16235",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/implicit_sdf_modeling.md",
+      "sourceSha256": "3be0cdd44dcdd912f349c3b686613a7fe6e1bc4c1610d1b165b0346b42dfc77b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/python_threejs_render_bridge.md",
+      "sourceSha256": "410de759cfe11754e9d271459bb8965a6b1386386b83e2bbce41fcad152abcbb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/subdivision_surfaces.md",
+      "sourceSha256": "ce8557636a50c8e98f27eea8c96c7bea930cdd5f271760b922df1b757998e649",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/threejs_skin_and_cloth_materials.md",
+      "sourceSha256": "059bc76b8f8a12003457c6317b30ba0a6fe06e77fe49c9112cfc316f0ba373b2",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/threejs_texture_reference.md",
+      "sourceSha256": "503affb1359698e5df4d08fd77f873ae253ff5d44c81f0d24d290b2d84a56223",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/build/visual_hull_reconstruction.md",
+      "sourceSha256": "f11bb3013d6e89ae3261c450286f7004c0debc4f7bbd057519160a1ca7d77c16",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/head_construction.md",
+      "sourceSha256": "ca0fc3a07c3e2d982f662dc13e232c3a9dd743a05abb28b6aff65fc435afc7b6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/likeness_maximization.md",
+      "sourceSha256": "8771a53c2b015fb2f1b3c5c5c6bdd3a58ce135d035bc420430bdbcb6e6a34083",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/reconstruction.md",
+      "sourceSha256": "52f1ea94596bda0b4dc53e3436d9277377e91a66442ac334e5101e7171f9a369",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/structure_decomposition.md",
+      "sourceSha256": "14dd13e16095da2e4138945651fa780ce044e5277d21f1fb619988f913358325",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/stylized_hair_threejs.md",
+      "sourceSha256": "3352878ff87fb6adb440e2287a6f916243c1d7e5a2ba0342bcba10aff2761258",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/character/threejs_hair_parameter_contract.json",
+      "sourceSha256": "527e1321c10185a39d18e9f5fbcef9c3b093ea83ef584e1f9c047789de03223c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/feedback/render_capture.md",
+      "sourceSha256": "024e5c4aae6c6a050ff6d976791a51f6480b7e46b5dd9e83311dc365c5f0363e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/feedback/shading_realism.md",
+      "sourceSha256": "db68ecc656b0c99237241047ff03ad64d6aa0becaace27b825083dfffdaf0e63",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/glossary/3d_vocabulary.md",
+      "sourceSha256": "f9acc41b101548ffd811b12eca5b9b7454ba09339699cf637d76b273be65e360",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/detail_inventory.md",
+      "sourceSha256": "9d5886bb4176b6043aaee36e2e85f01f617be37478d9e8c84826ffcb6ba36b51",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/image_analysis.md",
+      "sourceSha256": "bebca437a2c18c8f932e0b09b9e64fdfdfcb2daabd109316336b36761030a84f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/local_spec_search.md",
+      "sourceSha256": "471e8b372a2bcb050557ecef456bee21227a24688ae0beeb21803f06b6e9ffb9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/quality_contract.md",
+      "sourceSha256": "32b277a97b8e69c0d0024c44d320657c5e655c972cd6429357ad7aee36d9f86e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/surface_topology.md",
+      "sourceSha256": "36417236d44e1e523e16279121b433be39606f3fd1c709b9b697ff8e55df1dd6",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/intake/validation_rubric.md",
+      "sourceSha256": "118f06dd75f29593145af5f3401cf568ef9435e9e3165d87fab739112ef16aac",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/readiness/action_rigging.md",
+      "sourceSha256": "d3defe2840d4e448b968a1f52052aa587cb677aec8a553f5ac8756e88793a5cf",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/readiness/animation_contract.md",
+      "sourceSha256": "c1c2c931e602854b8dba696dd6d1b7779290ac5b86c9d96e2c24ab784b453118",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/readiness/joint_attachment.md",
+      "sourceSha256": "9b35f65539eaf32c81a431b53578643bc149dd6586250174a6b1961dbf48227e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/readiness/procedural_rigging_contract.md",
+      "sourceSha256": "738dce4b2a32ec95e846787872279defa44a77e9039585731c5bb4bd2e0697e9",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/readiness/standard_character_pipeline.md",
+      "sourceSha256": "bd3e46b6c8f436a82644d57bdf6baf583fac84dc070239af44be636af694ce38",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/review/divine_eye_microscope.md",
+      "sourceSha256": "d8bd0427f7c94865815743dd2625108eadbd1f3f55986b8294dc407cb5258f93",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/review/gates_reference.md",
+      "sourceSha256": "fc8069c8b0a13f5ed3b42389f935f628d1e748ee8c83285e31cda4e91d043692",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/review/self_correction.md",
+      "sourceSha256": "57976bad128cbf61bad9c23cef9db861addf68ec30e1fd0a6c15c4630d33e10e",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/grimoire/scripts.md",
+      "sourceSha256": "669021051ab79a5d291978ae45c0e773cd761c862ff65e707c759a7d9014aff3",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/build-character.sh",
+      "sourceSha256": "2a3f569caef74fc73502ca35955d685de8fefbaed4976cb917dd2aedd22c71b7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/configs/example.env",
+      "sourceSha256": "6e4916943b13419963412cd395f6b45e10e73f4ba939d77ddf082a5350b452eb",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/configs/girl-character-section-regions.json",
+      "sourceSha256": "43d0a157195a55402fb168612ff339c6fa3ccc589fcd7af2f8585d51d6919903",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/configs/girl-character-spokes.json",
+      "sourceSha256": "c5fcee5f5ebea1b65d16b91395ee2384d4777a282e0f0ab653561dca77a44e41",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/configs/girl-character.env",
+      "sourceSha256": "30624149cc429afeba55ca6fe3618470b39804e989fc4636dcbea6b6c08670b8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/capture-character.mjs",
+      "sourceSha256": "a3bcd87be286e1f31f9ef01937fe01ff2255b3f1254e8f80a1290c2b558a6ca5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/compare_views.mjs",
+      "sourceSha256": "441bd4aa9b3cc4c2d04efe4d082f4c1974286613ba63e9603f7d59c8955a46d5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/emit_surface_module.mjs",
+      "sourceSha256": "52a026e54c7af5f485c8ab60be8c54fe7ace90b22e6816ee3148b7611069c907",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/encode_surfaces.mjs",
+      "sourceSha256": "9ea5c4079388e9d29446b1936f711b1f844f15a753b7486ee79413d43cba8139",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/package-lock.json",
+      "sourceSha256": "79d529441e9afa797e44abb5b330698a2659f03230df06408b0ff6360d019561",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/package.json",
+      "sourceSha256": "209df774546fd58b06fd96965a271ab87bd1e04b0f1d5b4c66deba8f41aff717",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/verify_cells.mjs",
+      "sourceSha256": "4e7d2aaf793a8ec0f39abaf2a6962748778372e192ada7147f4dbe9314896a42",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/node/verify_roundtrip.mjs",
+      "sourceSha256": "03cd75a378bd7901ec9339fc8b39332719acce3d2577ad20a56921edfe0fc234",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/PIPELINE.md",
+      "sourceSha256": "6a1e25ed055ee1b44bd2d7e3ddde1e09ee2bf58dc2518ed8bb5a60715e84803c",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/pyproject.toml",
+      "sourceSha256": "3b6985f475a887a40e182e4c9d2c1d957513118ef8cedc7064c8c17d7858ff61",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/bake_atlas_uvs.py",
+      "sourceSha256": "65742a0659a376726923c1fb8b965ea8fae2a227c2db76ffc14e35c19356f6e7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/build_cross_sections.py",
+      "sourceSha256": "24bdcaf573dc9e52b10315b893ea3d44fec8332d4aaed3c5cfb05e66001a4bad",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/build_head_surface.py",
+      "sourceSha256": "12884596c4eec86620a5f4b5fae45dd886c6ce94a98e74baaf1188ebb69cb0da",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/export_sdf_surfaces.py",
+      "sourceSha256": "e0260ef68a737796af87b3df55099fc2fad2bfba9535f0df1bd35d3814477605",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/measure_density_convergence.py",
+      "sourceSha256": "d5aac83541d29c96b24b4c47c6cf87e6294d8aa71933ed6499be8629177aea77",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/python/slice_node.py",
+      "sourceSha256": "c2bdcb36ec1537c9df3e7dddddf4176aced4f3dee8d3804f5693b323d0b39824",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/README.md",
+      "sourceSha256": "51521c237262125ed2c76ffd8c7c1c7d183ef0529b0ddfda50e47aa4c6ec1961",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/glb_character_pipeline/uv.lock",
+      "sourceSha256": "fb3dc23313dc5a7484d3b8b29421e6a62faf4415cfe0a9a6c2db097b2580b2a8",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/mesh3d/generate_reference_mesh.py",
+      "sourceSha256": "1e002321fd94a1b847200e14a045ba7c12323f8211b25aee2c3d4ecefb80e131",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/vision/pyproject.toml",
+      "sourceSha256": "fd6db95907bb916449f8d8ae8cd82f6c7bcb869fa8c1aff439dad9fe2cb435b5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/vision/README.md",
+      "sourceSha256": "ae56df8ce7e1e240c5fc746397127efee43dbad292702b060ac151d5d3dce21a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/vision/reference_vision.py",
+      "sourceSha256": "60199ab2d9ff2282afcf56583dce2bbbaba52e9e6db367d47b63c4a65df06352",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/integrations/vision/uv.lock",
+      "sourceSha256": "9adc05cce835b4b634a3e3abd9637ab5401f6205c2562b5b9075b5e2790a65f5",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/LAB-FINDINGS.md",
+      "sourceSha256": "ade1fad7e61bcf7bbd1ec81e7e4a91f98f0e3eafa82493e51ba986f8df012897",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/LICENSE",
+      "sourceSha256": "4595055948a67e91177115c57e154804046878e77ff223de22accc880012827a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/README.md",
+      "sourceSha256": "700c74411286d4c16c2e1ce674424a9849fafa4cc5d80c5a9283a6c6e560bfa4",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/ROADMAP.md",
+      "sourceSha256": "e36040caf30294ac539f9f1c14d9825c3fcf2a284cff4390d26de98c33fff72f",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/scripts/capture_threejs_playwright.py",
+      "sourceSha256": "b5ba378a841d31fba6b49d0d6eb1888423d0cab12dbbb4b63897ead88cbd0870",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/scripts/character_audit.sh",
+      "sourceSha256": "77b1a750e38190241fa202e85629e9720dcbddd3005bd3be36649e47bfb22fb1",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/scripts/issue_triage.py",
+      "sourceSha256": "c48c2bb4f1d1a2fc63305d739306e30a0b6491e4e304955abf8e6765c9dedf25",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/scripts/release_metadata.py",
+      "sourceSha256": "cb1c13d2f6bd0b0b5cbf13249bcc75ba9a4d43358885e8873bf76ac5acdcc10a",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/SKILL.md",
+      "sourceSha256": "e6d7a5eff86d5b81dfa90ad36b3db496b1abd6e76fae13122eaf510683bcceb7",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/img2threejs/skills/generic-extract-skill.md",
+      "sourceSha256": "1ca28b9a27d4318da7f863f348ba5ad14fbf1c15bd714e158544941644667d8d",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/materials-to-game/SKILL.md",
+      "sourceSha256": "8651f5200bcb2d14740db5b9efb15a4b66a89079239ab58b25fd655921561546",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/motion-reference-workflow/SKILL.md",
+      "sourceSha256": "2aafb51e39f0e4461db0c20cc72bfe5d9c06b92a717926ae905cf05ed8e38e8b",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/plan/SKILL.md",
+      "sourceSha256": "1d6ad92b2749110dd2a9dadb8e3d3e0bd6b85f4f5dca455c83615b6fb71cdb47",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/video-watch/SKILL.md",
+      "sourceSha256": "8efba68e42b03e577d8b3c456d0ffec039f9d1c5a2e0aa6b4d97dc89a76bfc77",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/voice-dictation-setup/SKILL.md",
+      "sourceSha256": "f46218f37472cb31092394957eaedf6411acce0172e46d934710cf37863efc08",
+      "adapted": false
+    },
+    {
+      "path": ".agents/skills/workspace-authoring/SKILL.md",
+      "sourceSha256": "a6c54105820aee8056243d1b666fc4b80fee7f0c932239b398e0203cb15cb7e2",
+      "adapted": true
+    },
+    {
+      "path": "AGENTS.md",
+      "sourceSha256": "f611f13dda78822720f47b22379416f97a1cdc6c8a100b5439a8c74626fc1057",
+      "adapted": true
+    },
+    {
+      "path": "desktop/service/card-schema.mjs",
+      "sourceSha256": "3968c8dc4758dc4a8dbe5f500b749b7f1ce229914240434651d34994b095fbc5",
+      "adapted": true
+    },
+    {
+      "path": "docs/assets/editable-cards-editor.png",
+      "sourceSha256": "6ebda88302a5808071dec25d183de34582c516fcaa113c16ccb5b416348509c4",
+      "adapted": false
+    },
+    {
+      "path": "docs/assets/editable-cards-gallery.png",
+      "sourceSha256": "5e8370dd179ce06352597083e2008f4d676158d96ac286eac70d76d30a3b21b8",
+      "adapted": false
+    },
+    {
+      "path": "docs/assets/editable-cards-research.png",
+      "sourceSha256": "cfb6903a0898ff3d840e32b4a34f1603260aa1f7e175fe1f6eb1f9e23b05f497",
+      "adapted": false
+    },
+    {
+      "path": "docs/editable-cards.md",
+      "sourceSha256": "c371bc53295ed766a365d3d82999785b5eed302f7c2460caa1dce6c044eedf68",
+      "adapted": true
+    },
+    {
+      "path": "docs/skills.md",
+      "sourceSha256": "5e344cf2f7c0729ef3f0dced19d250230d7a317a779c797559ba402618160b8a",
+      "adapted": true
+    },
+    {
+      "path": "knowledge/video-watch.md",
+      "sourceSha256": "61c18bb638a22521c5675be06273dca599a4f698c87648bcf652093d4f4b293c",
+      "adapted": true
+    },
+    {
+      "path": "knowledge/voice-dictation.md",
+      "sourceSha256": "0b9128f1ac3e2b23780369e05fe7b892574869d5b16e07301df0f5a15df5bda7",
+      "adapted": true
+    },
+    {
+      "path": "LICENSE",
+      "sourceSha256": "0f5d97c88bc20aa6dbcef9b6b1afd1fe49439d77d1fd47f2a962b6dbe9c95522",
+      "adapted": false
+    },
+    {
+      "path": "processes/creative-production.md",
+      "sourceSha256": "5eeadf3b625d85b7501484b46a7b31c35e584b054408143d0ed5be189a9662d4",
+      "adapted": false
+    },
+    {
+      "path": "processes/workspace-authoring.md",
+      "sourceSha256": "525aba3a3ff7f3bcfcebb67736219007b25c1ac0ceb51af3838b83da8552b87f",
+      "adapted": false
+    },
+    {
+      "path": "scripts/video-watch/extract.py",
+      "sourceSha256": "309af0aec717d414f1c173ee41d0a50e499709ea1e0e18bf4c2a171ecce2bcb7",
+      "adapted": true
+    },
+    {
+      "path": "scripts/video-watch/requirements.txt",
+      "sourceSha256": "f2e90fb21b7cfc32389cec0038918f383eab09500ece078bb82f98e2934d371b",
+      "adapted": false
+    },
+    {
+      "path": "workspace/_shared/examples.css",
+      "sourceSha256": "9ea0e3e6fd8a278204618b813adb9e642e8c8bed3f14668ca201bc8bb627a360",
+      "adapted": true
+    },
+    {
+      "path": "workspace/_shared/report.css",
+      "sourceSha256": "da918d422b027bcd5f163314e18f4d481ebcaa58bbc1568532e387d977059d1f",
+      "adapted": true
+    },
+    {
+      "path": "workspace/_shared/report.js",
+      "sourceSha256": "8b836af131bacef69944180ce1431c50cfcd685059f7ec26252be8153bc5c041",
+      "adapted": true
+    }
+  ],
+  "alphaAdditions": [
+    "AGENTS.md",
+    "LIBRARY.md"
+  ],
+  "adaptations": [
+    "Alpha branding and installed-library usage guidance in first-party documents.",
+    "Video helper uses the active project workspace and copies missing shared report templates.",
+    "Editable-card format identifier mrmak-card is preserved for compatibility.",
+    "No content imported from the customized C:/Projects/MrMak workspace."
+  ]
+}

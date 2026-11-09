@@ -7,6 +7,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageLibrary } from '../../../scripts/package-library.mjs';
 
 test('startup replaces old diagnostics without persisting window credentials', { timeout: 20000 }, async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-runtime-test-'));
@@ -17,7 +18,10 @@ test('startup replaces old diagnostics without persisting window credentials', {
   await writeFile(path.join(state, 'runtime.json'), JSON.stringify({ token: 'old-test-token', urls: { workspace: '?token=old-test-token' } }));
   const env = { ...process.env };
   delete env.ALPHA_PARENT_PID;
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../main.mjs', import.meta.url)), '--repo', repo, '--state', state], {
+  env.ALPHA_TEST = '1';
+  const source = path.join(repo, 'library-source'), bundle = path.join(repo, 'library-bundle');
+  await mkdir(source); await writeFile(path.join(source,'LIBRARY.md'),'# Test library'); await packageLibrary(bundle, source, '0.2.1');
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../main.mjs', import.meta.url)), '--repo', repo, '--state', state, '--library-bundle', bundle, '--library-root', path.join(repo,'SharedLibrary')], {
     env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
   });
   const exited = once(child, 'exit');

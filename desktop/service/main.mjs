@@ -1,4 +1,6 @@
 import path from 'node:path';
+import os from 'node:os';
+import { access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createService } from './server.mjs';
 import { saveJson } from './util.mjs';
@@ -11,7 +13,11 @@ const repo = path.resolve(option('--repo') || process.env.ALPHA_REPO || path.joi
 const uiDir = path.resolve(option('--ui') || path.join(directory, '../../dist'));
 const stateDir = path.resolve(option('--state') || path.join(repo, '.alpha'));
 const writeNative = value => process.stdout.write(JSON.stringify(value) + '\n');
-const service = await createService({ repo, uiDir, stateDir, native: writeNative, restoreSessions: true, checkUpdates: process.env.ALPHA_TEST !== '1' });
+const bundledLibrary = path.join(directory, '../shared-library');
+const bundle = path.resolve(option('--library-bundle') || (await access(path.join(bundledLibrary,'manifest.json')).then(() => bundledLibrary, () => path.join(directory,'../../.cache/shared-library'))));
+const libraryRoot = path.resolve(option('--library-root') || process.env.ALPHA_LIBRARY_ROOT || path.join(process.env.APPDATA || path.join(os.homedir(), '.local/share'), 'com.jazcosolutions.alpha', 'SharedLibrary'));
+await access(path.join(bundle, 'manifest.json'));
+const service = await createService({ repo, uiDir, stateDir, native: writeNative, restoreSessions: true, checkUpdates: process.env.ALPHA_TEST !== '1', sharedLibrary: { bundle, root: libraryRoot } });
 // Diagnostics are readable project state. Window credentials travel only over
 // the private startup pipe to the desktop shell, never through this file.
 await saveJson(path.join(stateDir, 'runtime.json'), { pid: process.pid, origin: service.origin });

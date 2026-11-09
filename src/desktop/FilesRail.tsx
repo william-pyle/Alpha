@@ -97,7 +97,9 @@ function treeKeys(event: KeyboardEvent<HTMLDivElement>) {
 }
 
 export default function FilesRail() {
-  const { repo } = useDesktop()
+  const { repo, sharedLibrary } = useDesktop()
+  const [libraryScope, setLibraryScope] = useState<'shared' | 'project'>('shared')
+  const skillRoot = libraryScope === 'shared' && sharedLibrary ? sharedLibrary.root : repo
   const storageKey = `alpha.files.${pathKey(repo)}`
   const [open, setOpen] = useState(() => localStorage.getItem(`${storageKey}.open`) === 'true')
   const [panel, setPanel] = useState<'files' | 'skills' | 'mcp' | 'settings'>('files')
@@ -158,7 +160,7 @@ export default function FilesRail() {
   const navigate = (path: string) => { setRoot(path); setTypedPath(path); setSelected(path); setDestination(path); if (pathKey(path) !== pathKey(root)) setRootFolder(null); setQuery(''); setError('') }
   const showPanel = (next: 'files' | 'skills' | 'mcp' | 'settings') => {
     if (open && panel === next) { setOpen(false); return }
-    if (next === 'skills') { setMode('all'); navigate(`${repo}/.claude/skills`) }
+    if (next === 'skills') { setMode('all'); navigate(`${skillRoot}/.agents/skills`) }
     if (next === 'files' && panel !== 'files') { setMode('main'); navigate(repo) }
     setPanel(next); setOpen(true)
   }
@@ -244,7 +246,12 @@ export default function FilesRail() {
     </div></header>
       <input ref={input} type="file" multiple hidden onChange={event => { void copy(Array.from(event.target.files || []), destination); event.target.value = '' }} />
       {panel === 'files' ? <><div className="file-mode"><button className={mode === 'main' ? 'selected' : ''} onClick={() => { setMode('main'); navigate(repo) }}>Main folders</button><button className={mode === 'all' ? 'selected' : ''} onClick={() => setMode('all')}>All files</button></div>
-      <div className="file-shortcuts">{['inbox', 'projects', 'workspace', 'knowledge', 'processes'].map(name => <button key={name} {...dropProps(`${repo}/${name}`)} className={dropTarget === pathKey(`${repo}/${name}`) ? 'drop-target' : ''} onClick={() => { navigate(repo); const path = `${repo}/${name}`; setExpanded(current => new Set([...current, pathKey(path)])); setSelected(path); setDestination(path) }}><Icon name="folder" size={14} />{name}</button>)}</div></> : <div className="skill-locations">{[['Claude', '.claude/skills'], ['Codex', '.agents/skills'], ['Knowledge', 'knowledge'], ['Processes', 'processes']].map(([label, path]) => <button key={path} aria-pressed={pathKey(root) === pathKey(`${repo}/${path}`)} onClick={() => { setMode('all'); navigate(`${repo}/${path}`) }}>{label}</button>)}<p>Project skills · open a SKILL.md to read or edit.</p></div>}
+      <div className="file-shortcuts">{['inbox', 'projects', 'workspace', 'knowledge', 'processes'].map(name => <button key={name} {...dropProps(`${repo}/${name}`)} className={dropTarget === pathKey(`${repo}/${name}`) ? 'drop-target' : ''} onClick={() => { navigate(repo); const path = `${repo}/${name}`; setExpanded(current => new Set([...current, pathKey(path)])); setSelected(path); setDestination(path) }}><Icon name="folder" size={14} />{name}</button>)}</div></> : <div className="skill-locations">
+        {sharedLibrary && <div><button aria-pressed={libraryScope === 'shared'} onClick={() => { setLibraryScope('shared'); navigate(`${sharedLibrary.root}/.agents/skills`) }}>Shared library</button><button aria-pressed={libraryScope === 'project'} onClick={() => { setLibraryScope('project'); navigate(repo) }}>This project</button></div>}
+        {[['Codex', '.agents/skills'], ['Claude', '.claude/skills'], ['Knowledge', 'knowledge'], ['Workflows', 'processes']].map(([label, path]) => <button key={path} aria-pressed={pathKey(root) === pathKey(`${skillRoot}/${path}`)} onClick={() => { setMode('all'); navigate(`${skillRoot}/${path}`) }}>{label}</button>)}
+        <p>{libraryScope === 'shared' && sharedLibrary ? `Shared across projects · ${sharedLibrary.skills.length} bundled skills · ${sharedLibrary.version}` : 'Project skills and knowledge'} · open a file to read or edit.</p>
+        {libraryScope === 'shared' && !!sharedLibrary?.conflicts.length && <p>{sharedLibrary.conflicts.length} local changes preserved. <button onClick={() => navigate(`${sharedLibrary.root}/.alpha-library/incoming/${sharedLibrary.version}`)}>Review incoming files</button></p>}
+      </div>}
       <form className="file-path" onSubmit={event => { event.preventDefault(); setMode('all'); navigate(typedPath) }}><button type="button" title="Parent folder" onClick={() => { setMode('all'); navigate(rootFolder?.parent || repo) }}><Icon name="up" size={15} /></button><input value={typedPath} onChange={event => setTypedPath(event.target.value)} spellCheck={false} aria-label="Folder path" /><button type="submit" title="Open folder"><Icon name="arrow" size={14} /></button></form>
       <div className="file-filter"><Icon name="search" size={14} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter file names…" aria-label="Filter file names in expanded folders" /></div>
       <div className={`file-list ${dropTarget === pathKey(destination) ? 'drop-area' : ''}`} role="tree" aria-label="Folder tree" onKeyDown={deleteKey} {...dropProps(destination)}>

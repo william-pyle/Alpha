@@ -292,7 +292,9 @@ fn main() {
             let logs = app.path().app_log_dir()?; fs::create_dir_all(&logs)?;
             let log = fs::OpenOptions::new().create(true).append(true).open(logs.join("service.log"))?;
             let mut command = Command::new(node);
+            let library_root = if let Some(root) = std::env::var_os("ALPHA_TEST_DIR") { PathBuf::from(root).join("SharedLibrary") } else { app.path().app_data_dir()?.join("SharedLibrary") };
             command.arg(script).arg("--repo").arg(&repo).arg("--ui").arg(ui).current_dir(&repo)
+                .arg("--library-root").arg(library_root)
                 .env("ALPHA_PARENT_PID", std::process::id().to_string()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
             #[cfg(target_os = "macos")]
             command.env("PATH", login_path::discover());
