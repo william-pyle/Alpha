@@ -1,0 +1,10 @@
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const env = { ...process.env };
+for (const key of Object.keys(env)) if (key.toLowerCase() === 'npm_config_allow_scripts') delete env[key];
+const npm = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+const result = spawnSync(process.execPath, [npm, 'ci', '--prefix', path.join(root, 'desktop/service')], { cwd: root, env, stdio: 'inherit', windowsHide: true });
+if (result.status !== 0) process.exit(result.status || 1);
+await import('./fix-pty-permissions.mjs');

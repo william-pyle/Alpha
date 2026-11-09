@@ -1,0 +1,17 @@
+import { readFile, mkdir, readdir, copyFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+const product = JSON.parse(await readFile('package.json', 'utf8'));
+const tauri = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'));
+if (tauri.version !== product.version || tauri.identifier !== 'com.jazcosolutions.alpha') throw new Error('Product versions or namespace do not match.');
+if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== 'v' + product.version) throw new Error('Release tag does not match the product version.');
+const bundle = 'src-tauri/target/release/bundle/nsis';
+const source = (await readdir(bundle)).filter(name => name === `Alpha_${product.version}_x64-setup.exe`);
+if (source.length !== 1) throw new Error('Expected the current Windows x64 installer.');
+const name = `Alpha-Setup-${product.version}-x64.exe`;
+await mkdir('release', { recursive: true });
+await copyFile(path.join(bundle, source[0]), path.join('release', name));
+const bytes = await readFile(path.join('release', name));
+const manifest = { version: product.version, platform: 'windows-x64', url: `https://github.com/william-pyle/Alpha/releases/download/v${product.version}/${name}`, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+await writeFile('release/alpha-update.json', JSON.stringify(manifest, null, 2) + '\n');
+console.log(JSON.stringify(manifest));

@@ -16,3 +16,12 @@ data/
 integration/alpha-tools.cjs
 Thumbs.db
 .DS_Store
+
+/src-tauri/target/
+/desktop/service/node_modules/
+/desktop/service/.cache/
+/.alpha/
+/workspace/
+*.tsbuildinfo
+/src-tauri/icons/android/
+/src-tauri/icons/ios/

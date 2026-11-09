@@ -1,0 +1,54 @@
+/* Three visual identities over the original Workspace and Chats layout. */
+html[data-alpha-theme] {
+  --bg:#08141e;--bg-deep:#050e16;--surface-solid:#11232f;--sidebar-glass:#0c1b27;--topbar-glass:#0c1b27f2;
+  --text:#e0f2f8;--text-bright:#fff;--text-dim:#abc3d0;--text-muted:#8aa4b5;
+  --pink:#6fe3ed;--pink-bright:#b4f8ff;--purple:#8fb9ed;--blue:#86c9ff;
+  --pink-dim:#6fe3ed16;--purple-dim:#8fb9ed16;--hairline:#9bcbd323;--hairline-strong:#9bcbd343;
+  --edge:linear-gradient(135deg,var(--pink-dim),var(--hairline));--focus-ring:0 0 0 2px var(--pink);
+  --alpha-backdrop:none;--alpha-shade:#08141ee8;
+}
+html[data-alpha-theme=smurfs] {
+  --bg:#10212d;--bg-deep:#0b1721;--surface-solid:#193547;--sidebar-glass:#122b3b;--topbar-glass:#122b3bf2;
+  --text:#e6f4ff;--text-dim:#b8d2df;--text-muted:#91b4c9;--pink:#80caff;--pink-bright:#d6f2ff;--purple:#a8d6a0;
+  --pink-dim:#80caff19;--purple-dim:#a8d6a019;--hairline:#a6d7ff28;--hairline-strong:#a6d7ff50;
+  --alpha-backdrop:url('/art/smurfs-background.png');--alpha-shade:#10212de8;
+}
+html[data-alpha-theme=higurashi] {
+  --bg:#211b18;--bg-deep:#171310;--surface-solid:#342923;--sidebar-glass:#2a211c;--topbar-glass:#2a211cf2;
+  --text:#f6e8da;--text-dim:#d2bcab;--text-muted:#b29b86;--pink:#efb57a;--pink-bright:#ffdbb8;--purple:#b5bf8a;
+  --pink-dim:#efb57a19;--purple-dim:#b5bf8a19;--hairline:#d9baa02b;--hairline-strong:#d9baa050;
+  --alpha-backdrop:url('/art/rena-background.png');--alpha-shade:#211b18e8;
+}
+html[data-alpha-theme][data-workspace-theme=light] {
+  --bg:#f5f6f7;--bg-deep:#e9edef;--surface-solid:#fff;--sidebar-glass:#f0f4f5;--topbar-glass:#fffffff2;
+  --text:#202d36;--text-bright:#0a1922;--text-dim:#465c69;--text-muted:#596f7c;
+  --pink:#096b79;--pink-bright:#064b58;--pink-dim:#096b7912;--hairline:#203f521c;--hairline-strong:#203f5238;
+}
+html[data-alpha-theme=smurfs][data-workspace-theme=light] {--bg:#eef6fc;--sidebar-glass:#e6f1fa;--pink:#215b99;--pink-bright:#153f71;--pink-dim:#215b9914}
+html[data-alpha-theme=higurashi][data-workspace-theme=light] {--bg:#faf3e9;--sidebar-glass:#f4e6d6;--pink:#99502b;--pink-bright:#6e351c;--pink-dim:#99502b14;--text:#35281e;--text-dim:#6a5343}
+html[data-alpha-theme] body::before {background:radial-gradient(ellipse at top left,var(--pink-dim),transparent 60%)}
+html[data-alpha-theme] .desktop-root,html[data-alpha-theme] .chats-app {background:var(--bg);color:var(--text)}
+html[data-alpha-theme] .chats-header,html[data-alpha-theme] .chats-toolbar,html[data-alpha-theme] .chat-tabs,
+html[data-alpha-theme] .files-rail,html[data-alpha-theme] .files-panel,html[data-alpha-theme] .voice-dock {background:var(--sidebar-glass);color:var(--text);border-color:var(--hairline)}
+html[data-alpha-theme] .desk-dialog,html[data-alpha-theme] .settings-scroll,html[data-alpha-theme] .history-list {background:var(--surface-solid);color:var(--text)}
+html[data-alpha-theme] .desk-dialog input,html[data-alpha-theme] .desk-dialog select,html[data-alpha-theme] .settings-scroll select {background:var(--bg);color:var(--text);border-color:var(--hairline-strong)}
+html[data-alpha-theme] .desk-primary {background:var(--pink);color:var(--bg-deep);border-color:var(--pink)}
+html[data-alpha-theme] .desk-secondary {background:var(--pink-dim);color:var(--text);border-color:var(--hairline-strong)}
+html[data-alpha-theme] .desk-eyebrow,html[data-alpha-theme] .chats-brand,html[data-alpha-theme] .agent-choice.selected {color:var(--pink)}
+html[data-alpha-theme] .desk-muted,html[data-alpha-theme] .settings-scroll p,html[data-alpha-theme] .settings-scroll small {color:var(--text-dim)}
+html[data-alpha-theme] .agent-choice {background:var(--bg);border-color:var(--hairline-strong)}
+html[data-alpha-theme] .agent-choice.selected {background:var(--pink-dim);border-color:var(--pink)}
+html[data-alpha-theme] .chats-empty,html[data-alpha-theme] .home {background-image:linear-gradient(var(--alpha-shade),var(--alpha-shade)),var(--alpha-backdrop);background-size:cover;background-position:center}
+html[data-alpha-theme][data-workspace-theme=light] {--alpha-shade:#ffffffd9}
+.application-theme-picker{display:grid;gap:8px;margin-bottom:18px}
+.application-theme-preview{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--hairline-strong);border-radius:8px;background:var(--pink-dim)}
+.application-theme-preview img{width:48px;height:48px;object-fit:contain}
+.application-theme-preview strong,.application-theme-preview small{display:block}
+.application-theme-preview small{font-size:11px;color:var(--text-dim)}
+.alpha-update-notice{position:fixed;bottom:74px;right:16px;z-index:1000;width:min(340px,calc(100vw - 32px));padding:16px;background:var(--surface-solid);color:var(--text);border:1px solid var(--pink);border-radius:10px;box-shadow:var(--shadow-2)}
+.alpha-update-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.alpha-update-actions button{font:inherit;cursor:pointer;padding:8px 12px;border-radius:6px}
+
+html[data-alpha-theme] .entity-card{background:var(--surface-solid);border-color:var(--hairline-strong)}
+html[data-alpha-theme] .entity-card:hover{background:var(--surface-solid);border-color:var(--pink)}
+html[data-alpha-theme] .topbar,html[data-alpha-theme] .chat-tabs-row{background:var(--topbar-glass);border-color:var(--hairline)}
