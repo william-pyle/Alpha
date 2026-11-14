@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { WorkspaceEntity } from '../types'
+import type { CardCategory, WorkspaceEntity } from '../types'
 import { updateWorkspaceEntity, type EntityPatch } from '../lib/workspace'
-import { CATEGORY_ICONS } from '../lib/categories'
 import { isDesktop } from '../desktop/client'
 import './entity-controls.css'
 
@@ -28,9 +27,9 @@ export function EntityStatusButton({ entity }: { entity: WorkspaceEntity }) {
   )
 }
 
-function EntityMenu({ entity, entities, target, onClose, onChanged }: {
+function EntityMenu({ entity, categories, target, onClose, onChanged }: {
   entity: WorkspaceEntity
-  entities: WorkspaceEntity[]
+  categories: CardCategory[]
   target: Target
   onClose: () => void
   onChanged: () => Promise<void>
@@ -39,7 +38,6 @@ function EntityMenu({ entity, entities, target, onClose, onChanged }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const category = entity.category || 'other'
-  const categories = [...new Set([...Object.keys(CATEGORY_ICONS), 'project', 'tools', 'other', ...entities.map(item => item.category).filter(Boolean)])].sort()
 
   useLayoutEffect(() => {
     const element = dialog.current!
@@ -108,7 +106,7 @@ function EntityMenu({ entity, entities, target, onClose, onChanged }: {
       <label className="entity-category-control">
         Category
         <select aria-label="Card category" value={category} disabled={saving} onChange={event => void save({ category: event.target.value })}>
-          {categories.map(value => <option key={value} value={value}>{value.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</option>)}
+          {categories.map(item => <option key={item.id} value={item.id}>{item.icon} {item.name}</option>)}
         </select>
       </label>
       <button type="button" className="entity-pin-toggle" disabled={saving} onClick={() => void save({ pinned: !entity.pinned })}>
@@ -121,8 +119,9 @@ function EntityMenu({ entity, entities, target, onClose, onChanged }: {
   )
 }
 
-export default function EntityControls({ entities, onChanged, children }: {
+export default function EntityControls({ entities, categories, onChanged, children }: {
   entities: WorkspaceEntity[]
+  categories: CardCategory[]
   onChanged: () => Promise<void>
   children: ReactNode
 }) {
@@ -135,7 +134,7 @@ export default function EntityControls({ entities, onChanged, children }: {
   return (
     <Controls.Provider value={{ editing: target?.id ?? null, open: (item, button) => setTarget({ id: item.id, button, anchor: button.getBoundingClientRect() }) }}>
       {children}
-      {entity && target && <EntityMenu key={entity.id} entity={entity} entities={entities} target={target} onClose={close} onChanged={onChanged} />}
+      {entity && target && <EntityMenu key={entity.id} entity={entity} categories={categories} target={target} onClose={close} onChanged={onChanged} />}
     </Controls.Provider>
   )
 }

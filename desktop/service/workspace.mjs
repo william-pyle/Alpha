@@ -4,11 +4,22 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { realFile, saveJson, sleep } from './util.mjs';
 import { validateCard, cardText, CARD_MAX_BYTES } from './card-schema.mjs';
+import defaultCategories from './default-categories.json' with { type: 'json' };
 
 const execute = promisify(execFile);
 export const localDay = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const brief = ({ id, title, description, status, category, created, updated, pinned, steps }) => ({ id, title, description, status, category, created, updated, pinned: !!pinned, steps: (steps || []).map(({ name }, index) => ({ name, index })) });
 const invalid = message => Object.assign(new Error(message), { status: 400 });
+const categoryId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
+const categoryName = value => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 60 && !/[\x00-\x1f\x7f]/.test(value);
+const categoryIcon = value => typeof value === 'string' && value.trim().length > 0 && [...value].length <= 8 && !/[\x00-\x1f\x7f<>]/.test(value);
+const displayName = id => id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+export function categoriesOf(registry) {
+  const source = Array.isArray(registry.categories) ? registry.categories : defaultCategories;
+  const categories = source.filter(item => categoryId(item?.id) && categoryName(item?.name) && categoryIcon(item?.icon)).map(item => ({ id: item.id, name: item.name.trim(), icon: item.icon.trim() }));
+  for (const entity of registry.entities || []) if (categoryId(entity.category) && !categories.some(item => item.id === entity.category)) categories.push({ id: entity.category, name: displayName(entity.category), icon: '📁' });
+  return categories;
+}
 
 // Removes <script> and <style> blocks in one pass. A lazy regex up to the closing
 // tag rescans the rest of the text for every unclosed opening tag, which lets a
@@ -41,6 +52,7 @@ export class Workspace {
   async registry() {
     const registry = JSON.parse(await readFile(this.file, 'utf8'));
     if (!Array.isArray(registry.entities)) throw new Error('Workspace registry is not ready.');
+    registry.categories = categoriesOf(registry);
     return registry;
   }
   async list({ query = '', date, status } = {}) {
@@ -74,16 +86,20 @@ export class Workspace {
     const operation = this.writes.catch(() => {}).then(async () => {
       if (patch.status !== undefined && !['active', 'done', 'archived'].includes(patch.status)) throw invalid('Use active, done or archived status.');
       if (patch.pinned !== undefined && typeof patch.pinned !== 'boolean') throw invalid('Pinned must be true or false.');
-      if (patch.category !== undefined && (typeof patch.category !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(patch.category))) throw invalid('Use a category with lowercase letters, numbers and hyphens.');
+      if (patch.category !== undefined && !categoryId(patch.category)) throw invalid('Use a category with lowercase letters, numbers and hyphens.');
       if (patch.status === undefined && patch.pinned === undefined && patch.category === undefined) throw invalid('Choose a status, category or pin change.');
       for (let attempt = 0; attempt < 6; attempt++) {
         const source = await readFile(this.file, 'utf8');
         const registry = JSON.parse(source);
+        registry.categories = categoriesOf(registry);
         const entity = registry.entities.find(item => item.id === id);
         if (!entity) throw Object.assign(new Error('Workspace card was not found.'), { status: 404 });
         if (patch.status !== undefined) entity.status = patch.status;
         if (patch.pinned !== undefined) entity.pinned = patch.pinned;
-        if (patch.category !== undefined) entity.category = patch.category;
+        if (patch.category !== undefined) {
+          if (!registry.categories.some(item => item.id === patch.category)) registry.categories.push({ id: patch.category, name: displayName(patch.category), icon: '📁' });
+          entity.category = patch.category;
+        }
         entity.updated = localDay();
         // Preserve other agents' latest registry changes instead of saving a stale snapshot.
         if (await readFile(this.file, 'utf8') !== source) continue;
@@ -103,6 +119,49 @@ export class Workspace {
       throw new Error('Workspace is being updated by another task. Try the change again.');
     });
     this.writes = operation;
+    return operation;
+  }
+  changeCategory(action, id, details = {}) {
+    const operation = this.writes.catch(() => {}).then(async () => {
+      if (!['create', 'update', 'delete'].includes(action)) throw invalid('Choose a category action.');
+      if (!categoryId(id)) throw invalid('Use a category ID with lowercase letters, numbers and hyphens.');
+      if (action !== 'delete' && (!categoryName(details.name) || !categoryIcon(details.icon))) throw invalid('Enter a category name and choose an icon.');
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const source = await readFile(this.file, 'utf8');
+        const registry = JSON.parse(source);
+        if (!Array.isArray(registry.entities)) throw new Error('Workspace registry is not ready.');
+        registry.categories = categoriesOf(registry);
+        const index = registry.categories.findIndex(item => item.id === id);
+        let reassigned = 0;
+        if (action === 'create') {
+          if (index >= 0) throw invalid('That category ID already exists.');
+          registry.categories.push({ id, name: details.name.trim(), icon: details.icon.trim() });
+        } else {
+          if (index < 0) throw Object.assign(new Error('Category was not found.'), { status: 404 });
+          if (action === 'update') registry.categories[index] = { id, name: details.name.trim(), icon: details.icon.trim() };
+          else {
+            const used = registry.entities.filter(item => item.category === id);
+            reassigned = used.length;
+            if (registry.categories.length < 2) throw invalid('Keep at least one category.');
+            if (used.length && (!categoryId(details.replacement) || details.replacement === id || !registry.categories.some(item => item.id === details.replacement))) throw invalid('Choose another category for these cards.');
+            for (const entity of used) { entity.category = details.replacement; entity.updated = localDay(); }
+            registry.categories.splice(index, 1);
+          }
+        }
+        if (await readFile(this.file, 'utf8') !== source) continue;
+        try { await saveJson(this.file, registry, { beforeReplace: async () => {
+          if (await readFile(this.file, 'utf8') !== source) throw Object.assign(new Error('Workspace changed while saving.'), { code: 'ESTALE' });
+        } }); }
+        catch (error) {
+          if (!['EPERM', 'EACCES', 'EBUSY', 'ESTALE'].includes(error.code) || attempt === 5) throw error;
+          await sleep(40 * (attempt + 1)); continue;
+        }
+        this.changed();
+        return { categories: registry.categories, reassigned };
+      }
+      throw new Error('Workspace is being updated by another task. Try again.');
+    });
+    this.writes = operation.catch(() => {});
     return operation;
   }
 }

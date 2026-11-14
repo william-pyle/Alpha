@@ -44,6 +44,17 @@ test('card edits are authenticated, scoped, persistent and preserve reports and 
     state = JSON.parse(await readFile(file, 'utf8'));
     assert.equal(state.entities[0].status, 'active'); assert.equal(state.entities[0].pinned, false);
     assert.deepEqual(state.entities[0].steps, first.steps);
+    const category = (action, id, value = {}) => fetch(`${service.origin}/api/workspace/categories${id ? `/${id}` : ''}`, { method: action, headers, body: JSON.stringify(value) });
+    assert.equal((await category('POST', '', { id: 'writing', name: 'Writing', icon: '📝' })).status, 201);
+    assert.equal((await category('POST', '', { id: 'writing', name: 'Duplicate', icon: '📁' })).status, 400);
+    assert.equal((await edit({ category: 'writing' })).status, 200);
+    assert.equal((await category('PATCH', 'writing', { name: 'Editorial', icon: '🧪' })).status, 200);
+    assert.equal((await category('DELETE', 'writing')).status, 400, 'A used category needs a replacement');
+    assert.equal((await category('DELETE', 'writing', { replacement: 'game' })).status, 200);
+    state = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(state.entities[0].category, 'game');
+    assert.ok(!state.categories.some(item => item.id === 'writing'));
+    assert.equal((await category('DELETE', 'game', { replacement: 'game' })).status, 400);
     assert.equal(await readFile(report, 'utf8'), '<h1>Keep this report</h1>');
     const response = await fetch(`${service.origin}/api/workspace`, { headers });
     assert.deepEqual(await response.json(), state);

@@ -1,13 +1,14 @@
 import type { RefObject } from 'react'
-import type { WorkspaceEntity } from '../types'
+import type { CardCategory, WorkspaceEntity } from '../types'
 import { entityHash } from '../lib/route'
-import { categoryIcon } from '../lib/categories'
+import { categoryIcon, categoryName } from '../lib/categories'
 import { contentUrl } from '../desktop/client'
 import MakLogo from './MakLogo'
 import MakText from './MakText'
 import { EntityStatusButton } from './EntityControls'
 
 interface SidebarProps {
+  categories: CardCategory[]
   pinned: WorkspaceEntity[]
   grouped: Map<string, WorkspaceEntity[]>
   activeId: string | null
@@ -23,7 +24,7 @@ interface SidebarProps {
   onCollapse: () => void
 }
 
-function Item({ entity, active }: { entity: WorkspaceEntity; active: boolean }) {
+function Item({ entity, active, categories }: { entity: WorkspaceEntity; active: boolean; categories: CardCategory[] }) {
   return (
     <div className="sidebar-item-row" data-card={entity.id}>
     <a
@@ -32,7 +33,7 @@ function Item({ entity, active }: { entity: WorkspaceEntity; active: boolean }) 
       aria-current={active ? 'page' : undefined}
     >
       <span className="item-icon" aria-hidden="true">
-        {entity.icon ? <img src={contentUrl(`/workspace/${entity.folder}/${entity.icon}`)} width="24" height="24" alt="" decoding="async" /> : categoryIcon(entity.category)}
+        {entity.icon ? <img src={contentUrl(`/workspace/${entity.folder}/${entity.icon}`)} width="24" height="24" alt="" decoding="async" /> : categoryIcon(entity.category, categories)}
       </span>
       <span className="item-text">{entity.title}</span>
     </a>
@@ -42,6 +43,7 @@ function Item({ entity, active }: { entity: WorkspaceEntity; active: boolean }) 
 }
 
 export default function Sidebar({
+  categories,
   pinned,
   grouped,
   activeId,
@@ -107,7 +109,7 @@ export default function Sidebar({
               <span className="sidebar-label">{'\u{1F4CC}'} pinned</span>
             </div>
             {pinned.map(e => (
-              <Item key={e.id} entity={e} active={e.id === activeId} />
+              <Item key={e.id} entity={e} active={e.id === activeId} categories={categories} />
             ))}
           </div>
         )}
@@ -115,11 +117,11 @@ export default function Sidebar({
         {[...grouped.entries()].map(([cat, list]) => (
           <div key={cat}>
             <div className="sidebar-section">
-              <span className="sidebar-label">{cat.replace(/-/g, ' ')}</span>
+              <span className="sidebar-label">{categoryName(cat, categories)}</span>
               <span className="sidebar-count">{list.length}</span>
             </div>
             {list.map(e => (
-              <Item key={e.id} entity={e} active={e.id === activeId} />
+              <Item key={e.id} entity={e} active={e.id === activeId} categories={categories} />
             ))}
           </div>
         ))}

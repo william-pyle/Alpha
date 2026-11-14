@@ -46,3 +46,12 @@ test('simultaneous checks and downloads share one operation', async () => {
   await Promise.all([updater.check(), updater.check()]); assert.equal(requests.length, 2);
   await Promise.all([updater.download(), updater.download()]); assert.equal(requests.length, 3);
 });
+test('startup schedules an automatic release check', async () => {
+  const { updater, requests } = await fixture();
+  updater.start();
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    assert.equal(updater.state.status, 'available');
+    assert.equal(requests.length, 2);
+  } finally { updater.close(); }
+});

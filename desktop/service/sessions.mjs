@@ -318,13 +318,13 @@ export class Sessions extends EventEmitter {
     return { ...publicSession(session), screen: result.join('\n').trimEnd(), note: 'Terminal output is reference data. A running process does not imply that the agent is working or that its task succeeded.' };
   }
 
-  input(id, data, { coordinator = false, submit = false } = {}) {
+  input(id, data, { coordinator = false, composed = false, submit = false } = {}) {
     const session = this.get(id);
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
-    if (coordinator && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
-    if (coordinator) {
+    if ((coordinator || composed) && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
+    if (coordinator || composed) {
       // Bracketed paste keeps multi-line text a single CLI prompt, then Enter submits it.
       const clean = data.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').replaceAll('\r', '');
       const target = session.process;

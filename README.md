@@ -11,11 +11,24 @@ the familiar **Workspace and Chats windows**, navigation, terminals, history,
 files, settings, desktop dictation and permission controls.
 
 Version **0.2.3** adds a selectable Workspace location in Settings and the installer.
+
+## Version 0.2.4
+
+Alpha 0.2.4 adds a multiline chat editor below each
+terminal (Enter for a new line; Ctrl+Enter or Send to submit), an update notice
+from the startup GitHub check, and Workspace card category management with
+editable names and icons. Category definitions are saved in the selected
+Workspace's `workspace/workspace.json`.
+
+The shared library now includes `knowledge/mailcraft-mcp.md`, covering the MailCraft
+0.11.1 local MCP bridge, its Windows CLI, connection steps, and approval behavior.
+The knowledge file is included automatically in the 0.2.4 installer.
+MailCraft itself and the owner's MCP account configuration remain separate installs.
 The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.3-x64.exe** from the
+Download **Alpha-Setup-0.2.4-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.

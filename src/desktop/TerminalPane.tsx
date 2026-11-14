@@ -189,7 +189,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
     element.addEventListener('paste', paste, true)
     const observer = new ResizeObserver(resize); observer.observe(host.current)
     subscribe()
-    const focus = () => terminal.focus()
+    const focus = () => { if (!(document.activeElement as HTMLElement | null)?.closest('.chat-composer')) terminal.focus() }
     window.addEventListener('focus', focus)
     return () => {
       off(); input.dispose(); clipboard.dispose(); observer.disconnect()

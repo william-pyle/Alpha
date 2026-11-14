@@ -32,6 +32,13 @@ export interface WorkspaceEntity {
 
 export interface WorkspaceState {
   entities: WorkspaceEntity[]
+  categories?: CardCategory[]
+}
+
+export interface CardCategory {
+  id: string
+  name: string
+  icon: string
 }
 
 /* ─── 3D comparison steps ─────────────────────────────────────────────────

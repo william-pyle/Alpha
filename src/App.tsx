@@ -37,6 +37,7 @@ export default function App() {
   }, [collapsed])
 
   const entities = workspace?.entities ?? []
+  const categories = workspace?.categories ?? []
   const entity = entities.find(e => e.id === route.id) ?? null
 
   const stepIndex = entity
@@ -126,9 +127,10 @@ export default function App() {
   }
 
   return (
-    <EntityControls entities={entities} onChanged={reload}>
+    <EntityControls entities={entities} categories={categories} onChanged={reload}>
     <div className={`app-layout${collapsed ? ' sidebar-collapsed' : ''}`} data-entity={route.id}>
       <Sidebar
+        categories={categories}
         pinned={pinned}
         grouped={grouped}
         activeId={route.id}
@@ -155,6 +157,9 @@ export default function App() {
 
       <main className="main">
         <Topbar
+          categories={categories}
+          entities={entities}
+          onCategoriesChanged={reload}
           entity={entity}
           stepIndex={stepIndex}
           onStep={selectStep}
@@ -179,6 +184,7 @@ export default function App() {
           ) : (
             <HomeGrid
               entities={entities}
+              categories={categories}
               pinned={pinned}
               grouped={grouped}
               offline={offline}

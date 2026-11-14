@@ -8,6 +8,7 @@ Project skills of the same name take precedence over shared skills.
 - `.agents/skills/`: maintained Codex skill folders, including scripts and references.
 - `.claude/skills/`: complete copies generated for Claude Code during packaging.
 - `knowledge/`: general reusable knowledge, including future additions.
+- `knowledge/mailcraft-mcp.md`: MailCraft CLI, MCP bridge, and owner approval behavior.
 - `processes/`: reusable workflows.
 - `scripts/`: supporting helpers; optional dependencies are documented alongside them.
 - `workspace/_shared/`: common report templates to copy into a project when missing.

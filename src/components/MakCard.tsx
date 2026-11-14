@@ -1,4 +1,4 @@
-import type { WorkspaceEntity } from '../types'
+import type { CardCategory, WorkspaceEntity } from '../types'
 import { entityHash } from '../lib/route'
 import { categoryIcon } from '../lib/categories'
 import { contentUrl } from '../desktop/client'
@@ -10,7 +10,7 @@ import { EntityStatusButton } from './EntityControls'
  * block of the home grid; mirrored as `.mak-card` in
  * scripts/shared/report_style.py for generated reports.
  */
-export default function MakCard({ entity }: { entity: WorkspaceEntity }) {
+export default function MakCard({ entity, categories }: { entity: WorkspaceEntity; categories: CardCategory[] }) {
   const steps = entity.steps.length
   return (
     <div className="entity-card-wrap" data-card={entity.id}>
@@ -21,8 +21,8 @@ export default function MakCard({ entity }: { entity: WorkspaceEntity }) {
     >
       <div className="card-top">
         <span className="chip">
-          <span aria-hidden="true">{categoryIcon(entity.category)}</span>
-          {entity.category || 'other'}
+          <span aria-hidden="true">{categoryIcon(entity.category, categories)}</span>
+          {categories.find(item => item.id === entity.category)?.name ?? entity.category ?? 'Other'}
         </span>
         {entity.pinned && <span className="chip chip-pin">pinned</span>}
       </div>

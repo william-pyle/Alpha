@@ -1,10 +1,11 @@
-import type { WorkspaceEntity } from '../types'
-import { categoryIcon } from '../lib/categories'
+import type { CardCategory, WorkspaceEntity } from '../types'
+import { categoryIcon, categoryName } from '../lib/categories'
 import MakCard from './MakCard'
 import MakLogo from './MakLogo'
 
 interface HomeGridProps {
   entities: WorkspaceEntity[]
+  categories: CardCategory[]
   pinned: WorkspaceEntity[]
   grouped: Map<string, WorkspaceEntity[]>
   offline: boolean
@@ -22,6 +23,7 @@ function greeting(): string {
 
 export default function HomeGrid({
   entities,
+  categories,
   pinned,
   grouped,
   offline,
@@ -61,7 +63,7 @@ export default function HomeGrid({
           </div>
           <div className="card-grid">
             {pinned.map(e => (
-              <MakCard key={e.id} entity={e} />
+              <MakCard key={e.id} entity={e} categories={categories} />
             ))}
           </div>
         </section>
@@ -71,13 +73,13 @@ export default function HomeGrid({
         <section key={cat} className="home-section">
           <div className="section-head">
             <span className="section-title">
-              {categoryIcon(cat)} {cat.replace(/-/g, ' ')}
+              {categoryIcon(cat, categories)} {categoryName(cat, categories)}
             </span>
             <span className="section-count">{list.length}</span>
           </div>
           <div className="card-grid">
             {list.map(e => (
-              <MakCard key={e.id} entity={e} />
+              <MakCard key={e.id} entity={e} categories={categories} />
             ))}
           </div>
         </section>

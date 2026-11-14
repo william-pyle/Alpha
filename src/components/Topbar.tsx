@@ -1,10 +1,14 @@
-import type { WorkspaceEntity } from '../types'
+import type { CardCategory, WorkspaceEntity } from '../types'
 import { isDesktop } from '../desktop/client'
 import BrowserSettings from './BrowserSettings'
 import NewCard from './NewCard'
 import { EntityStatusButton } from './EntityControls'
+import CategoryManager from './CategoryManager'
 
 interface TopbarProps {
+  categories: CardCategory[]
+  entities: WorkspaceEntity[]
+  onCategoriesChanged: () => Promise<void>
   entity: WorkspaceEntity | null
   stepIndex: number
   onStep: (id: string, index: number) => void
@@ -12,7 +16,7 @@ interface TopbarProps {
   reportUrl: string | null
 }
 
-export default function Topbar({ entity, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
+export default function Topbar({ entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
   return (
     <div className="topbar">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -27,6 +31,7 @@ export default function Topbar({ entity, stepIndex, onStep, onHome, reportUrl }:
           </>
         )}
         {isDesktop && <NewCard />}
+        {isDesktop && <CategoryManager categories={categories} entities={entities} onChanged={onCategoriesChanged} />}
         {!isDesktop && <BrowserSettings />}
       </nav>
 

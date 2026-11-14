@@ -75,7 +75,7 @@ export class Updates {
     return this.state;
   }
   start() {
-    this.startTimer = setTimeout(() => void this.check(), 15000); this.startTimer.unref();
+    this.startTimer = setTimeout(() => void this.check(), 1000); this.startTimer.unref();
     this.timer = setInterval(() => void this.check(), 6 * 60 * 60 * 1000); this.timer.unref();
   }
   close() { clearTimeout(this.startTimer); clearInterval(this.timer); }

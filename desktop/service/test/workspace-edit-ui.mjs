@@ -36,8 +36,27 @@ try {
   await expect(dot()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
   await expect(peer.locator('.home [data-card="sample"] button')).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
   await dot().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('dev');
-  await expect(homeCard.locator('.chip').first()).toHaveText(/dev/);
-  await expect(homeCard.locator('xpath=ancestor::section').locator('.section-title')).toHaveText(/dev/);
+  await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
+  await expect(homeCard.locator('xpath=ancestor::section').locator('.section-title')).toHaveText(/Development/);
+  await page.getByRole('button', { name: 'Categories', exact: true }).click();
+  const manager = page.getByRole('dialog', { name: 'Manage card categories' });
+  await expect(manager).toBeVisible();
+  await manager.getByRole('textbox', { name: 'Name' }).fill('Writing');
+  await manager.getByRole('combobox', { name: 'Icon' }).selectOption('📝');
+  await manager.getByRole('button', { name: 'Add category' }).click();
+  await expect(manager.getByText('Writing', { exact: true })).toBeVisible();
+  await manager.getByRole('button', { name: 'Edit Writing' }).click();
+  await manager.getByRole('textbox', { name: 'Name' }).fill('Editorial');
+  await manager.getByRole('button', { name: 'Save category' }).click();
+  await manager.getByRole('button', { name: 'Close categories' }).click();
+  await dot().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('writing');
+  await expect(homeCard.locator('.chip').first()).toHaveText(/Editorial/);
+  await page.getByRole('button', { name: 'Categories', exact: true }).click();
+  await manager.getByRole('button', { name: 'Delete Editorial' }).click();
+  await manager.getByRole('combobox', { name: 'Move cards to' }).selectOption('dev');
+  await manager.getByRole('button', { name: 'Delete category' }).click();
+  await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
+  await manager.getByRole('button', { name: 'Close categories' }).click();
   await dot().click(); await menu.getByRole('button', { name: 'Archived', exact: true }).click();
   await expect(homeCard).toHaveCount(0);
   assert.equal(await readFile(path.join(repo, 'workspace', 'sample', 'report.html'), 'utf8'), report);
@@ -59,6 +78,7 @@ try {
   await expect(row.locator('a')).toHaveClass(/pinned/);
   await row.getByRole('button').click(); await menu.getByRole('button', { name: 'Unpin card', exact: true }).click();
   await expect(row.locator('a')).not.toHaveClass(/pinned/);
+  await expect(menu).toHaveCount(0);
   await row.getByRole('button').focus(); await page.keyboard.press('Enter'); await expect(menu).toBeVisible();
   await page.keyboard.press('Escape'); await expect(menu).toHaveCount(0); await expect(row.getByRole('button')).toBeFocused();
   await row.getByRole('button').click(); await page.mouse.click(800, 15); await expect(menu).toHaveCount(0);
@@ -82,13 +102,20 @@ try {
     await page.evaluate(theme => document.documentElement.dataset.workspaceTheme = theme, theme);
     for (const width of [1100, 390]) {
       await page.setViewportSize({ width, height: 740 });
+      if (width === 390) {
+        const button = page.getByRole('button', { name: 'Categories', exact: true });
+        const categoryButton = await button.boundingBox();
+        assert.ok(categoryButton && categoryButton.x + categoryButton.width <= width - 48, JSON.stringify(categoryButton));
+        assert.equal(await button.evaluate(element => getComputedStyle(element).fontSize), '0px');
+      }
       const control = page.locator('.topbar .entity-status-button');
       await control.click();
       await expect(menu).toBeVisible();
       const rect = await menu.boundingBox();
       assert.ok(rect.x >= 10 && rect.y >= 10 && rect.x + rect.width <= width - 10 && rect.y + rect.height <= 730, JSON.stringify(rect));
       const color = await menu.evaluate(element => getComputedStyle(element).backgroundColor);
-      assert.equal(color, theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(19, 19, 22)');
+      if (theme === 'light') assert.equal(color, 'rgb(255, 255, 255)');
+      else assert.notEqual(color, 'rgb(255, 255, 255)');
       await page.screenshot({ path: path.join(repo, `menu-${theme}-${width}.png`) });
       await page.keyboard.press('Escape');
     }

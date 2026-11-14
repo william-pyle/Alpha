@@ -58,6 +58,14 @@ try {
   await call(`/sessions/${session.id}/input`, { text: "printf 'ALPHA_GITBASH_OK\\n'; pwd\r", paste: false });
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_GITBASH_OK');
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen).toContain(path.basename(repo));
+  const messageEditor = chats.getByRole('textbox', { name: 'Write a message' });
+  await messageEditor.fill("printf 'ALPHA_COMPOSER_OK\\n'");
+  await messageEditor.press('Enter');
+  await expect(messageEditor).toHaveValue("printf 'ALPHA_COMPOSER_OK\\n'\n");
+  await chats.waitForTimeout(2600);
+  await messageEditor.press('Control+Enter');
+  await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_COMPOSER_OK');
+  await expect(messageEditor).toHaveValue('');
   await chats.getByRole('button', { name: 'New chat', exact: true }).click();
   await chats.getByRole('button', { name: /^PowerShell/ }).click();
   await chats.getByLabel(/Chat name/).fill('PowerShell check');

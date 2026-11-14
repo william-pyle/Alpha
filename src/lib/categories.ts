@@ -1,12 +1,9 @@
-export const CATEGORY_ICONS: Record<string, string> = {
-  'image-gen': '\u{1F3A8}',
-  'analytics': '\u{1F4CA}',
-  'research': '\u{1F50D}',
-  'lead-magnet': '\u{1F9F2}',
-  'game': '\u{1F3AE}',
-  'dev': '\u{1F6E0}\u{FE0F}',
+import type { CardCategory } from '../types'
+
+export function categoryIcon(category: string, categories: CardCategory[]): string {
+  return categories.find(item => item.id === category)?.icon ?? '📁'
 }
 
-export function categoryIcon(category: string): string {
-  return CATEGORY_ICONS[category] ?? '\u{1F4C1}'
+export function categoryName(category: string, categories: CardCategory[]): string {
+  return categories.find(item => item.id === category)?.name ?? category.replace(/-/g, ' ')
 }

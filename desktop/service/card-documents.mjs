@@ -99,7 +99,10 @@ export class CardDocuments {
       const id = `${slug}-${randomUUID().slice(0, 8)}`, folder = `${localDay()}_${id}`;
       const workspaceRoot = await realpath(path.join(this.repo, 'workspace'));
       const directory = path.join(workspaceRoot, folder), file = path.join(directory, 'content.card.json');
-      const entity = { id, title: document.title, description: '', type: 'standalone', category: template === 'gallery' ? 'image-gen' : 'research', created: localDay(), updated: localDay(), folder, steps: [{ name: template === 'gallery' ? 'Gallery' : 'Research', path: 'content.card.json', viewer: 'card' }], defaultStep: 0, status: 'active' };
+      const categories = (await this.workspace.registry()).categories;
+      const preferred = template === 'gallery' ? 'image-gen' : 'research';
+      const category = categories.some(item => item.id === preferred) ? preferred : categories[0]?.id || 'other';
+      const entity = { id, title: document.title, description: '', type: 'standalone', category, created: localDay(), updated: localDay(), folder, steps: [{ name: template === 'gallery' ? 'Gallery' : 'Research', path: 'content.card.json', viewer: 'card' }], defaultStep: 0, status: 'active' };
       await mkdir(directory);
       await writeFile(file, sourceOf(document), { flag: 'wx' });
       try { await this.registryChange(registry => { registry.entities.push(entity); }); }

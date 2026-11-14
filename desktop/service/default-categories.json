@@ -1,0 +1,11 @@
+[
+  { "id": "analytics", "name": "Analytics", "icon": "📊" },
+  { "id": "dev", "name": "Development", "icon": "🛠️" },
+  { "id": "game", "name": "Game", "icon": "🎮" },
+  { "id": "image-gen", "name": "Image generation", "icon": "🎨" },
+  { "id": "lead-magnet", "name": "Lead magnet", "icon": "🧲" },
+  { "id": "other", "name": "Other", "icon": "📁" },
+  { "id": "project", "name": "Project", "icon": "📁" },
+  { "id": "research", "name": "Research", "icon": "🔍" },
+  { "id": "tools", "name": "Tools", "icon": "📁" }
+]
