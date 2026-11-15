@@ -18,8 +18,9 @@ knowledge into one Windows desktop window. The current release is **0.2.14**.
   and Research cards, organize them by category, preview changes and save.
 - Paste or drop images into a message draft. Alpha saves them to the Workspace
   inbox and inserts their paths without sending the draft.
-- Use desktop dictation and Talk to Alpha. Select an Alpha, Smurfs or Higurashi
-  application theme in Settings.
+- Use desktop dictation and Talk to Alpha. Settings has separate Speech-to-text,
+  Voice, Updates, and Theme sections. Edit a bundled theme or create a color
+  theme with Alpha's artwork.
 - Browse shared and project skills and knowledge in Settings. Project skills
   with the same name take precedence over shared skills.
 - Choose a Workspace location at installation or later in Settings. Copy a
@@ -71,12 +72,12 @@ bypasses agent permission prompts.
 
 Workspace stays open as a document tab. Use **File → New card** for Gallery or
 Research content, **File → Open file** for a file tab and **Help → Open Help**
-for the built-in guide. **Tools → Settings** contains General, MCP, Categories
-and Skills. The **View** menu opens the archive and controls the Workspace
+for the built-in guide. **Tools → Settings** contains General, Speech-to-text,
+Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens the archive and controls the Workspace
 microphone.
 
 Alpha checks GitHub shortly after startup and every six hours. To check now,
-open **Settings → General → Alpha updates**. Choose **Download update**, then
+open **Settings → Updates**. Choose **Download update**, then
 **Restart and install** when ready. Alpha verifies the installer checksum and
 warns about active terminals before restarting. Closing the app alone does not
 install a downloaded update.

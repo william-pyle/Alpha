@@ -12,8 +12,9 @@ the draft. The shared Questions section routes answers to the chat that asked.
 
 Card categories are stored in the selected Workspace's
 `workspace/workspace.json` as stable IDs with names and icons. Settings
-contains General, MCP, Categories and Skills. Application theme, Workspace
-location, voice controls and updates are managed under General.
+contains General, Speech-to-text, Voice, Updates, Theme, MCP, Categories and
+Skills. Workspace location remains under General. Theme supports editing the
+bundled themes and creating saved color themes with bundled artwork.
 
 The shared library is packaged from `shared-library/` and installed separately
 from each Workspace. Project skills take precedence over shared skills with

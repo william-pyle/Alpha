@@ -14,7 +14,7 @@
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
     "desktop:test": "node --test desktop/service/test/*.test.mjs",
-    "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs",
+    "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs && node desktop/service/test/settings-cleanup-ui.mjs",
     "test": "npm run desktop:test",
     "package": "npm run desktop:build -- --bundles msi",
     "library:build": "node scripts/package-library.mjs",

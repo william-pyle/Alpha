@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import path from 'node:path';
 import { codexBinary, childEnvironment } from './agents.mjs';
 import { publicError, readJson, saveJson } from './util.mjs';
+import voiceOptions from './voice-options.json' with { type: 'json' };
 
 const tool = (name, description, properties = {}, required = []) => ({ type: 'function', name, description, inputSchema: { type: 'object', properties, required, additionalProperties: false } });
 const str = description => ({ type: 'string', description });
@@ -34,7 +35,7 @@ export const coordinatorTools = [
   tool('list_skills', 'Discover available repository, personal and plugin skill instructions. Read the relevant skill and pass its path to the worker. This does not imply its external tools are connected.', { query: str('Optional topic filter') }),
   tool('list_mcp', 'List MCP configurations by agent and project/global/plugin source, with the most recent explicit connection checks. Enabled configuration does not prove that an existing chat is connected. No credentials are returned.', {}),
   tool('get_app_settings', 'Read the current voice personality and coordinator settings; never returns keys.'),
-  tool('update_voice', 'Save a voice preference directly. Takes effect on the next voice connection. Do not open a coding task for a supported preference.', { style: str('Complete desired voice personality, delivery and language, written in English'), voice: { type: 'string', enum: ['cedar', 'marin'] } }),
+  tool('update_voice', 'Save a voice preference directly. Takes effect on the next voice connection. Do not open a coding task for a supported preference.', { style: str('Complete desired voice personality, delivery and language, written in English'), voice: { type: 'string', enum: voiceOptions } }),
 ];
 
 // The schema above is advisory for the model. This is the server-side check:
@@ -107,7 +108,7 @@ export class Coordinator extends EventEmitter {
       await this.rpc('initialize', { clientInfo: { name: 'alpha_desktop', title: 'Alpha Desktop', version: '0.1.0' }, capabilities: { experimentalApi: true } });
       this.send({ method: 'initialized', params: {} });
       const result = await this.rpc('thread/start', {
-        cwd: this.repo, ...(this.model ? { model: this.model } : {}), baseInstructions: instructions + '\nTheme controller: ' + ({ alpha: 'Alpha', smurfs: 'Papa Smurf', higurashi: 'Rena' }[this.settings().appTheme] || 'Alpha') + '. The application is Alpha; keep the same tools and permission boundaries.\n\n' + await this.orientation(), dynamicTools: coordinatorTools,
+        cwd: this.repo, ...(this.model ? { model: this.model } : {}), baseInstructions: instructions + '\nTheme controller: ' + (this.settings().themeProfiles?.find(theme => theme.id === this.settings().appTheme)?.controller || { alpha: 'Alpha', smurfs: 'Papa Smurf', higurashi: 'Rena' }[this.settings().appTheme] || 'Alpha') + '. The application is Alpha; keep the same tools and permission boundaries.\n\n' + await this.orientation(), dynamicTools: coordinatorTools,
         approvalPolicy: 'never', sandbox: 'read-only', ephemeral: true,
         config: { 'features.shell_tool': false, 'features.multi_agent': false },
       }, 60000);

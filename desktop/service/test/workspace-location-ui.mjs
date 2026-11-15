@@ -28,14 +28,16 @@ try {
   await assert.rejects(readFile(path.join(destination,'workspace/workspace.json')),{code:'ENOENT'});
   await page.reload();await page.getByRole('button',{name:'Tools',exact:true}).click();await page.getByRole('menuitem',{name:/Settings/}).click();
   await expect(location.getByRole('status')).toContainText(destination);
+  await page.getByRole('tab',{name:'Theme',exact:true}).click();
   for(const theme of ['alpha','smurfs','higurashi']) {
     await page.getByLabel('Application theme',{exact:true}).selectOption(theme);
     for(const width of [1280,390]) {
-      await page.setViewportSize({width,height:900});await location.scrollIntoViewIfNeeded();
+      await page.setViewportSize({width,height:900});await page.getByLabel('Application theme',{exact:true}).scrollIntoViewIfNeeded();
       assert.equal(await page.locator('.settings-scroll').evaluate(node=>node.scrollWidth<=node.clientWidth+1),true);
       await page.screenshot({path:path.join(root,`settings-${theme}-${width}.png`)});
     }
   }
+  await page.getByRole('tab',{name:'General',exact:true}).click();
   await location.getByRole('button',{name:'Cancel location change',exact:true}).click();await expect(location.getByRole('status')).toHaveCount(0);
   await location.getByLabel('Workspace folder',{exact:true}).fill('relative/path');
   await location.getByRole('button',{name:'Save location',exact:true}).click();await expect(location.getByRole('alert')).toContainText('absolute');

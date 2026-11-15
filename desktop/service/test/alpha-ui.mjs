@@ -33,12 +33,14 @@ try {
 
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('tab', { name: 'Theme', exact: true }).click();
   const picker = page.getByLabel('Application theme', { exact: true });
   for (const theme of ['alpha', 'smurfs', 'higurashi']) {
     await picker.selectOption(theme);
     await expect(page.locator('html')).toHaveAttribute('data-alpha-theme', theme);
     await expect(page.locator('.application-theme-preview img')).toHaveJSProperty('complete', true);
   }
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.getByLabel('Always approve').click();
   await expect.poll(async () => (await call('/bootstrap')).settings.defaultBypass).toBe(true);
   await page.getByRole('button', { name: 'Close settings' }).last().click();

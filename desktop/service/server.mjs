@@ -23,6 +23,8 @@ import { ProjectAdapterRegistry } from './project-adapters/registry.mjs';
 import { KnowledgeManager, MarkdownKnowledgeProvider } from './knowledge/providers.mjs';
 import { IntegrationManager } from './integrations/manager.mjs';
 import { Dictation } from './dictation.mjs';
+import voiceOptions from './voice-options.json' with { type: 'json' };
+import { builtInThemeIds, changeTheme, validThemeProfiles } from './theme-profiles.mjs';
 import { Updates, effectiveVersion } from './updates.mjs';
 import { CardDocuments } from './card-documents.mjs';
 import { installLibrary } from './shared-library.mjs';
@@ -58,10 +60,14 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const savedSettings = await readJson(settingsPath, null);
   let settings = { defaultAgent: 'codex', defaultBypass: false, coordinatorModel: environment.ALPHA_COORDINATOR_MODEL?.trim() || null, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', appTheme: 'alpha', coordinatorEffort: 'medium', voiceName: 'cedar', voiceStyle: defaultVoiceStyle, ...savedSettings };
   if (!['codex', 'claude', 'shell', 'gitbash'].includes(settings.defaultAgent)) settings.defaultAgent = 'codex';
+  settings.themeProfiles = validThemeProfiles(settings.themeProfiles);
+  if (![...builtInThemeIds, ...settings.themeProfiles.map(item => item.id)].includes(settings.appTheme)) settings.appTheme = 'alpha';
+  if (!voiceOptions.includes(settings.voiceName)) settings.voiceName = 'cedar';
   if (await dictation.initializeProvider?.(settings, savedSettings !== null)) await saveJson(settingsPath, settings);
   dictation.providerChoice = () => settings.transcribeProvider || null;
   const chooseDictation = async provider => {
     if (!['local', 'openai', 'openrouter', 'off'].includes(provider)) throw Object.assign(new Error('Choose a supported speech-to-text provider.'), { status: 400 });
+    if (provider !== 'local') await dictation.localControl.stop();
     settings.transcribeProvider = provider; await saveSettings();
     const info = await dictation.status();
     broadcast('settings', { settings }); broadcast('dictation', { dictation: info });
@@ -145,7 +151,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         case 'get_app_settings': return { voice: settings.voiceName, style: settings.voiceStyle, model: coordinator.model || 'Codex default', effort: settings.coordinatorEffort, billing: 'Codex subscription for the coordinator; OpenAI API for voice' };
         case 'update_voice': {
           if (typeof args.style === 'string' && args.style.trim()) settings.voiceStyle = args.style.trim().slice(0, 1800);
-          if (['cedar', 'marin'].includes(args.voice)) settings.voiceName = args.voice;
+          if (voiceOptions.includes(args.voice)) settings.voiceName = args.voice;
           await saveSettings(); broadcast('settings', { settings });
           return { saved: true, voice: settings.voiceName, style: settings.voiceStyle, applies: 'Next voice connection. Reconnect to apply the saved voice and personality.' };
         }
@@ -238,6 +244,14 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/updates/download') return json(response, 200, await updates.download());
         if (method === 'POST' && url.pathname === '/api/updates/install') return json(response, 200, await updates.install(data.confirmed));
         if (method === 'POST' && url.pathname === '/api/dictation') return json(response, 200, await chooseDictation(data.provider));
+        const localDictationAction = /^\/api\/dictation\/local\/(install|start|stop)$/.exec(url.pathname);
+        if (method === 'POST' && localDictationAction) {
+          const info = await dictation.localAction(localDictationAction[1]);
+          broadcast('dictation', { dictation: info }); return json(response, 200, info);
+        }
+        if (method === 'POST' && url.pathname === '/api/themes') {
+          changeTheme(settings, data); await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
+        }
         if (method === 'GET' && url.pathname === '/api/questions') return json(response, 200, questions.list());
         const questionRoute = /^\/api\/questions\/([\w-]+)\/(answer|dismiss)$/.exec(url.pathname);
         if (method === 'POST' && questionRoute?.[2] === 'answer') return json(response, 200, await questions.answer(questionRoute[1], data.answer, sessions));
@@ -310,10 +324,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (typeof data.defaultBypass === 'boolean') settings.defaultBypass = data.defaultBypass;
           if (Number.isInteger(data.terminalFontSize) && data.terminalFontSize >= 10 && data.terminalFontSize <= 24) settings.terminalFontSize = data.terminalFontSize;
           if (['focus', 'original'].includes(data.terminalAppearance)) settings.terminalAppearance = data.terminalAppearance;
-          if (['alpha', 'smurfs', 'higurashi'].includes(data.appTheme)) settings.appTheme = data.appTheme;
+          if ([...builtInThemeIds, ...settings.themeProfiles.map(item => item.id)].includes(data.appTheme)) settings.appTheme = data.appTheme;
           if (['dark', 'light', 'system'].includes(data.workspaceTheme)) settings.workspaceTheme = data.workspaceTheme;
           if (['medium', 'high'].includes(data.coordinatorEffort)) settings.coordinatorEffort = data.coordinatorEffort;
-          if (['cedar', 'marin'].includes(data.voiceName)) settings.voiceName = data.voiceName;
+          if (voiceOptions.includes(data.voiceName)) settings.voiceName = data.voiceName;
+          if (typeof data.voiceStyle === 'string' && data.voiceStyle.trim() && data.voiceStyle.length <= 1800) settings.voiceStyle = data.voiceStyle.trim();
           if (Number.isInteger(data.chatSidebarWidth) && data.chatSidebarWidth >= 300 && data.chatSidebarWidth <= 2000) settings.chatSidebarWidth = data.chatSidebarWidth;
           if (data.chatEditorHeight && typeof data.chatEditorHeight === 'object') {
             const { id, height } = data.chatEditorHeight;

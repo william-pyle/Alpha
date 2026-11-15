@@ -1,1 +1,1 @@
-export interface DictationInfo { available: boolean; provider: string | null; providers?: { id: string; label: string; available: boolean; detail: string }[]; maxSeconds: number; maxBytes: number }
+export interface DictationInfo { available: boolean; provider: string | null; providers?: { id: string; label: string; available: boolean; detail: string }[]; local?: { installed: boolean; running: boolean; installing: boolean; starting: boolean; error?: string }; maxSeconds: number; maxBytes: number }

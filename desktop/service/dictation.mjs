@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { localAvailable, localConfig, localTranscribe } from './local-dictation.mjs';
+import { LocalWhisperControl } from './local-whisper-control.mjs';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { parse } from 'dotenv';
@@ -11,8 +12,9 @@ const fail = (message, status = 400) => { throw Object.assign(new Error(message)
 const formats = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/wav': 'wav' };
 
 export class Dictation {
-  constructor(repo, { fetcher = fetch, env = process.env, localRunner = localTranscribe, localStatus = localAvailable, providerChoice = () => null } = {}) {
+  constructor(repo, { fetcher = fetch, env = process.env, localRunner = localTranscribe, localStatus = localAvailable, localControl = new LocalWhisperControl(), providerChoice = () => null } = {}) {
     this.providerChoice = providerChoice; this.localRunner = localRunner; this.localStatus = localStatus;
+    this.localControl = localControl;
     this.repo = repo; this.fetcher = fetcher; this.env = env;
     this.jobs = new Map(); this.controllers = new Map(); this.rates = new Map(); this.closed = false;
   }
@@ -39,13 +41,24 @@ export class Dictation {
   async status() {
     const config = await this.config();
     const keys = { ...this.env, ...parse(await readFile(path.join(this.repo, '.env'), 'utf8').catch(() => '')) };
+    const installed = await this.localStatus(config.local);
     const providers = [
-      { id: 'local', label: 'Local Whisper · Free', available: await this.localStatus(config.local), detail: 'Runs on your computer. No API charges.' },
+      { id: 'local', label: 'Local Whisper · Free', available: installed, detail: 'Runs on your computer. No API charges.' },
       { id: 'openai', label: 'OpenAI · Paid', available: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY), detail: 'Uses your OpenAI API credit.' },
       { id: 'openrouter', label: 'OpenRouter · Paid', available: !!(keys.OPENROUTER_API_KEY || keys.OPENROUTER_KEY), detail: 'Uses your OpenRouter API credit.' },
       { id: 'off', label: 'Off', available: true, detail: 'Microphone dictation disabled.' },
     ];
-    return { available: config.provider !== 'off' && !!providers.find(item => item.id === config.provider)?.available, provider: config.provider, providers, maxSeconds: RECORDING_SECONDS, maxBytes: AUDIO_LIMIT };
+    return { available: config.provider !== 'off' && !!providers.find(item => item.id === config.provider)?.available, provider: config.provider, providers, local: this.localControl.state(installed), maxSeconds: RECORDING_SECONDS, maxBytes: AUDIO_LIMIT };
+  }
+  async localAction(action) {
+    const config = await this.config();
+    if (config.provider !== 'local') fail('Select Local Whisper before changing its runtime.', 400);
+    const installed = await this.localStatus(config.local);
+    if (action === 'install' && !installed) this.localControl.install();
+    else if (action === 'start' && installed) await this.localControl.start(config.local);
+    else if (action === 'stop') await this.localControl.stop();
+    else fail('This Local Whisper action is unavailable.', 400);
+    return this.status();
   }
 
   async transcribe(request, deviceId, authorized = () => true) {
@@ -118,7 +131,9 @@ export class Dictation {
   }
   async call({ provider, key, model, local }, audio, mime, signal) {
     if (provider === 'local') {
-      const result = await this.localRunner(local, audio, formats[mime], signal);
+      const result = this.localControl.state(true).running
+        ? await this.localControl.transcribe(audio, formats[mime], signal)
+        : await this.localRunner(local, audio, formats[mime], signal);
       const text = typeof result?.text === 'string' ? result.text.trim() : '';
       if (!text) fail('No speech was recognized. Try recording again.', 422);
       if (text.length > 60000) fail('The transcript is too long for one message.', 413);
@@ -148,5 +163,5 @@ export class Dictation {
     this.controllers.get(deviceId)?.abort();
     for (const key of this.jobs.keys()) if (key.startsWith(`${deviceId}:`)) this.jobs.delete(key);
   }
-  close() { this.closed = true; for (const controller of this.controllers.values()) controller.abort(); this.jobs.clear(); }
+  close() { this.closed = true; for (const controller of this.controllers.values()) controller.abort(); this.jobs.clear(); this.localControl.close(); }
 }

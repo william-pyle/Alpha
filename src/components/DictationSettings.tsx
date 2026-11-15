@@ -16,7 +16,7 @@ export default function DictationSettings({ info, onChange, disabled = false }: 
       {(info?.providers || [{ id: 'local', label: 'Local Whisper · Free' }, { id: 'openai', label: 'OpenAI · Paid' }, { id: 'openrouter', label: 'OpenRouter · Paid' }, { id: 'off', label: 'Off' }]).map(provider => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
     </select></label>
     <p>{selected?.detail} Used by desktop dictation. Changes apply to the next transcription; text stays a draft.</p>
-    {selected && !selected.available && <p role="status">{selected.id === 'local' ? 'Local Whisper needs setup on your computer.' : `${selected.id === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY'} is missing. Add it to the computer workspace .env.`} No automatic switch to another provider.</p>}
+    {selected && !selected.available && selected.id !== 'local' && <p role="status">{`${selected.id === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY'} is missing. Add it to the computer workspace .env.`} No automatic switch to another provider.</p>}
     {error && <p role="alert">{error}</p>}
   </section>
 }
