@@ -1,25 +1,21 @@
 ---
 name: voice-dictation-setup
-description: Help configure optional local Whisper dictation into terminals and other apps, with language, hotkey and CPU or GPU checks.
+description: Configure and troubleshoot Alpha's local Windows Whisper dictation, including installer setup, model availability and microphone checks.
 ---
 
 # Voice dictation setup
 
-Read [the setup note](../../../knowledge/voice-dictation.md) and the chosen
-tool's current upstream instructions. Dictation is independent of Mr. Mak's
-conversational voice assistant. Keep the two workflows distinct.
+Read [the setup note](../../../knowledge/voice-dictation.md) before helping
+with Alpha's Local Whisper. The Windows installer runs the setup script on first
+installation and upgrades. A failed download leaves the app installed; rerun
+the packaged script when a connection is available. Use `-CheckOnly` to inspect
+readiness without changing files.
 
-Check the operating system, microphone, language and available hardware. Choose
-a local model that fits the machine. Verify the tool's defaults: a configured
-language or GPU build flag may need changing for this user. Do not promise that
-a build compiled with CUDA will run without the required runtime.
+Confirm Windows microphone permission and test a short phrase in a draft.
+Check that transcription returns text before sending. For technical vocabulary,
+test several short recordings and review the draft before submitting. Do not
+store recordings, transcripts or credentials in project documentation.
 
-Choose a hotkey with the user before rebinding an existing shortcut. Test a short
-sentence in a plain text field, then in a terminal without submitting it. Check
-mixed technical vocabulary, silence and quick repeated recordings. Confirm that
-the next recording starts reliably after a failure.
-
-Leave optional cloud formatting disabled unless requested. If enabled, explain
-which text goes to the selected provider and use the user's own credentials.
-Store only reusable setup notes in this project, not voice history or account
-settings. Do not restart Mr. Mak to configure a separate dictation application.
+Alpha's live Talk to Alpha conversation is a separate control. If the user asks
+for dictation in another application, follow that application's current setup
+instructions and ask before changing an existing system hotkey.

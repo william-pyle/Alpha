@@ -18,6 +18,12 @@ Local face tracking bundles MediaPipe Tasks Vision 1.2.3 WebAssembly files
 (Apache-2.0) and the BlazeFace short-range model. Their source locations are
 recorded in `public/models/face-detector/README.txt`.
 
+Local Whisper setup downloads Python 3.12.10 from python.org, faster-whisper
+1.2.1 and its Python dependencies from PyPI, and the multilingual small model
+from `Systran/faster-whisper-small` on Hugging Face. These are separate per-user
+downloads, not included in the installer archive. The model is MIT-licensed;
+see its model card and each package's license for details.
+
 The Windows installer template is adapted from Tauri CLI 2.11.4, commit
 8909f221d1515955fc843808032bdc5d62209c96. Its MIT license is retained in
 `src-tauri/installer/TAURI-LICENSE-MIT`; the source URL is recorded in the template.

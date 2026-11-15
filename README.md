@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. The current release is **0.2.13**.
+knowledge into one Windows desktop window. The current release is **0.2.14**.
 
 ## What you can do
 
@@ -31,10 +31,25 @@ knowledge into one Windows desktop window. The current release is **0.2.13**.
 
 ## Install
 
-Download [Alpha 0.2.13 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.13).
+Download [Alpha 0.2.14 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.14).
 The installer includes the application, local service and Node runtime, terminal
 libraries, three themes, Help and the shared library. It installs WebView2 if
 needed. The installer is currently unsigned.
+
+In 0.2.14, installation also sets up Local Whisper for offline desktop dictation.
+The first setup downloads Python 3.12, faster-whisper and the multilingual small
+model (about 500 MB). Keep an internet connection during this step. The model
+and Python environment live under `%APPDATA%\com.jazcosolutions.alpha\Whisper`,
+separate from the Workspace. If the download fails, Alpha still installs. Retry
+from PowerShell with:
+
+```powershell
+& "$env:LOCALAPPDATA\Alpha\runtime\setup-local-whisper.ps1"
+```
+
+For a custom installation folder, run `runtime\setup-local-whisper.ps1` there.
+Add `-CheckOnly` to verify readiness without a download. After setup,
+transcription runs locally on the CPU without a provider key or internet access.
 
 Install Codex, Claude Code and Git for Windows separately if you want those
 launchers. Their accounts and provider data remain with their own tools.
@@ -85,6 +100,12 @@ The installed library is under
 and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
+
+## 0.2.14
+
+The installer runs Local Whisper setup on fresh installs and upgrades. Its
+packaged PowerShell script can retry failed downloads. Alpha uses the shared
+per-user model location and still recognizes existing Workspace-local models.
 
 ## 0.2.13
 

@@ -1,41 +1,47 @@
-# Local dictation
+# Local dictation in Alpha
 
-Dictation puts recognized text into the focused terminal or text field.
-Alpha's voice assistant instead carries on a conversation and can call tools.
-You can use either, both or neither.
+Alpha can turn a microphone recording into text for a desktop chat. Review the
+recognized text before sending it. **Talk to Alpha** is the separate live voice
+conversation.
 
-Alpha now has built-in microphone dictation for desktop chats, the Mak composer,
-and mobile. See [setup and behavior](../docs/mobile-access.md#voice-input).
-Install free local faster-whisper and its multilingual small model once with
-Python 3.10-3.12: `python scripts/setup-local-voice.py dictation` on Windows
-(`scripts/setup-local-dictation.ps1` wraps the same command). On macOS, run
-`brew install python@3.12`, then `python3.12 scripts/setup-local-voice.py dictation`;
-the system and default Homebrew `python3` are usually outside the supported
-range. On Linux, any 3.10-3.12 `python3` works. The PowerShell wrappers are
-Windows-only. See [local voice setup](../docs/mobile-access.md#local-voice-setup-on-the-computer). Record, stop, review, then explicitly insert
-or send. Choose Free/Paid/Off in Phone settings or desktop Settings → Speech-to-text.
-The saved provider is shared across desktop and paired phones and overrides
-the `.env` provider default. Paid keys stay in the computer’s ignored `.env`.
+## Windows setup
 
-For optional dictation into other applications, [Wispr Local](https://github.com/nsoth/wispr-local) is one Windows option built
-around whisper.cpp. Review its language and GPU build defaults before installing.
-Follow its README to select English and settings appropriate for the recipient's
-machine. The project also documents optional
-cloud text formatting. This template includes setup instructions, not a bundled
-copy of Wispr Local or another user's customized build. On macOS, the built-in
-Dictation (System Settings > Keyboard > Dictation) types into other apps without
-a separate install.
+Starting with Alpha 0.2.14, the Windows installer runs Local Whisper setup after
+installing the app. On first setup, it downloads Python 3.12, the
+`faster-whisper` package and the multilingual small model. The model is about
+500 MB, so the first installation needs an internet connection and may take a
+few minutes. Transcription runs locally on the CPU after setup; it needs no
+provider key or network connection.
 
-Use a separate folder for the dictation app. Start with the language you actually
-speak and a model that fits your memory budget. Verify recognition in a text
-editor before testing it in an agent terminal. A successful microphone recording
-does not prove that text injection reached the intended window.
+If the download fails, Alpha remains installed. Open PowerShell and run the
+script from the installed app folder to retry:
 
-Choose a non-conflicting push-to-talk shortcut. Test silence, a short phrase,
-technical names and several recordings in succession. Do not auto-submit text
-while diagnosing dictation. Keep cloud formatting off for a fully local
-transcription workflow; enabling it sends recognized text to that provider.
+```powershell
+& "$env:LOCALAPPDATA\Alpha\runtime\setup-local-whisper.ps1"
+```
 
-Record the chosen model, build settings and recovery steps in a local setup
-note. Leave microphone recordings, transcripts and credentials out of a public
-handoff. Always check upstream instructions again on the recipient's machine.
+The exact app folder can differ if you chose a custom installation path. The
+script is also available in the Alpha source checkout at
+`scripts/setup-local-whisper.ps1`. To check without downloading anything, add
+`-CheckOnly`. Exit code 0 means ready; exit code 2 means incomplete.
+
+The runtime lives in `%APPDATA%\com.jazcosolutions.alpha\Whisper`, separate
+from the selected Workspace. Alpha can still use an existing Workspace-local
+`.cache\dictation` installation. The setup script does not change Codex,
+Claude Code or global Python settings.
+
+## Use and troubleshooting
+
+In **Tools → Settings → General**, choose local speech to text for desktop
+dictation. Start a recording, stop it, review the recognized draft and send when
+ready. Test a short sentence and technical terms before relying on it for longer
+messages. A transcript never auto-submits a chat message.
+
+If local dictation is unavailable, run the setup script again with a network
+connection, then run `-CheckOnly`. Confirm Windows microphone permission and
+that another app is not holding the device. Keep microphone recordings and
+transcripts out of shared setup notes.
+
+Source and licenses: [faster-whisper](https://github.com/SYSTRAN/faster-whisper),
+[multilingual small model](https://huggingface.co/Systran/faster-whisper-small),
+and [Python 3.12](https://www.python.org/downloads/release/python-31210/).

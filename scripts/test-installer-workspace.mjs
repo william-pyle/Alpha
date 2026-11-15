@@ -12,6 +12,8 @@ await mkdir('.test-output',{recursive:true});const root=await realpath(await mkd
 const app=path.join(root,'app'), config=path.join(root,'config'), standard=path.join(root,'Documents/Alpha'), chosen=path.join(root,'Chosen é 日本語');
 await mkdir(path.join(app,'runtime/service'),{recursive:true});await copyFile(process.execPath,path.join(app,'runtime/node.exe'));
 for(const name of ['workspace-location.mjs','util.mjs']) await copyFile(path.resolve('desktop/service',name),path.join(app,'runtime/service',name));
+const whisperCalls=path.join(root,'whisper-invocations.txt');
+await writeFile(path.join(app,'runtime/setup-local-whisper.ps1'),`param([switch]$InstallerMode)\nAdd-Content -LiteralPath '${whisperCalls.replaceAll("'","''")}' -Value 'called'\n`);
 const unrelated=path.join(root,'Unrelated');
 const quoted=value=>value.replaceAll('$','$$').replaceAll('"','$\\"');
 const exe=path.join(root,'workspace-harness.exe'), script=path.join(root,'harness.nsi');
@@ -63,5 +65,6 @@ assert.equal(run('DEFAULT').status,0);assert.equal(await selection(),standard);
 await unlink(path.join(config,'repository.json'));await mkdir(unrelated);await writeFile(path.join(unrelated,'keep.txt'),'kept');
 assert.notEqual(run('INVALID').status,0);assert.equal(await readFile(path.join(unrelated,'keep.txt'),'utf8'),'kept');
 await assert.rejects(selection(),{code:'ENOENT'});
-await writeFile('.test-output/installer-workspace-result.json',JSON.stringify({passed:true,root,checks:['Custom page and hook compile','Chosen Unicode path initialized','Reinstall preserves location','Silent default uses Documents','Nonempty unrelated folder is preserved']},null,2));
-console.log('Installer Workspace hook passed: chosen folder, Unicode, upgrade preservation, silent default and conflict rejection.');
+assert.equal((await readFile(whisperCalls,'utf8')).trim().split(/\r?\n/).length,3);
+await writeFile('.test-output/installer-workspace-result.json',JSON.stringify({passed:true,root,checks:['Custom page and hook compile','Chosen Unicode path initialized','Reinstall preserves location','Silent default uses Documents','Nonempty unrelated folder is preserved','Local Whisper setup runs after successful installs only']},null,2));
+console.log('Installer hook passed: Workspace selection, upgrade preservation, conflict rejection and Local Whisper invocation.');

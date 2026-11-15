@@ -17,7 +17,7 @@ const resolve = () => {
   assert.equal(result.status,0,result.stderr);return JSON.parse(result.stdout).root;
 };
 assert.equal(resolve(),repo);
-for (const file of ['node.exe', 'service/main.mjs', 'service/default-categories.json', 'service/node_modules/node-pty/package.json', 'ui/index.html', 'ui/help.html', 'ui/art/alpha.png', 'ui/art/smurfs.png', 'ui/art/rena.png', 'NODE-LICENSE.txt']) await access(path.join(runtime, file));
+for (const file of ['node.exe', 'service/main.mjs', 'service/default-categories.json', 'service/node_modules/node-pty/package.json', 'setup-local-whisper.ps1', 'ui/index.html', 'ui/help.html', 'ui/art/alpha.png', 'ui/art/smurfs.png', 'ui/art/rena.png', 'NODE-LICENSE.txt']) await access(path.join(runtime, file));
 const child = spawn(path.join(runtime, 'node.exe'), [path.join(runtime, 'service/main.mjs'), '--repo', repo, '--ui', path.join(runtime, 'ui'), '--library-root', path.join(fixture, 'SharedLibrary'), '--config',configDir], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ALPHA_TEST: '1', ALPHA_APP_VERSION: product.version } });
 let stderr = ''; child.stderr.on('data', data => { stderr += data; });
 const exited = new Promise(resolve => child.once('exit', resolve));
@@ -54,7 +54,7 @@ try {
   assert.equal((await call('/workspace/location')).available,true);
   await call('/workspace/location/save',{path:nextRepo,mode:'copy'});
   assert.equal(JSON.parse(await readFile(path.join(configDir,'repository.json'),'utf8')),repo);
-  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed', '20 installed shared skills and support files', 'Editable Research card creation and reading'] }, null, 2));
+  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Packaged Local Whisper setup script', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed', '20 installed shared skills and support files', 'Editable Research card creation and reading'] }, null, 2));
   console.log('Packaged runtime passed: bundled Node, UI, themes, Help, shared library, editable cards and real native terminal.');
 } finally {
   child.stdin.end('quit\n');

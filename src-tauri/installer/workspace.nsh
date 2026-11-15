@@ -39,7 +39,7 @@ Function AlphaWorkspacePageCreate
   ${NSD_CreateBrowseButton} 80% 60u 20% 14u "Browse..."
   Pop $0
   ${NSD_OnClick} $0 AlphaWorkspaceBrowse
-  ${NSD_CreateLabel} 0 87u 100% 36u "You can change this location later in Settings. Application files are installed separately. Updates keep your Workspace location."
+  ${NSD_CreateLabel} 0 87u 100% 45u "You can change this location later in Settings. Updates keep it. Alpha also downloads Local Whisper (about 500 MB) for offline dictation; first setup needs internet."
   Pop $0
   nsDialogs::Show
   Return
@@ -101,6 +101,17 @@ FunctionEnd
       MessageBox MB_ICONSTOP "Alpha could not prepare the Workspace folder. No existing Workspace was replaced.$\r$\n$\r$\n$1"
       SetErrorLevel 1
       Abort "Could not prepare Workspace folder."
+    ${EndIf}
+  ${EndIf}
+  ; Install the per-user offline dictation runtime after Alpha's files are in place.
+  ; A failed download leaves the application installed and the retry script available.
+  DetailPrint "Preparing Local Whisper dictation (Python packages and model download)..."
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\setup-local-whisper.ps1" -InstallerMode'
+  Pop $0
+  ${If} $0 != 0
+    DetailPrint "Local Whisper setup did not finish. Run runtime\setup-local-whisper.ps1 from the Alpha installation to retry."
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONEXCLAMATION "Alpha is installed, but Local Whisper could not finish setup. An internet connection is needed for the first download. Run the setup script in Alpha's installation folder to retry."
     ${EndIf}
   ${EndIf}
 !macroend
