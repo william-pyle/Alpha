@@ -161,12 +161,12 @@ tag triggers publication of the tested installer and update manifest to
 The source now builds a per-machine WiX MSI with the standard welcome, install
 folder and finish wizard, like ContactCraft and SolidCraft. Tauri builds this
 MSI with WiX v3; those projects use WiX v5. The published
-0.2.14 installer remains NSIS. Its updater only accepts NSIS, so 0.2.15
-publishes both formats and serves an NSIS bridge to older installations.
+0.2.14 installer remains NSIS. Its updater only accepts NSIS, so the 0.2.15
+tag publishes both formats and serves an NSIS bridge to older installations.
 That bridge has an MSI-aware updater; a later MSI release can
 then remove the old NSIS app without deleting its Workspace or settings.
-Remove `ALPHA_BRIDGE_NSIS` and the NSIS build steps from the Windows workflow
-after the bridge release is published, before tagging the first MSI-led release.
+The main-branch workflow now builds MSI only, and future release manifests
+point to MSI.
 Direct MSI installation requires uninstalling the old NSIS app first. Fresh
 MSI installs ask for the Workspace folder on first launch. Local Whisper setup
 runs during MSI installation and can be retried with its packaged script.
