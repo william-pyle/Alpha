@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. The current release is **0.2.14**.
+knowledge into one Windows desktop window. The current release is **0.2.15**.
 
 ## What you can do
 
@@ -32,20 +32,22 @@ knowledge into one Windows desktop window. The current release is **0.2.14**.
 
 ## Install
 
-Download [Alpha 0.2.14 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.14).
+Download [Alpha 0.2.15 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.15).
 The installer includes the application, local service and Node runtime, terminal
-libraries, three themes, Help and the shared library. It installs WebView2 if
-needed. The installer is currently unsigned.
+libraries, three built-in themes, Help and the shared library. It installs WebView2 if
+needed. Choose the MSI for a fresh installation. Existing NSIS installations can
+update through Alpha to receive the transition installer. The installers are
+currently unsigned.
 
-In 0.2.14, installation also sets up Local Whisper for offline desktop dictation.
+Installation also sets up Local Whisper for offline desktop dictation.
 The first setup downloads Python 3.12, faster-whisper and the multilingual small
 model (about 500 MB). Keep an internet connection during this step. The model
 and Python environment live under `%APPDATA%\com.jazcosolutions.alpha\Whisper`,
 separate from the Workspace. If the download fails, Alpha still installs. Retry
-from PowerShell with:
+from Settings → Speech-to-text, or run the packaged script from PowerShell with:
 
 ```powershell
-& "$env:LOCALAPPDATA\Alpha\runtime\setup-local-whisper.ps1"
+& "$env:ProgramFiles\Alpha\runtime\setup-local-whisper.ps1"
 ```
 
 For a custom installation folder, run `runtime\setup-local-whisper.ps1` there.
@@ -84,7 +86,7 @@ install a downloaded update.
 
 ## Skills and knowledge
 
-The next source-built installer carries 21 reusable skill folders with supporting knowledge,
+The installer carries 21 reusable skill folders with supporting knowledge,
 workflows, scripts and report assets. Open **Settings → Skills** to browse them.
 Read a skill's full instructions before using it. Optional tools, packages and
 provider accounts are separate.
@@ -101,6 +103,15 @@ The installed library is under
 and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
+
+## 0.2.15
+
+Alpha adds a per-machine WiX MSI. This transition release also publishes an
+NSIS installer for the 0.2.14 in-app updater; the next release can use MSI
+updates directly. Settings now has separate Speech-to-text, Voice, Updates
+and Theme sections. Local Whisper can be installed, started and stopped there.
+Voice offers 38 built-in GPT-Live choices. Built-in themes can be edited and
+saved color themes can be created using Alpha's artwork.
 
 ## 0.2.14
 
@@ -150,9 +161,9 @@ tag triggers publication of the tested installer and update manifest to
 The source now builds a per-machine WiX MSI with the standard welcome, install
 folder and finish wizard, like ContactCraft and SolidCraft. Tauri builds this
 MSI with WiX v3; those projects use WiX v5. The published
-0.2.14 installer remains NSIS. Its updater only accepts NSIS, so the first
-transition release will publish both formats and serve an NSIS bridge to older
-installations. That bridge has an MSI-aware updater; a later MSI release can
+0.2.14 installer remains NSIS. Its updater only accepts NSIS, so 0.2.15
+publishes both formats and serves an NSIS bridge to older installations.
+That bridge has an MSI-aware updater; a later MSI release can
 then remove the old NSIS app without deleting its Workspace or settings.
 Remove `ALPHA_BRIDGE_NSIS` and the NSIS build steps from the Windows workflow
 after the bridge release is published, before tagging the first MSI-led release.
