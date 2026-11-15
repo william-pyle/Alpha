@@ -54,13 +54,7 @@ try {
   const dragSource = page.getByRole('button', { name: 'Reorder The sky islands', exact: true });
   const dragTarget = page.getByRole('button', { name: 'Reorder The gentleman', exact: true });
   await dragSource.scrollIntoViewIfNeeded(); await dragTarget.scrollIntoViewIfNeeded();
-  const from = await dragSource.boundingBox(), to = await dragTarget.boundingBox();
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-  // A second move over the target delivers dragover in WebKit as well as Edge.
-  await page.mouse.move(to.x + to.width / 2 + 2, to.y + to.height / 2);
-  await page.mouse.up();
+  await dragSource.dragTo(dragTarget);
   await expect(entry(0).getByLabel('Entry title', { exact: true })).toHaveValue('The gentleman');
   await entry(1).getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Undo remove' }).click();

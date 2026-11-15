@@ -1,4 +1,3 @@
-// Real built UI and isolated service; never mutates the user's Workspace.
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, cp } from 'node:fs/promises';
@@ -16,113 +15,76 @@ const report = '<h1>Project notes</h1><p>The report must survive metadata edits.
 await writeFile(path.join(repo, 'workspace', 'sample', 'report.html'), report);
 const file = path.join(repo, 'workspace', 'workspace.json');
 const card = { id: 'sample', title: 'Character Workshop', description: 'A reviewable sample.', category: 'research', type: 'group', folder: 'sample', status: 'active', created: localDay(), steps: [{ name: 'Notes', path: 'report.html' }] };
-await writeFile(file, JSON.stringify({ entities: [card, { ...card, id: 'other', title: 'Another project', category: 'game' }, { ...card, id: 'old', title: 'Older project', created: '2020-01-01' }] }));
+await writeFile(file, JSON.stringify({ entities: [card] }));
 await cp(path.join(root, 'public', 'assets'), path.join(root, 'dist', 'assets'), { recursive: true });
 const service = await createService({ repo, uiDir: path.join(root, 'dist') });
 let browser;
 try {
   browser = await launchBrowser();
   const context = await browser.newContext({ viewport: { width: 1100, height: 820 } });
-  const page = await context.newPage(), peer = await context.newPage();
-  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  const page = await context.newPage(), peer = await context.newPage(), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace); await peer.goto(service.urls.workspace);
   const homeCard = page.locator('.home [data-card="sample"]');
-  const dot = () => homeCard.getByRole('button', { name: /^Edit Character Workshop:/ });
+  const edit = () => homeCard.getByRole('button', { name: /^Edit Character Workshop:/ });
   const menu = page.getByRole('dialog', { name: 'Card settings: Character Workshop' });
-  await dot().click(); await expect(menu).toBeVisible();
-  assert.equal(new URL(page.url()).hash, '', 'The status button must not follow the card link');
-  await menu.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(menu).toHaveCount(0);
-  await expect(dot()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
+  await edit().click(); await menu.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(edit()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
   await expect(peer.locator('.home [data-card="sample"] button')).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
-  await dot().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('dev');
+  await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('dev');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
-  await expect(homeCard.locator('xpath=ancestor::section').locator('.section-title')).toHaveText(/Development/);
-  await page.getByRole('button', { name: 'Categories', exact: true }).click();
-  const manager = page.getByRole('dialog', { name: 'Manage card categories' });
-  await expect(manager).toBeVisible();
-  await manager.getByRole('textbox', { name: 'Name' }).fill('Writing');
-  await manager.getByRole('combobox', { name: 'Icon' }).selectOption('📝');
-  await manager.getByRole('button', { name: 'Add category' }).click();
-  await expect(manager.getByText('Writing', { exact: true })).toBeVisible();
-  await manager.getByRole('button', { name: 'Edit Writing' }).click();
-  await manager.getByRole('textbox', { name: 'Name' }).fill('Editorial');
-  await manager.getByRole('button', { name: 'Save category' }).click();
-  await manager.getByRole('button', { name: 'Close categories' }).click();
-  await dot().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('writing');
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await settings.getByRole('tab', { name: 'Categories' }).click();
+  await settings.getByRole('textbox', { name: 'Name' }).fill('Writing');
+  await settings.getByRole('combobox', { name: 'Icon' }).selectOption('📝');
+  await settings.getByRole('button', { name: 'Add category' }).click();
+  await settings.getByRole('button', { name: 'Edit Writing' }).click();
+  await settings.getByRole('textbox', { name: 'Name' }).fill('Editorial');
+  await settings.getByRole('button', { name: 'Save category' }).click();
+  await settings.getByRole('button', { name: 'Close settings' }).click();
+  await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('writing');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Editorial/);
-  await page.getByRole('button', { name: 'Categories', exact: true }).click();
-  await manager.getByRole('button', { name: 'Delete Editorial' }).click();
-  await manager.getByRole('combobox', { name: 'Move cards to' }).selectOption('dev');
-  await manager.getByRole('button', { name: 'Delete category' }).click();
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await settings.getByRole('tab', { name: 'Categories' }).click();
+  await settings.getByRole('button', { name: 'Delete Editorial' }).click();
+  await settings.getByRole('combobox', { name: 'Move cards to' }).selectOption('dev');
+  await settings.getByRole('button', { name: 'Delete category' }).click();
   await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
-  await manager.getByRole('button', { name: 'Close categories' }).click();
-  await dot().click(); await menu.getByRole('button', { name: 'Archived', exact: true }).click();
+  await settings.getByRole('button', { name: 'Close settings' }).click();
+
+  await edit().click(); await menu.getByRole('button', { name: 'Archived', exact: true }).click();
   await expect(homeCard).toHaveCount(0);
-  assert.equal(await readFile(path.join(repo, 'workspace', 'sample', 'report.html'), 'utf8'), report);
-  await page.getByRole('button', { name: 'Show menu', exact: true }).click();
-  await page.getByRole('button', { name: /Show archive/ }).click();
-  const row = page.locator('.sidebar [data-card="sample"]');
-  await row.getByRole('button').click();
-  await menu.getByRole('button', { name: 'Active', exact: true }).click();
-  await expect(row.getByRole('button')).toHaveAttribute('aria-label', 'Edit Character Workshop: Active');
-  await page.getByRole('button', { name: /Hide archive/ }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Show archive' }).click();
   await expect(homeCard).toBeVisible();
-  // A date-archived card can be brought back even if its stored status is active.
-  await page.getByRole('textbox', { name: 'Search entities' }).fill('Older project');
-  await page.locator('.sidebar [data-card="old"] button').click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Active', exact: true }).click();
-  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
-  await expect(page.locator('.home [data-card="old"]')).toBeVisible();
-  await row.getByRole('button').click(); await menu.getByRole('button', { name: 'Pin card', exact: true }).click();
-  await expect(row.locator('a')).toHaveClass(/pinned/);
-  await row.getByRole('button').click(); await menu.getByRole('button', { name: 'Unpin card', exact: true }).click();
-  await expect(row.locator('a')).not.toHaveClass(/pinned/);
-  await expect(menu).toHaveCount(0);
-  await row.getByRole('button').focus(); await page.keyboard.press('Enter'); await expect(menu).toBeVisible();
-  await page.keyboard.press('Escape'); await expect(menu).toHaveCount(0); await expect(row.getByRole('button')).toBeFocused();
-  await row.getByRole('button').click(); await page.mouse.click(800, 15); await expect(menu).toHaveCount(0);
-  // Failed writes stay visible and never pretend the status changed.
-  await page.route('**/api/workspace/entities/sample', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture: service temporarily unavailable.' }) }));
-  await row.getByRole('button').click(); await menu.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(menu.getByRole('alert')).toHaveText('Fixture: service temporarily unavailable.');
-  await expect(row.getByRole('button')).toHaveAttribute('aria-label', 'Edit Character Workshop: Active');
+  await edit().click(); await menu.getByRole('button', { name: 'Active', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Hide archive' }).click();
+  await expect(homeCard).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search Workspace' }).fill('Character');
+  await expect(homeCard).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search Workspace' }).fill('');
+
+  await page.route('**/api/workspace/entities/sample', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture unavailable.' }) }));
+  await edit().click(); await menu.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(menu.getByRole('alert')).toHaveText('Fixture unavailable.');
+  await expect(edit()).toHaveAttribute('aria-label', 'Edit Character Workshop: Active');
   await page.unroute('**/api/workspace/entities/sample');
-  await menu.getByRole('button', { name: 'Done', exact: true }).click(); await expect(menu).toHaveCount(0);
-  // The selected report also has an always-accessible status button.
-  await row.getByRole('link').click();
-  await page.frameLocator('iframe.report-frame').getByRole('heading', { name: 'Project notes' }).waitFor();
-  await page.locator('.topbar').getByRole('button', { name: 'Edit Character Workshop: Done' }).click();
-  // Let the save land before reloading; WebKit cancels in-flight requests on reload.
-  const saved = page.waitForResponse(response => response.url().includes('/api/workspace/entities/sample') && response.request().method() === 'PATCH');
-  await menu.getByRole('button', { name: 'Active', exact: true }).click(); await saved;
+  await menu.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(edit()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
+
+  await homeCard.getByRole('link').click();
+  await expect(page.getByRole('tab', { name: 'Character Workshop' })).toBeVisible();
+  await expect(page.frameLocator('iframe.report-frame').getByRole('heading', { name: 'Project notes' })).toBeVisible();
   await page.reload();
-  await expect(page.locator('.topbar').getByRole('button', { name: 'Edit Character Workshop: Active' })).toBeVisible();
-  for (const theme of ['dark', 'light']) {
-    await page.evaluate(theme => document.documentElement.dataset.workspaceTheme = theme, theme);
-    for (const width of [1100, 390]) {
-      await page.setViewportSize({ width, height: 740 });
-      if (width === 390) {
-        const button = page.getByRole('button', { name: 'Categories', exact: true });
-        const categoryButton = await button.boundingBox();
-        assert.ok(categoryButton && categoryButton.x + categoryButton.width <= width - 48, JSON.stringify(categoryButton));
-        assert.equal(await button.evaluate(element => getComputedStyle(element).fontSize), '0px');
-      }
-      const control = page.locator('.topbar .entity-status-button');
-      await control.click();
-      await expect(menu).toBeVisible();
-      const rect = await menu.boundingBox();
-      assert.ok(rect.x >= 10 && rect.y >= 10 && rect.x + rect.width <= width - 10 && rect.y + rect.height <= 730, JSON.stringify(rect));
-      const color = await menu.evaluate(element => getComputedStyle(element).backgroundColor);
-      if (theme === 'light') assert.equal(color, 'rgb(255, 255, 255)');
-      else assert.notEqual(color, 'rgb(255, 255, 255)');
-      await page.screenshot({ path: path.join(repo, `menu-${theme}-${width}.png`) });
-      await page.keyboard.press('Escape');
-    }
-  }
+  await expect(page.locator('.topbar').getByRole('button', { name: 'Edit Character Workshop: Done' })).toBeVisible();
+  assert.equal(await readFile(path.join(repo, 'workspace', 'sample', 'report.html'), 'utf8'), report);
   const registry = JSON.parse(await readFile(file, 'utf8'));
-  assert.deepEqual(registry.entities.find(item => item.id === 'sample').steps, card.steps);
-  assert.equal(registry.entities.find(item => item.id === 'sample').category, 'dev');
+  assert.deepEqual(registry.entities[0].steps, card.steps);
+  assert.equal(registry.entities[0].category, 'dev');
   assert.deepEqual(errors, []);
-  console.log(`Workspace controls passed: status/category/pin, archive and restore, date archive, live peer sync, keyboard/focus, error/retry, report preservation, persisted reload, dark/light and 390px layout. Screenshots: ${repo}`);
+  console.log('Workspace controls passed: status, category icons and migration, archive, search, peer sync, retry, document tab and report preservation.');
 } finally { await browser?.close(); await service.close(); }

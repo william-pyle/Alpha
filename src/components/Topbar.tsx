@@ -6,6 +6,9 @@ import { EntityStatusButton } from './EntityControls'
 import CategoryManager from './CategoryManager'
 
 interface TopbarProps {
+  mdi?: boolean
+  query?: string
+  onQuery?: (value: string) => void
   categories: CardCategory[]
   entities: WorkspaceEntity[]
   onCategoriesChanged: () => Promise<void>
@@ -16,7 +19,7 @@ interface TopbarProps {
   reportUrl: string | null
 }
 
-export default function Topbar({ entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
+export default function Topbar({ mdi = false, query = '', onQuery, entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
   return (
     <div className="topbar">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -31,8 +34,9 @@ export default function Topbar({ entity, categories, entities, onCategoriesChang
           </>
         )}
         {isDesktop && <NewCard />}
-        {isDesktop && <CategoryManager categories={categories} entities={entities} onChanged={onCategoriesChanged} />}
+        {isDesktop && !mdi && <CategoryManager categories={categories} entities={entities} onChanged={onCategoriesChanged} />}
         {!isDesktop && <BrowserSettings />}
+        {mdi && <input className="mdi-workspace-search" aria-label="Search Workspace" placeholder="Search Workspace…" value={query} onChange={event => onQuery?.(event.target.value)} />}
       </nav>
 
       {entity && (

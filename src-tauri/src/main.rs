@@ -57,6 +57,7 @@ fn configuration_folder(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::
 }
 
 fn reveal(app: &tauri::AppHandle, label: &str) {
+    let label = if label == "chats" { "workspace" } else { label };
     if let Some(window) = app.get_webview_window(label) {
         let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus();
     }
@@ -64,16 +65,12 @@ fn reveal(app: &tauri::AppHandle, label: &str) {
 
 fn requested_window(args: &[String]) -> Option<&str> {
     args.windows(2).find_map(|pair| {
-        if pair[0] == "--show" && matches!(pair[1].as_str(), "chats" | "workspace") { Some(pair[1].as_str()) } else { None }
+        if pair[0] == "--show" && matches!(pair[1].as_str(), "chats" | "workspace") { Some("workspace") } else { None }
     })
 }
 
 fn recall_open_windows(app: &tauri::AppHandle) {
-    // Closing Workspace hides it; minimizing preserves its visible/open state.
-    if app.get_webview_window("workspace").is_some_and(|window| window.is_visible().unwrap_or(false)) {
-        reveal(app, "workspace");
-    }
-    reveal(app, "chats");
+    reveal(app, "workspace");
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -163,7 +160,7 @@ fn normalize_node_path(path: PathBuf) -> PathBuf {
     path
 }
 
-fn make_windows(app: &tauri::AppHandle, workspace: &str, chats: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result<(), Box<dyn std::error::Error>> {
     let (mut x, mut y, mut width, mut height) = (0.0, 0.0, 1440.0, 900.0);
     if let Some(monitor) = app.primary_monitor()? {
         let scale = monitor.scale_factor();
@@ -171,23 +168,15 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, chats: &str) -> Result<
         x = area.position.x as f64 / scale; y = area.position.y as f64 / scale;
         width = area.size.width as f64 / scale; height = area.size.height as f64 / scale;
     }
-    let chat_width = (width * 0.27).clamp(360.0, 560.0);
     let workspace_window = WebviewWindowBuilder::new(app, "workspace", WebviewUrl::External(workspace.parse()?))
         .on_new_window(|url, _| external_links::open_popup(url))
-        .disable_drag_drop_handler().visible(false)
-        .title(format!("{} — Workspace", app.config().product_name.as_deref().unwrap_or("Alpha"))).inner_size((width - chat_width - 8.0).max(500.0), (height - 6.0).max(450.0))
-        .position(x + chat_width + 6.0, y + 2.0).min_inner_size(500.0, 400.0)
-        .theme(Some(tauri::Theme::Dark)).background_color(tauri::webview::Color(12, 13, 16, 255)).build()?;
-    let chats_window = WebviewWindowBuilder::new(app, "chats", WebviewUrl::External(chats.parse()?))
-        .on_new_window(|url, _| external_links::open_popup(url))
         .visible(false)
-        .title(format!("{} — Chats", app.config().product_name.as_deref().unwrap_or("Alpha"))).inner_size(chat_width, (height - 6.0).max(450.0))
-        .position(x + 2.0, y + 2.0).min_inner_size(330.0, 420.0)
+        .title(app.config().product_name.as_deref().unwrap_or("Alpha")).inner_size((width - 6.0).max(750.0), (height - 6.0).max(500.0))
+        .position(x + 2.0, y + 2.0).min_inner_size(700.0, 500.0)
         .theme(Some(tauri::Theme::Dark)).background_color(tauri::webview::Color(12, 13, 16, 255)).build()?;
-    // Native drops expose every original file/folder path. Keep Workspace's
-    // browser drop handler for imports, and use this only in the Chats window.
-    let drop_window = chats_window.clone();
-    chats_window.on_window_event(move |event| {
+    // Native drops expose original file and folder paths to the embedded Chats pane.
+    let drop_window = workspace_window.clone();
+    workspace_window.on_window_event(move |event| {
         if let tauri::WindowEvent::DragDrop(event) = event {
             let scale = drop_window.scale_factor().unwrap_or(1.0);
             let detail = match event {
@@ -200,19 +189,15 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, chats: &str) -> Result<
             let _ = drop_window.eval(format!("window.dispatchEvent(new CustomEvent('alpha-file-drop',{{detail:{detail}}}))"));
         }
     });
-    let args: Vec<String> = std::env::args().collect();
-    let selected = requested_window(&args);
-    for window in [workspace_window, chats_window] {
-        #[cfg(windows)]
-        window_identity::set_window(&window)?;
-        let handle = window.clone();
-        window.on_window_event(move |event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close(); let _ = handle.hide();
-            }
-        });
-        if selected.is_none() || selected == Some(window.label()) { window.show()?; }
-    }
+    #[cfg(windows)]
+    window_identity::set_window(&workspace_window)?;
+    let handle = workspace_window.clone();
+    workspace_window.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close(); let _ = handle.hide();
+        }
+    });
+    workspace_window.show()?;
     #[cfg(windows)]
     window_identity::refresh_shortcuts(app);
     Ok(())
@@ -237,8 +222,7 @@ fn recall_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> { tauri::plugin::Bu
 // since closing a window there only hides it.
 #[cfg(target_os = "macos")]
 fn recall_all_windows(app: &tauri::AppHandle) {
-    let any_visible = ["workspace", "chats"].iter().any(|label| app.get_webview_window(label).is_some_and(|w| w.is_visible().unwrap_or(false)));
-    if any_visible { recall_open_windows(app); } else { reveal(app, "workspace"); reveal(app, "chats"); }
+    recall_open_windows(app);
 }
 
 // macOS: the web view never receives Cmd+1…9 (the native window consumes them
@@ -255,8 +239,8 @@ fn install_chats_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
         let Some(index) = event.id.as_ref().strip_prefix("chat-").and_then(|n| n.parse::<u8>().ok()) else { return };
-        reveal(app, "chats");
-        if let Some(window) = app.get_webview_window("chats") {
+        reveal(app, "workspace");
+        if let Some(window) = app.get_webview_window("workspace") {
             let _ = window.eval(format!("window.dispatchEvent(new CustomEvent('alpha-select-chat',{{detail:{{index:{index}}}}}))"));
         }
     });
@@ -268,7 +252,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if args.iter().any(|arg| arg == "--quit") { app.exit(0); }
             else if let Some(label) = requested_window(&args) { reveal(app, label); }
-            else { reveal(app, "workspace"); reveal(app, "chats"); }
+            else { reveal(app, "workspace"); }
         }))
         .plugin(recall_plugin())
         .plugin(tauri_plugin_window_state::Builder::default().with_filename(std::env::var_os("ALPHA_TEST_DIR").map(|root| PathBuf::from(root).join("window-state.json").to_string_lossy().into_owned()).unwrap_or_else(|| ".window-state.json".to_owned())).with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED).build())
@@ -346,7 +330,7 @@ fn main() {
                         },
                         "window" => {
                             let label = event["window"].as_str().unwrap_or("");
-                            if let Some(window) = app_handle.get_webview_window(label) {
+                            if let Some(window) = app_handle.get_webview_window(if label == "chats" { "workspace" } else { label }) {
                                 match event["action"].as_str().unwrap_or("") {
                                     "show" => reveal(&app_handle, label),
                                     "hide" => { let _ = window.hide(); },
@@ -392,7 +376,7 @@ fn main() {
                             });
                         },
                         "pick-files" => {
-                            if let (Some(window), Some(request_id)) = (app_handle.get_webview_window("chats"), event["requestId"].as_str()) {
+                            if let (Some(window), Some(request_id)) = (app_handle.get_webview_window("workspace"), event["requestId"].as_str()) {
                                 let request_id = request_id.to_owned();
                                 std::thread::spawn(move || {
                                     let paths = rfd::FileDialog::new().set_parent(&window).set_title("Attach file paths").pick_files().unwrap_or_default();
@@ -412,12 +396,10 @@ fn main() {
             });
             #[cfg(target_os = "macos")]
             install_chats_menu(app.handle())?;
-            let workspace_item = MenuItem::with_id(app, "workspace", "Show Workspace", true, None::<&str>)?;
-            let chats_item = MenuItem::with_id(app, "chats", "Show Chats", true, None::<&str>)?;
-            let both_item = MenuItem::with_id(app, "both", "Show both windows", true, None::<&str>)?;
+            let workspace_item = MenuItem::with_id(app, "workspace", "Show Alpha", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Alpha and stop terminals", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&workspace_item, &chats_item, &both_item, &separator, &quit_item])?;
+            let menu = Menu::with_items(app, &[&workspace_item, &separator, &quit_item])?;
             #[cfg(any(windows, target_os = "macos"))]
             {
                 let preference = configuration_folder(app.handle())?.join("windows-key.json");
@@ -426,15 +408,14 @@ fn main() {
                 let available = shortcut.is_ok();
                 if let Ok(shortcut) = shortcut { app.manage(shortcut); }
                 let item = CheckMenuItem::with_id(app, "win-key", format!("{RECALL_LABEL} shows Alpha"), available, enabled && available, None::<&str>)?;
-                menu.insert(&item, 3)?;
+                menu.insert(&item, 1)?;
                 app.manage(item);
                 publish_shortcut(app.handle(), None, if available { None } else { Some(format!("The system could not register {RECALL_LABEL}.")) });
             }
             TrayIconBuilder::new().icon(app.default_window_icon().unwrap().clone()).tooltip("Alpha — your agents, close at hand")
                 .menu(&menu).show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "workspace" => reveal(app, "workspace"), "chats" => reveal(app, "chats"),
-                    "both" => { reveal(app, "workspace"); reveal(app, "chats"); }, "quit" => app.exit(0),
+                    "workspace" => reveal(app, "workspace"), "quit" => app.exit(0),
                     #[cfg(any(windows, target_os = "macos"))]
                     "win-key" => {
                         if let Some(item) = app.try_state::<CheckMenuItem<tauri::Wry>>() {
@@ -445,7 +426,7 @@ fn main() {
                     },
                     _ => {}
                 })
-                .on_tray_icon_event(|tray, event| { if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event { reveal(tray.app_handle(), "chats"); } })
+                .on_tray_icon_event(|tray, event| { if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event { reveal(tray.app_handle(), "workspace"); } })
                 .build(app)?;
             Ok(())
         }).build(tauri::generate_context!());

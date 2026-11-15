@@ -21,7 +21,7 @@ function NewCardDialog({ onClose }: { onClose: () => void }) {
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); setBusy(false) }
   }
   return createPortal(<dialog ref={dialog} className="new-card-dialog" aria-label="New Workspace card" onCancel={event => { event.preventDefault(); if (!busy) onClose() }} onKeyDown={event => event.stopPropagation()}><form onSubmit={event => { event.preventDefault(); void create() }}>
-    <div className="new-card-heading"><div><span>Create in Workspace</span><h2>A place for your next idea.</h2></div><button type="button" aria-label="Close new card" disabled={busy} onClick={onClose}>×</button></div>
+    <div className="new-card-heading"><div><span>Create in Workspace</span><h2>New card</h2></div><button type="button" aria-label="Close new card" disabled={busy} onClick={onClose}>×</button></div>
     <label>Card title<input autoFocus required maxLength={200} placeholder="Character references, tool research…" value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>
     <fieldset disabled={busy} className="new-card-templates"><legend>Choose a starting view</legend>{(['gallery', 'research'] as const).map(value => <label key={value} className={template === value ? 'selected' : ''}><input type="radio" name="template" value={value} checked={template === value} onChange={() => setTemplate(value)} /><strong>{value === 'gallery' ? 'Gallery' : 'Research'}</strong><span>{value === 'gallery' ? 'Images, reference notes and saved prompts.' : 'Findings, source links and decisions.'}</span></label>)}</fieldset>
     <p className="new-card-hint">Edit it yourself or ask your agent to update it. You can switch views later.</p>
@@ -33,5 +33,10 @@ function NewCardDialog({ onClose }: { onClose: () => void }) {
 export default function NewCard() {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    const show = () => setOpen(true)
+    window.addEventListener('alpha-new-card', show)
+    return () => window.removeEventListener('alpha-new-card', show)
+  }, [])
   return <><button ref={button} className="new-card-button" onClick={() => setOpen(true)}>+ New card</button>{open && <NewCardDialog onClose={() => { setOpen(false); button.current?.focus() }} />}</>
 }

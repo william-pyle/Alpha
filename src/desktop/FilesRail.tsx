@@ -10,8 +10,8 @@ import { ZoomImage } from '../components/ImagePreview'
 import ReportFrame from '../components/ReportFrame'
 import { fileManager, trashName } from './platform'
 
-export function FilePreview({ file }: { file: Preview }) {
-  return <div className="file-preview"><header><span><Icon name="files" size={16} /><strong title={file.name}>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1024)).toLocaleString()} KB</small></span><div><button className="desk-icon" onClick={() => api('/reveal', { path: file.path }).catch(reportError)} title={`Show in ${fileManager}`}><Icon name="external" size={17} /></button><button className="desk-icon" onClick={() => setPreview(null)} title="Back to Workspace" aria-label="Close file preview"><Icon name="close" size={18} /></button></div></header><div className={`file-preview-body ${file.kind}`}>
+export function FilePreview({ file, onClose }: { file: Preview; onClose?: () => void }) {
+  return <div className="file-preview"><header><span><Icon name="files" size={16} /><strong title={file.name}>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1024)).toLocaleString()} KB</small></span><div><button className="desk-icon" onClick={() => api('/reveal', { path: file.path }).catch(reportError)} title={`Show in ${fileManager}`}><Icon name="external" size={17} /></button><button className="desk-icon" onClick={() => onClose ? onClose() : setPreview(null)} title="Close document" aria-label="Close file preview"><Icon name="close" size={18} /></button></div></header><div className={`file-preview-body ${file.kind}`}>
     {file.kind === 'text' && (/\.md$/i.test(file.name) ? <MarkdownDocument key={`${file.path}:${file.revision}`} file={file} /> : <pre>{file.text}</pre>)}
     {file.kind === 'document' && file.url && <ReportFrame url={file.url} title={file.name} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads" />}
     {file.kind === 'image' && <ZoomImage src={file.url} alt={file.name} />}

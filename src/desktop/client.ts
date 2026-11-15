@@ -14,7 +14,7 @@ if (isDesktop && token) {
 const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
-  ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [],
+  ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [], questions: [],
   settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], preview: null, voiceHistory: [],
 }
 let socket: WebSocket | null = null
@@ -24,7 +24,7 @@ const update = (values: Partial<DesktopState>) => { state = { ...state, ...value
 export const desktopState = () => state
 export const useDesktop = () => useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, desktopState)
 export const onServiceEvent = (listener: (event: ServiceEvent) => void) => { events.add(listener); return () => { events.delete(listener) } }
-export const setPreview = (preview: Preview | null) => update({ preview })
+export const setPreview = (preview: Preview | null) => { update({ preview }); window.dispatchEvent(new CustomEvent('alpha-preview-changed', { detail: preview })) }
 export const dismissError = () => update({ error: null })
 export const reportError = (error: unknown) => update({ error: error instanceof Error ? error.message : String(error) })
 export const contentUrl = (relative: string) => isDesktop ? `${state.contentBase}${relative}` : relative
@@ -95,7 +95,7 @@ function connect() {
   socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token, clientId, surface }))
   socket.onmessage = ({ data }) => {
     const event = JSON.parse(data) as ServiceEvent
-    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
+    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, questions: event.questions || state.questions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
     if (event.type === 'selection') update({ selectedId: event.selectedId || null })
     if (event.type === 'session' && event.session) {
       const next = event.session
@@ -113,6 +113,7 @@ function connect() {
     }
     if (event.type === 'settings' && event.settings) update({ settings: event.settings })
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
+    if (event.type === 'questions' && event.questions) update({ questions: event.questions })
     if (event.type === 'voice-owner') update({ voice: { ...state.voice, owner: event.owner || null } })
     if (event.type === 'navigate') {
       if (event.sessionId) selectChat(event.sessionId)

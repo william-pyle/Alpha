@@ -27,6 +27,7 @@ import { Updates } from './updates.mjs';
 import { CardDocuments } from './card-documents.mjs';
 import { installLibrary } from './shared-library.mjs';
 import { WorkspaceLocation } from './workspace-location.mjs';
+import { Questions, extractTerminalQuestion } from './questions.mjs';
 import product from './package.json' with { type: 'json' };
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
@@ -46,6 +47,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const integrations = await new IntegrationManager(stateDir).init();
   const mcp = new McpInventory(repo, mcpOptions);
   const sessions = await new Sessions(repo, stateDir).init();
+  const questions = await new Questions(stateDir).init();
   sessions.sharedRoot = sharedLibrary?.root;
   const environment = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
   const settingsPath = path.join(stateDir, 'settings.json');
@@ -74,6 +76,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   let closing = false;
   const clients = new Set();
   const notices = [];
+  const questionTimers = new Map();
   const send = (ws, type, value) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, ...value })); };
   const broadcast = (type, value) => { for (const ws of clients) send(ws, type, value); };
   const updates = new Updates({ directory: path.join(stateDir, 'updates'), version: product.version, native, activeCount: () => sessions.active().filter(s => s.status === 'running').length, changed: update => broadcast('update', { update }) });
@@ -165,8 +168,22 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       if (ws.bufferedAmount > 2 * 1024 * 1024) { ws.close(1013, 'Reconnect to restore the terminal screen'); continue; }
       send(ws, 'output', output);
     }
+    clearTimeout(questionTimers.get(output.id));
+    questionTimers.set(output.id, setTimeout(async () => {
+      questionTimers.delete(output.id);
+      try {
+        const session = sessions.get(output.id);
+        if (session.status !== 'running') return;
+        const { screen } = await sessions.read(output.id, 16);
+        const text = extractTerminalQuestion(screen);
+        if (text) questions.capture(session, { id: `terminal-${output.sequence}`, message: text });
+      } catch { /* A chat may close while its output is being inspected. */ }
+    }, 800));
   });
   sessions.on('notice', notice => { notices.push(notice); if (notices.length > 100) notices.shift(); broadcast('notice', { notice }); if (notice.kind === 'turn-completed' || notice.kind === 'exit') integrations.publish('completion', notice).catch(() => {}); });
+  sessions.on('question-source', ({ session, source }) => questions.capture(session, source));
+  questions.on('changed', items => broadcast('questions', { questions: items }));
+  questions.on('error', error => broadcast('service-error', { error: publicError(error) }));
 
   const contentServer = http.createServer(async (request, response) => {
     try {
@@ -216,9 +233,13 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/updates/download') return json(response, 200, await updates.download());
         if (method === 'POST' && url.pathname === '/api/updates/install') return json(response, 200, await updates.install(data.confirmed));
         if (method === 'POST' && url.pathname === '/api/dictation') return json(response, 200, await chooseDictation(data.provider));
+        if (method === 'GET' && url.pathname === '/api/questions') return json(response, 200, questions.list());
+        const questionRoute = /^\/api\/questions\/([\w-]+)\/(answer|dismiss)$/.exec(url.pathname);
+        if (method === 'POST' && questionRoute?.[2] === 'answer') return json(response, 200, await questions.answer(questionRoute[1], data.answer, sessions));
+        if (method === 'POST' && questionRoute?.[2] === 'dismiss') return json(response, 200, await questions.dismiss(questionRoute[1]));
         if (method === 'GET' && url.pathname === '/api/bootstrap') {
           const keys = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
-          return json(response, 200, { repo, sharedLibrary, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices, coordinator: coordinator.state, voice: { configured: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY), owner: voiceOwner }, voiceHistory, operations: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-30) });
+          return json(response, 200, { repo, sharedLibrary, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), questions: questions.list(), settings, selectedId, notices, coordinator: coordinator.state, voice: { configured: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY), owner: voiceOwner }, voiceHistory, operations: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-30) });
         }
         if (method === 'GET' && url.pathname === '/api/workspace') return json(response, 200, await registry());
         const categoryRoute = url.pathname.match(/^\/api\/workspace\/categories(?:\/([^/]+))?$/);
@@ -375,7 +396,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (!ws.authenticated) {
           if (message.type !== 'auth' || !equalSecret(message.token, token)) return ws.close(1008, 'Authentication failed');
           ws.authenticated = true; ws.clientId = message.clientId; ws.surface = message.surface; clients.add(ws); clearTimeout(authTimer);
-          send(ws, 'connected', { sessions: sessions.list(), selectedId, coordinator: coordinator.state }); return;
+          send(ws, 'connected', { sessions: sessions.list(), questions: questions.list(), selectedId, coordinator: coordinator.state }); return;
         }
         if (message.type === 'subscribe') {
           ws.sessionId = message.id;
@@ -384,7 +405,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         } else if (message.type === 'input') sessions.input(message.id, message.data);
         else if (message.type === 'resize') sessions.resize(message.id, message.cols, message.rows);
         else if (message.type === 'selected') { sessions.get(message.id); selectedId = message.id; settings.selectedId = selectedId; scheduleSettings(); }
-        else if (message.type === 'seen' && ws.surface === 'chats' && ws.sessionId === message.id && selectedId === message.id) sessions.seen(message.id, message.completionVersion);
+        else if (message.type === 'seen' && ['chats', 'workspace'].includes(ws.surface) && ws.sessionId === message.id && selectedId === message.id) sessions.seen(message.id, message.completionVersion);
         else if (message.type === 'workspace-route') { workspaceRoute = String(message.route || '').slice(0, 500); settings.workspaceRoute = workspaceRoute; scheduleSettings(); }
         else if (message.type === 'ping') send(ws, 'pong', {});
       } catch (error) { send(ws, 'service-error', { error: publicError(error) }); }
@@ -397,12 +418,12 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   if (checkUpdates) updates.start();
   return {
-    origin, contentOrigin: files.origin, token, sessions, coordinator, quick, workspace, cards, files, projects, knowledge, integrations,
+    origin, contentOrigin: files.origin, token, sessions, questions, coordinator, quick, workspace, cards, files, projects, knowledge, integrations,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
       nativeMessage: event => { nativeSettings.receive(event); workspaceLocation.receive(event); },
       async close() {
         if (closing) return; closing = true; updates.close(); mcp.close(); nativeSettings.close(); workspaceLocation.close(); await files.writes.catch(() => {});
-      watcher?.close(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await workspace.writes;
+      watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       dictation.close();
       for (const ws of wss.clients) ws.terminate();
       wss.close(); await sessions.close();

@@ -22,7 +22,7 @@ const statusRank = (e: WorkspaceEntity) => (e.status === 'active' ? 0 : 1)
 const byFreshness = (a: WorkspaceEntity, b: WorkspaceEntity) =>
   lastTouched(b).localeCompare(lastTouched(a)) || statusRank(a) - statusRank(b)
 
-export default function App() {
+export default function App({ mdi = false }: { mdi?: boolean }) {
   const { workspace, offline, lastSync, reload } = useWorkspace()
   const [route, setRoute] = useState<Route>(parseHash)
   const [query, setQuery] = useState('')
@@ -76,14 +76,22 @@ export default function App() {
     document.title = entity ? `Alpha — ${entity.title}` : 'Alpha — Workspace'
   }, [entity])
 
+  useEffect(() => {
+    const show = (event: Event) => setShowArchived((event as CustomEvent<boolean>).detail)
+    window.addEventListener('alpha-show-archive', show)
+    return () => window.removeEventListener('alpha-show-archive', show)
+  }, [])
+
   const goHome = useCallback(() => {
     history.pushState(null, '', window.location.pathname + window.location.search)
     setRoute({ id: null, step: -1 })
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
   }, [])
 
   const selectStep = useCallback((id: string, index: number) => {
     history.replaceState(null, '', entityHash(id, index))
     setRoute({ id, step: index })
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
   }, [])
 
   if (!workspace) {
@@ -128,8 +136,8 @@ export default function App() {
 
   return (
     <EntityControls entities={entities} categories={categories} onChanged={reload}>
-    <div className={`app-layout${collapsed ? ' sidebar-collapsed' : ''}`} data-entity={route.id}>
-      <Sidebar
+    <div className={`app-layout${collapsed || mdi ? ' sidebar-collapsed' : ''}${mdi ? ' mdi-layout' : ''}`} data-entity={route.id}>
+      {!mdi && <Sidebar
         categories={categories}
         pinned={pinned}
         grouped={grouped}
@@ -144,19 +152,22 @@ export default function App() {
         offline={offline}
         lastSync={lastSync}
         onCollapse={() => setCollapsed(true)}
-      />
+      />}
 
-      <button
+      {!mdi && <button
         className="sidebar-reopen"
         onClick={() => setCollapsed(false)}
         title="Show menu — press Alpha's nose ( [ )"
         aria-label="Show menu"
       >
         <MakLogo size={38} animated={route.id !== 'my-dream-game'} />
-      </button>
+      </button>}
 
       <main className="main">
         <Topbar
+          mdi={mdi}
+          query={query}
+          onQuery={setQuery}
           categories={categories}
           entities={entities}
           onCategoriesChanged={reload}

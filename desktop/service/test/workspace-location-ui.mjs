@@ -17,7 +17,7 @@ let browser;
 try {
   browser=await launchBrowser();const page=await browser.newPage({viewport:{width:1280,height:900}}), errors=[];
   page.on('pageerror',error=>errors.push(error.message));await page.goto(service.urls.workspace);
-  await page.getByRole('button',{name:'Toggle settings',exact:true}).click();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
   const location=page.getByRole('region',{name:'Workspace location'});
   await expect(location).toContainText(repo);
   await location.getByRole('button',{name:'Browse…',exact:true}).click();
@@ -26,7 +26,7 @@ try {
   await expect(location.getByRole('status')).toContainText('Saved for next launch');
   assert.equal(JSON.parse(await readFile(path.join(configDir,'repository.json'),'utf8')),repo);
   await assert.rejects(readFile(path.join(destination,'workspace/workspace.json')),{code:'ENOENT'});
-  await page.reload();await page.getByRole('button',{name:'Toggle settings',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(location.getByRole('status')).toContainText(destination);
   for(const theme of ['alpha','smurfs','higurashi']) {
     await page.getByLabel('Application theme',{exact:true}).selectOption(theme);

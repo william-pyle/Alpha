@@ -3,7 +3,7 @@ import { api } from './client'
 
 const draftKey = (id: string) => `alpha.chatDraft.${id}`
 
-export default function ChatComposer({ id, connected, running }: { id: string; connected: boolean; running: boolean }) {
+export default function ChatComposer({ id, connected, running, height }: { id: string; connected: boolean; running: boolean; height?: number }) {
   const [draft, setDraft] = useState(() => localStorage.getItem(draftKey(id)) || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -21,7 +21,14 @@ export default function ChatComposer({ id, connected, running }: { id: string; c
   }
   const keyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void submit(); return }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (!event.altKey) { void submit(); return }
+      const input = event.currentTarget, start = input.selectionStart, end = input.selectionEnd
+      change(draft.slice(0, start) + '\n' + draft.slice(end))
+      requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 1 })
+      return
+    }
     if (event.key === 'Tab') {
       event.preventDefault()
       const input = event.currentTarget, start = input.selectionStart, end = input.selectionEnd
@@ -31,8 +38,8 @@ export default function ChatComposer({ id, connected, running }: { id: string; c
     }
   }
 
-  return <section className="chat-composer" aria-label="Message editor">
-    <label htmlFor={`chat-draft-${id}`}>Message editor <span>Enter for a new line · Ctrl+Enter to send</span></label>
+  return <section className="chat-composer" aria-label="Message editor" style={height ? { height } : undefined}>
+    <label htmlFor={`chat-draft-${id}`}>Message editor <span>Enter to send · Alt+Enter for a new line</span></label>
     <div className="chat-composer-input"><textarea ref={area} id={`chat-draft-${id}`} aria-label="Write a message" value={draft} onChange={event => change(event.target.value)} onKeyDown={keyDown} placeholder="Write your message here…" rows={5} maxLength={64000} spellCheck={true} /><button type="button" onClick={() => void submit()} disabled={!draft.trim() || busy || !connected || !running}>{busy ? 'Sending…' : 'Send'}</button></div>
     {error && <p role="alert">{error}</p>}
   </section>

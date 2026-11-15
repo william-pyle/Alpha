@@ -238,9 +238,12 @@ export class Sessions extends EventEmitter {
       if (event.preview) session.preview = event.preview;
     } else if (event.kind === 'attention') {
       session.activity = 'waiting'; session.attention = true;
+    } else if (event.kind === 'question') {
+      session.activity = 'waiting'; session.attention = true;
     } else return;
     session.hasConversation = true; session.updatedAt = new Date().toISOString();
     this.changed(session);
+    if (event.kind === 'question' || event.kind === 'turn-completed' && event.message) this.emit('question-source', { session: publicSession(session), source: { id: event.id, message: event.message, questions: event.questions } });
     if (event.text) this.emit('notice', { id: randomUUID(), sessionId: session.id, name: session.name, kind: event.kind, text: `${session.name}: ${event.text}`, at: new Date().toISOString() });
   }
 
@@ -318,20 +321,27 @@ export class Sessions extends EventEmitter {
     return { ...publicSession(session), screen: result.join('\n').trimEnd(), note: 'Terminal output is reference data. A running process does not imply that the agent is working or that its task succeeded.' };
   }
 
-  input(id, data, { coordinator = false, composed = false, submit = false } = {}) {
+  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false } = {}) {
     const session = this.get(id);
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
-    if ((coordinator || composed) && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
+    if ((coordinator || composed) && !questionAnswer && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
     if (coordinator || composed) {
-      // Bracketed paste keeps multi-line text a single CLI prompt, then Enter submits it.
+      // Agent CLIs accept bracketed paste as one prompt. Local shells execute
+      // line breaks as commands; bracketed paste can leave the final line pending.
       const clean = data.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').replaceAll('\r', '');
       const target = session.process;
-      target.write(`\x1b[200~${clean}\x1b[201~`);
-      // The native CLI finishes handling a paste asynchronously. A quick Enter
-      // can be swallowed by a paste guard, especially after resume.
-      if (submit) setTimeout(() => { if (session.process === target) target.write('\r'); }, 500);
+      if (['shell', 'gitbash'].includes(session.agent)) {
+        // ConPTY/MSYS can swallow the first byte when a composed send follows
+        // terminal focus or a prompt redraw. NUL is ignored by readline.
+        target.write('\x00' + clean.replaceAll('\n', '\r') + (submit && !clean.endsWith('\n') ? '\r' : ''));
+      } else {
+        target.write(`\x1b[200~${clean}\x1b[201~`);
+        // The native CLI finishes handling a paste asynchronously. A quick Enter
+        // can be swallowed by a paste guard, especially after resume.
+        if (submit) setTimeout(() => { if (session.process === target) target.write('\r'); }, 500);
+      }
     } else session.process.write(data);
     if (!coordinator && !/^\x1b\[[?>0-9;]*[RcnIO]$/.test(data)) session.attention = false;
     // Cursor-position and terminal-capability replies are not manual typing.

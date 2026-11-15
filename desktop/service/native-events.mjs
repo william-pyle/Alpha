@@ -4,10 +4,13 @@ import os from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 
 export function completedTurn(record, agent) {
-  if (agent === 'codex' && record.type === 'event_msg' && record.payload?.type === 'task_complete') return { kind: 'turn-completed', id: record.payload.turn_id, text: 'The agent finished its turn. Review the result.', preview: String(record.payload.last_agent_message || '').slice(-350) };
+  if (agent === 'codex' && record.type === 'event_msg' && record.payload?.type === 'task_complete') return { kind: 'turn-completed', id: record.payload.turn_id, text: 'The agent finished its turn. Review the result.', preview: String(record.payload.last_agent_message || '').slice(-350), message: String(record.payload.last_agent_message || '') };
   // Claude writes thinking and text as separate records with the same message ID
   // and stop reason. Only the actual final answer creates a completion notice.
-  if (agent === 'claude' && !record.isSidechain && record.type === 'assistant' && record.message?.stop_reason === 'end_turn' && record.message.content?.some(item => item.type === 'text')) return { kind: 'turn-completed', id: record.message.id, text: 'The agent finished its turn. Review the result.', preview: record.message.content.filter(item => item.type === 'text').map(item => item.text).join('\n').slice(-350) };
+  if (agent === 'claude' && !record.isSidechain && record.type === 'assistant' && record.message?.stop_reason === 'end_turn' && record.message.content?.some(item => item.type === 'text')) {
+    const message = record.message.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
+    return { kind: 'turn-completed', id: record.message.id, text: 'The agent finished its turn. Review the result.', preview: message.slice(-350), message };
+  }
   if (agent === 'claude' && !record.isSidechain && record.type === 'system' && record.subtype === 'api_error') return { kind: 'attention', text: 'The agent reported an API error.' };
   return null;
 }
@@ -15,6 +18,16 @@ export function completedTurn(record, agent) {
 export function nativeActivity(record, agent) {
   const completed = completedTurn(record, agent);
   if (completed) return completed;
+  if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'function_call' && ['request_user_input', 'ask_user_question'].includes(record.payload.name)) {
+    try {
+      const input = typeof record.payload.arguments === 'string' ? JSON.parse(record.payload.arguments) : record.payload.arguments;
+      if (Array.isArray(input?.questions)) return { kind: 'question', id: record.payload.call_id, questions: input.questions.map(item => ({ text: item.question || item.title, options: item.options || [] })) };
+    } catch { /* The CLI may write a partial or invalid tool payload. */ }
+  }
+  if (agent === 'claude' && !record.isSidechain && record.type === 'assistant') {
+    const ask = record.message?.content?.find(item => item.type === 'tool_use' && item.name === 'AskUserQuestion');
+    if (ask && Array.isArray(ask.input?.questions)) return { kind: 'question', id: ask.id, questions: ask.input.questions.map(item => ({ text: item.question, options: item.options || [] })) };
+  }
   if (agent === 'codex' && record.type === 'event_msg') {
     if (record.payload?.type === 'task_started') return { kind: 'turn-started' };
     if (record.payload?.type === 'turn_aborted') return { kind: 'turn-interrupted' };

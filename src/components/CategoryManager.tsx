@@ -6,7 +6,7 @@ import './category-manager.css'
 const icons = ['📁', '📂', '🛠️', '🔍', '🎮', '🎨', '📊', '🧲', '📝', '💡', '🧪', '📚', '📷', '🎵', '🌐', '💼', '🗂️', '⭐']
 const slug = (name: string) => name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64)
 
-export default function CategoryManager({ categories, entities, onChanged }: { categories: CardCategory[]; entities: WorkspaceEntity[]; onChanged: () => Promise<void> }) {
+export default function CategoryManager({ categories, entities, onChanged, embedded = false }: { categories: CardCategory[]; entities: WorkspaceEntity[]; onChanged: () => Promise<void>; embedded?: boolean }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -19,9 +19,9 @@ export default function CategoryManager({ categories, entities, onChanged }: { c
   const dialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    if (open) dialog.current?.showModal()
+    if (open && !embedded) dialog.current?.showModal()
     else dialog.current?.close()
-  }, [open])
+  }, [open, embedded])
 
   const reset = () => { setEditing(null); setDeleting(null); setName(''); setId(''); setIcon('📁'); setReplacement(''); setError('') }
   const edit = (category: CardCategory) => { setDeleting(null); setEditing(category.id); setId(category.id); setName(category.name); setIcon(category.icon); setError('') }
@@ -49,10 +49,8 @@ export default function CategoryManager({ categories, entities, onChanged }: { c
 
   if (!isDesktop) return null
   const inUse = entities.filter(item => item.category === deleting).length
-  return <>
-    <button type="button" className="category-manage-open" aria-label="Categories" title="Manage card categories" onClick={() => { reset(); setOpen(true) }}>Categories</button>
-    <dialog ref={dialog} className="category-manager" aria-label="Manage card categories" onCancel={event => { if (busy) event.preventDefault(); else { setOpen(false); reset() } }}>
-      <header><div><small>WORKSPACE</small><h2>Card categories</h2></div><button type="button" aria-label="Close categories" disabled={busy} onClick={() => { setOpen(false); reset() }}>×</button></header>
+  const contents = <>
+      {!embedded && <header><div><small>WORKSPACE</small><h2>Card categories</h2></div><button type="button" aria-label="Close categories" disabled={busy} onClick={() => { setOpen(false); reset() }}>×</button></header>}
       <div className="category-manager-list">{categories.map(category => <div className="category-manager-row" key={category.id}>
         <span className="category-manager-icon" aria-hidden="true">{category.icon}</span><span><strong>{category.name}</strong><small>{category.id} · {entities.filter(item => item.category === category.id).length} cards</small></span>
         <button type="button" disabled={busy} onClick={() => edit(category)} aria-label={`Edit ${category.name}`}>Edit</button>
@@ -69,6 +67,9 @@ export default function CategoryManager({ categories, entities, onChanged }: { c
         <div className="category-manager-actions">{editing && <button type="button" onClick={reset} disabled={busy}>Cancel edit</button>}<button type="submit" disabled={busy || !name.trim() || !id || !icon.trim()}>{busy ? 'Saving…' : editing ? 'Save category' : 'Add category'}</button></div>
       </form>}
       {error && <p className="category-manager-error" role="alert">{error}</p>}
-    </dialog>
+    </>
+  return embedded ? <div className="category-manager-inline">{contents}</div> : <>
+    <button type="button" className="category-manage-open" aria-label="Categories" title="Manage card categories" onClick={() => { reset(); setOpen(true) }}>Categories</button>
+    <dialog ref={dialog} className="category-manager" aria-label="Manage card categories" onCancel={event => { if (busy) event.preventDefault(); else { setOpen(false); reset() } }}>{contents}</dialog>
   </>
 }

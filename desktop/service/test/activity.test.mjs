@@ -116,7 +116,7 @@ test('New chat with a native ID and History resume capture the transcript bounda
   } finally { if (original === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = original; await sessions.close(); }
 });
 
-test('only the subscribed Chats view can acknowledge the exact answer; navigation and Workspace cannot', async () => {
+test('only the selected, subscribed chat can acknowledge the exact answer in the unified window', async () => {
   const { repo, sessions } = await fixture();
   await sessions.close();
   await mkdir(path.join(repo, 'workspace'));
@@ -144,20 +144,15 @@ test('only the subscribed Chats view can acknowledge the exact answer; navigatio
     service.sessions.nativeEvent(item, answer('new'));
     await fetch(service.origin + '/api/sessions/chat-a/focus', { method: 'POST', headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(item.unread, true);
-    const workspace = await connect('workspace'), chats = await connect('chats');
-    for (const client of [workspace, chats]) {
-      await send(client.ws, { type: 'selected', id: item.id }, client.messages);
-      assert.equal(item.unread, true);
-    }
+    const workspace = await connect('workspace');
+    await send(workspace.ws, { type: 'selected', id: item.id }, workspace.messages);
+    assert.equal(item.unread, true);
     const seen = { type: 'seen', id: item.id, completionVersion: item.completionVersion };
-    await send(chats.ws, seen, chats.messages); assert.equal(item.unread, true);
+    await send(workspace.ws, seen, workspace.messages); assert.equal(item.unread, true);
     await send(workspace.ws, { type: 'subscribe', id: item.id }, workspace.messages);
     await until(() => workspace.messages.some(x => x.type === 'snapshot'));
-    await send(workspace.ws, seen, workspace.messages); assert.equal(item.unread, true);
-    await send(chats.ws, { type: 'subscribe', id: item.id }, chats.messages);
-    await until(() => chats.messages.some(x => x.type === 'snapshot'));
-    await send(chats.ws, { ...seen, completionVersion: seen.completionVersion - 1 }, chats.messages);
+    await send(workspace.ws, { ...seen, completionVersion: seen.completionVersion - 1 }, workspace.messages);
     assert.equal(item.unread, true);
-    await send(chats.ws, seen, chats.messages); assert.equal(item.unread, false);
+    await send(workspace.ws, seen, workspace.messages); assert.equal(item.unread, false);
   } finally { sockets.forEach(ws => ws.terminate()); await service.close(); }
 });

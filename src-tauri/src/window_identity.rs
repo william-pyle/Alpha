@@ -1,4 +1,4 @@
-//! Two Shell identities inside one application; the Tauri data identifier stays unchanged.
+//! One Shell identity for Alpha's unified window; the Tauri data identifier stays unchanged.
 use std::{fs, hash::{Hash, Hasher}, path::{Path, PathBuf}, sync::Mutex};
 use tauri::Manager;
 use windows::{core::{HSTRING, Interface}, Win32::{Foundation::HWND, Storage::EnhancedStorage::*,
@@ -22,12 +22,12 @@ fn app_id(app: &tauri::AppHandle, label: &str) -> String {
 
 pub fn initialize(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(WindowIcons::default());
-    unsafe { windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(app_id(app, "chats")))?; }
+    unsafe { windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(app_id(app, "workspace")))?; }
     Ok(())
 }
 
 fn icon_path(app: &tauri::AppHandle, label: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let bytes: &[u8] = if label == "chats" { include_bytes!("../icons/chats.ico") } else { include_bytes!("../icons/icon.ico") };
+    let bytes: &[u8] = include_bytes!("../icons/icon.ico");
     let mut hash = std::collections::hash_map::DefaultHasher::new(); bytes.hash(&mut hash);
     let folder = std::env::var_os("ALPHA_TEST_DIR").map(PathBuf::from).unwrap_or(app.path().app_cache_dir()?).join("icons");
     fs::create_dir_all(&folder)?;
@@ -39,11 +39,11 @@ fn icon_path(app: &tauri::AppHandle, label: &str) -> Result<PathBuf, Box<dyn std
 pub fn set_window(window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
     let app = window.app_handle();
     let label = window.label();
-    let png: &[u8] = if label == "chats" { include_bytes!("../icons/chats-128x128.png") } else { include_bytes!("../icons/128x128.png") };
+    let png: &[u8] = include_bytes!("../icons/128x128.png");
     window.set_icon(tauri::image::Image::from_bytes(png)?)?;
     let icon = icon_path(app, label)?;
     let command = format!("\"{}\" --show {label}", std::env::current_exe()?.display());
-    let title = if label == "chats" { "Alpha Chats" } else { "Alpha Workspace" };
+    let title = "Alpha";
     unsafe {
         let hwnd = window.hwnd()?.0;
         let dpi = GetDpiForWindow(hwnd);
@@ -92,10 +92,10 @@ fn refresh_shortcut(app: &tauri::AppHandle, path: &Path) -> Result<(), Box<dyn s
         let mut arguments = text(&arguments);
         let words: Vec<String> = arguments.split_whitespace().map(|word| word.trim_matches('"').to_owned()).collect();
         let selected = crate::requested_window(&words);
-        let label = selected.unwrap_or("chats");
-        // Migrate an existing shared pin to Chats. Preserve --repo and any other
+        let label = selected.unwrap_or("workspace");
+        // Migrate an existing shared pin to the unified window. Preserve --repo and any other
         // arguments, placement and the user's pin/unpin choices.
-        if selected.is_none() { arguments = format!("{arguments} --show chats").trim().to_owned(); }
+        if selected.is_none() { arguments = format!("{arguments} --show workspace").trim().to_owned(); }
         let icon = icon_path(app, label)?;
         let properties: IPropertyStore = link.cast()?;
         let current_id = properties.GetValue(&PKEY_AppUserModel_ID)?.to_string();
