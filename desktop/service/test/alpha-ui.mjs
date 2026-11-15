@@ -75,6 +75,22 @@ try {
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_MULTI_2');
   assert.equal(context.pages().length, 1);
 
+  await editor.fill('echo IMAGE ');
+  await editor.evaluate(input => {
+    const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/dZkAAAAASUVORK5CYII='), char => char.charCodeAt(0));
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(new File([bytes], 'Screenshot.png', { type: 'image/png' }));
+    input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await expect(editor).toHaveValue(/echo IMAGE ".*Screenshot-.*\.png" /);
+  const imagePath = (await editor.inputValue()).match(/"([^"]+\.png)"/)[1];
+  assert.deepEqual([...await readFile(imagePath)].slice(0, 8), [137, 80, 78, 71, 13, 10, 26, 10]);
+  await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen).not.toContain('IMAGE ');
+  await page.waitForTimeout(2600);
+  await editor.press('Enter');
+  await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('IMAGE ');
+  await expect(editor).toHaveValue('');
+
   await call(`/sessions/${session.id}/input`, { text: "read -p 'Should Alpha continue? ' reply; printf 'REPLY:%s\\n' \"$reply\"\r", paste: false });
   await expect(page.getByRole('region', { name: 'Questions' })).toContainText('Should Alpha continue?');
   await page.getByRole('button', { name: 'Yes', exact: true }).click();
@@ -91,5 +107,5 @@ try {
   const saved = JSON.parse(await readFile(path.join(repo, '.alpha/settings.json')));
   assert.equal(saved.appTheme, 'higurashi'); assert.equal(saved.defaultBypass, true);
   assert.deepEqual(errors, []);
-  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, editor keys, splitter, questions, history, document tabs and report.');
+  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, editor keys and image paste, splitter, questions, history, document tabs and report.');
 } finally { await browser?.close(); await service.close(); }

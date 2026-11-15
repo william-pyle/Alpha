@@ -6,19 +6,27 @@ import { api, reportError, setPreview, useDesktop } from './client'
 import { Icon } from './Icons'
 import McpPanel from './McpPanel'
 import WorkspaceSettings from './WorkspaceSettings'
-import type { Folder, Preview } from './types'
+import type { FileEntry, Folder, Preview } from './types'
 
 function SkillsSettings({ close }: { close: () => void }) {
   const { repo, sharedLibrary } = useDesktop()
-  const [project, setProject] = useState<Folder['entries']>([])
+  const { workspace } = useWorkspace()
+  const [workspaceSkills, setWorkspaceSkills] = useState<FileEntry[]>([])
   useEffect(() => {
-    api<Folder>(`/files?path=${encodeURIComponent(`${repo}/.agents/skills`)}&mode=all`).then(folder => setProject(folder.entries.filter(entry => entry.directory))).catch(() => setProject([]))
+    api<Folder>(`/files?path=${encodeURIComponent(`${repo}/.agents/skills`)}&mode=all`).then(folder => setWorkspaceSkills(folder.entries.filter(entry => entry.directory))).catch(() => setWorkspaceSkills([]))
   }, [repo])
+  const groups = new Map<string, { title: string; entries: FileEntry[] }>()
+  for (const entry of workspaceSkills) {
+    const owner = workspace?.entities.filter(entity => entry.name === entity.id || entry.name.startsWith(`${entity.id}-`)).sort((a, b) => b.id.length - a.id.length)[0]
+    const key = owner?.id || 'other'
+    if (!groups.has(key)) groups.set(key, { title: owner?.title || 'Other Workspace skills', entries: [] })
+    groups.get(key)!.entries.push(entry)
+  }
   const open = async (path: string) => {
     try { setPreview(await api<Preview>(`/preview?path=${encodeURIComponent(path)}`)); close() }
     catch (error) { reportError(error) }
   }
-  return <div className="mdi-skills-settings"><h2>Skills</h2><p>Shared skills are available across Alpha. Project skills take precedence for their project.</p><h3>Shared library</h3><div className="mdi-skill-list">{sharedLibrary?.skills.map(name => <button key={name} onClick={() => void open(`${sharedLibrary.root}/.agents/skills/${name}/SKILL.md`)}><Icon name="skills" size={15} />{name}</button>) || <p>No shared skills installed.</p>}</div><h3>This project</h3><div className="mdi-skill-list">{project.length ? project.map(entry => <button key={entry.path} onClick={() => void open(`${entry.path}/SKILL.md`)}><Icon name="skills" size={15} />{entry.name}</button>) : <p>No project skills found.</p>}</div></div>
+  return <div className="mdi-skills-settings"><h2>Skills</h2><p>Shared skills are available across Alpha. Workspace skills below are grouped by project; they are listed even when no project card is open.</p><h3>Shared library</h3><div className="mdi-skill-list">{sharedLibrary?.skills.map(name => <button key={name} onClick={() => void open(`${sharedLibrary.root}/.agents/skills/${name}/SKILL.md`)}><Icon name="skills" size={15} />{name}</button>) || <p>No shared skills installed.</p>}</div><h3>Workspace skills by project</h3>{groups.size ? [...groups.entries()].sort((a, b) => a[1].title.localeCompare(b[1].title)).map(([id, group]) => <section className="mdi-project-skill-group" key={id}><h4>{group.title}</h4><div className="mdi-skill-list">{group.entries.map(entry => <button key={entry.path} onClick={() => void open(`${entry.path}/SKILL.md`)}><Icon name="skills" size={15} />{entry.name}</button>)}</div></section>) : <p>No Workspace skills found.</p>}</div>
 }
 
 export default function SettingsDialog({ onClose }: { onClose: () => void }) {

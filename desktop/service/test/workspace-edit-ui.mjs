@@ -64,9 +64,8 @@ try {
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Hide archive' }).click();
   await expect(homeCard).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search Workspace' }).fill('Character');
-  await expect(homeCard).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search Workspace' }).fill('');
+  await expect(page.locator('.topbar')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Search Workspace' })).toHaveCount(0);
 
   await page.route('**/api/workspace/entities/sample', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fixture unavailable.' }) }));
   await edit().click(); await menu.getByRole('button', { name: 'Done', exact: true }).click();
@@ -80,11 +79,13 @@ try {
   await expect(page.getByRole('tab', { name: 'Character Workshop' })).toBeVisible();
   await expect(page.frameLocator('iframe.report-frame').getByRole('heading', { name: 'Project notes' })).toBeVisible();
   await page.reload();
-  await expect(page.locator('.topbar').getByRole('button', { name: 'Edit Character Workshop: Done' })).toBeVisible();
+  await expect(page.locator('.topbar')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Workspace' }).click();
+  await expect(edit()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
   assert.equal(await readFile(path.join(repo, 'workspace', 'sample', 'report.html'), 'utf8'), report);
   const registry = JSON.parse(await readFile(file, 'utf8'));
   assert.deepEqual(registry.entities[0].steps, card.steps);
   assert.equal(registry.entities[0].category, 'dev');
   assert.deepEqual(errors, []);
-  console.log('Workspace controls passed: status, category icons and migration, archive, search, peer sync, retry, document tab and report preservation.');
+  console.log('Workspace controls passed: status, category icons and migration, archive, peer sync, retry, document tab and report preservation.');
 } finally { await browser?.close(); await service.close(); }

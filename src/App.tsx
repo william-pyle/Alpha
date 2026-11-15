@@ -166,8 +166,6 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
       <main className="main">
         <Topbar
           mdi={mdi}
-          query={query}
-          onQuery={setQuery}
           categories={categories}
           entities={entities}
           onCategoriesChanged={reload}

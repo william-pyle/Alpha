@@ -22,7 +22,7 @@ export default function DesktopApp() {
     {surface === 'chats' ? <Suspense fallback={<div className="desktop-boot"><Nose size={50} /></div>}><Chats /></Suspense> : <UnifiedShell />}
     {state.error && <div className="desktop-error" role="alert"><span>{state.error}</span><button onClick={dismissError} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
     {!state.connected && <div className="desktop-offline">Reconnecting to the local service…</div>}
-    <VoiceDock />
+    {surface === 'chats' && <VoiceDock />}
     <Updates compact />
   </div>
 }

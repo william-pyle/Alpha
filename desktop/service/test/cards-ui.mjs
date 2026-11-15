@@ -27,7 +27,8 @@ try {
   const page = await context.newPage(); page.setDefaultTimeout(12000);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
-  await page.getByRole('button', { name: '+ New card', exact: true }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New card' }).click();
   const dialog = page.getByRole('dialog', { name: 'New Workspace card' });
   await dialog.getByLabel('Card title').fill('My editable board');
   await dialog.getByRole('button', { name: 'Create card', exact: true }).click();

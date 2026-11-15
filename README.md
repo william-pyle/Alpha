@@ -12,13 +12,21 @@ tabs, settings, desktop dictation and permission controls.
 
 Version **0.2.3** added a selectable Workspace location in Settings and the installer.
 
-## Version 0.2.8
+## Version 0.2.9
 
 Fixes the repeated update prompt after installation. Alpha now passes its native
 application version to the bundled service, and packaging checks require all
-version records to agree. Once 0.2.8 is installed, its startup check recognizes
+version records to agree. Once 0.2.9 is installed, its startup check recognizes
 that release as current. The bottom Questions section appears only while there
-are unanswered questions.
+are unanswered questions. The message editor accepts pasted screenshots and
+other clipboard images, saves them to the Workspace inbox, and inserts their
+paths into the draft. Workspace card tabs use each card's icon when available,
+and the redundant Workspace/document heading, breadcrumb, New card and search
+strip is removed. New card remains in the File menu.
+The Workspace microphone is hidden by default; View can show or hide it, and
+the choice persists across launches.
+Settings groups Workspace skills under their owning projects, even when no
+project card is open.
 
 ## Version 0.2.6
 
@@ -54,7 +62,7 @@ The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.8-x64.exe** from the
+Download **Alpha-Setup-0.2.9-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.

@@ -7,8 +7,6 @@ import CategoryManager from './CategoryManager'
 
 interface TopbarProps {
   mdi?: boolean
-  query?: string
-  onQuery?: (value: string) => void
   categories: CardCategory[]
   entities: WorkspaceEntity[]
   onCategoriesChanged: () => Promise<void>
@@ -19,7 +17,10 @@ interface TopbarProps {
   reportUrl: string | null
 }
 
-export default function Topbar({ mdi = false, query = '', onQuery, entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
+export default function Topbar({ mdi = false, entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
+  if (mdi) return entity && entity.steps.length > 1 ? <nav className="mdi-document-nav" aria-label="Document pages">
+    {entity.steps.map((step, index) => <button key={index} type="button" aria-current={index === stepIndex ? 'page' : undefined} onClick={() => onStep(entity.id, index)}>{step.name}</button>)}
+  </nav> : null
   return (
     <div className="topbar">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -36,7 +37,6 @@ export default function Topbar({ mdi = false, query = '', onQuery, entity, categ
         {isDesktop && <NewCard />}
         {isDesktop && !mdi && <CategoryManager categories={categories} entities={entities} onChanged={onCategoriesChanged} />}
         {!isDesktop && <BrowserSettings />}
-        {mdi && <input className="mdi-workspace-search" aria-label="Search Workspace" placeholder="Search Workspace…" value={query} onChange={event => onQuery?.(event.target.value)} />}
       </nav>
 
       {entity && (

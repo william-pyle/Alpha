@@ -30,7 +30,7 @@ function NewCardDialog({ onClose }: { onClose: () => void }) {
   </form></dialog>, document.body)
 }
 
-export default function NewCard() {
+export default function NewCard({ hideTrigger = false }: { hideTrigger?: boolean }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -38,5 +38,5 @@ export default function NewCard() {
     window.addEventListener('alpha-new-card', show)
     return () => window.removeEventListener('alpha-new-card', show)
   }, [])
-  return <><button ref={button} className="new-card-button" onClick={() => setOpen(true)}>+ New card</button>{open && <NewCardDialog onClose={() => { setOpen(false); button.current?.focus() }} />}</>
+  return <>{!hideTrigger && <button ref={button} className="new-card-button" onClick={() => setOpen(true)}>+ New card</button>}{open && <NewCardDialog onClose={() => { setOpen(false); button.current?.focus() }} />}</>
 }
