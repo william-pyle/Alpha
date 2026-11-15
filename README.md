@@ -83,7 +83,7 @@ install a downloaded update.
 
 ## Skills and knowledge
 
-The installer carries 20 reusable skill folders with supporting knowledge,
+The next source-built installer carries 21 reusable skill folders with supporting knowledge,
 workflows, scripts and report assets. Open **Settings → Skills** to browse them.
 Read a skill's full instructions before using it. Optional tools, packages and
 provider accounts are separate.
@@ -135,7 +135,7 @@ npm run lint
 npm test
 npm run build
 npm run desktop:test:ui
-npm run desktop:build -- --bundles nsis
+npm run desktop:build -- --bundles msi
 npm run desktop:test:installer
 node scripts/release.mjs
 ```
@@ -145,6 +145,19 @@ The installer and `alpha-update.json` are generated in `release/`. The
 runs checks on main, pull requests and manual dispatch. A matching `vX.Y.Z`
 tag triggers publication of the tested installer and update manifest to
 [GitHub Releases](https://github.com/william-pyle/Alpha/releases).
+
+The source now builds a per-machine WiX MSI with the standard welcome, install
+folder and finish wizard, like ContactCraft and SolidCraft. Tauri builds this
+MSI with WiX v3; those projects use WiX v5. The published
+0.2.14 installer remains NSIS. Its updater only accepts NSIS, so the first
+transition release will publish both formats and serve an NSIS bridge to older
+installations. That bridge has an MSI-aware updater; a later MSI release can
+then remove the old NSIS app without deleting its Workspace or settings.
+Remove `ALPHA_BRIDGE_NSIS` and the NSIS build steps from the Windows workflow
+after the bridge release is published, before tagging the first MSI-led release.
+Direct MSI installation requires uninstalling the old NSIS app first. Fresh
+MSI installs ask for the Workspace folder on first launch. Local Whisper setup
+runs during MSI installation and can be retried with its packaged script.
 
 Product source and assets live here. Personal Workspace records, CLI logins
 and runtime state are excluded from the repository. License and provenance

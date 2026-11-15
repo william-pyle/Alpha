@@ -1,7 +1,7 @@
 {
   "name": "alpha-desktop",
   "private": true,
-  "version": "0.2.14",
+  "version": "0.2.15",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/install-service.mjs",
@@ -16,10 +16,10 @@
     "desktop:test": "node --test desktop/service/test/*.test.mjs",
     "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs",
     "test": "npm run desktop:test",
-    "package": "npm run desktop:build -- --bundles nsis",
+    "package": "npm run desktop:build -- --bundles msi",
     "library:build": "node scripts/package-library.mjs",
     "predesktop:service": "npm run library:build",
-    "desktop:test:installer": "node scripts/test-installer-workspace.mjs"
+    "desktop:test:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer-msi.ps1"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.2.3",

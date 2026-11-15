@@ -33,7 +33,7 @@ export class Updates {
       const asset = release.assets?.find(item => item.name === 'alpha-update.json');
       if (asset?.browser_download_url !== prefix + 'alpha-update.json') throw new Error('This release has no compatible Alpha update.');
       const manifest = await this.json(asset.browser_download_url);
-      if (manifest.version !== version || manifest.platform !== 'windows-x64' || manifest.url !== prefix + `Alpha-Setup-${version}-x64.exe` || !/^[a-f0-9]{64}$/.test(manifest.sha256) || !Number.isSafeInteger(manifest.bytes) || manifest.bytes < 1 || manifest.bytes > 500 * 1024 * 1024) throw new Error('The release update manifest is invalid.');
+      if (manifest.version !== version || manifest.platform !== 'windows-x64' || manifest.url !== prefix + `Alpha-${version}-windows-x64.msi` || !/^[a-f0-9]{64}$/.test(manifest.sha256) || !Number.isSafeInteger(manifest.bytes) || manifest.bytes < 1 || manifest.bytes > 500 * 1024 * 1024) throw new Error('The release update manifest is invalid.');
       this.manifest = manifest;
       return this.set({ status: 'available', version, releaseUrl: `https://github.com/william-pyle/Alpha/releases/tag/v${version}`, checkedAt: new Date().toISOString() });
     })().catch(error => this.set({ status: 'error', error: error.message })).finally(() => { this.busy = null; });
@@ -46,7 +46,7 @@ export class Updates {
     this.set({ status: 'downloading', percent: 0, error: null });
     this.busy = (async () => {
       await mkdir(this.directory, { recursive: true });
-      const file = path.join(this.directory, `Alpha-Setup-${manifest.version}-x64.exe`), temporary = file + '.partial';
+      const file = path.join(this.directory, `Alpha-${manifest.version}-windows-x64.msi`), temporary = file + '.partial';
       const response = await this.fetcher(manifest.url, { signal: AbortSignal.timeout(600000) });
       if (!response.ok || !response.body) throw new Error('The update download failed.');
       const chunks = []; let length = 0, lastPercent = -1;
@@ -72,7 +72,7 @@ export class Updates {
       this.set({ status: 'error', error: 'The downloaded installer changed. Download it again.' });
       throw new Error(this.state.error);
     }
-    this.native({ type: 'update-install', file: this.file, version: this.manifest.version, activeCount: this.activeCount() });
+    this.native({ type: 'update-install', file: this.file, sha256: this.manifest.sha256, version: this.manifest.version, activeCount: this.activeCount() });
     return this.state;
   }
   start() {

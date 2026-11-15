@@ -24,9 +24,10 @@ from `Systran/faster-whisper-small` on Hugging Face. These are separate per-user
 downloads, not included in the installer archive. The model is MIT-licensed;
 see its model card and each package's license for details.
 
-The Windows installer template is adapted from Tauri CLI 2.11.4, commit
+The retired NSIS installer template and the current WiX MSI template are adapted
+from Tauri CLI 2.11.4, commit
 8909f221d1515955fc843808032bdc5d62209c96. Its MIT license is retained in
-`src-tauri/installer/TAURI-LICENSE-MIT`; the source URL is recorded in the template.
+`src-tauri/installer/TAURI-LICENSE-MIT`; source URLs are recorded in the templates.
 
 Codex, Claude Code, PowerShell and Git for Windows are separate products.
 Alpha does not bundle provider accounts or grant access to their services.

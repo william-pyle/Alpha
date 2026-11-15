@@ -128,6 +128,18 @@ fn repo_path(app: &tauri::AppHandle, node: &PathBuf, resolver: &PathBuf, app_dir
     let documents = app.path().document_dir().or_else(|_| app.path().home_dir().map(|root| root.join("Documents")))?;
     let default_root = documents.join("Alpha");
     let legacy = app.path().app_data_dir()?.join("Workspace");
+    // The MSI uses the standard WiX setup wizard. Select the data folder on
+    // first launch, outside the elevated installer, so it belongs to this user.
+    if supplied.is_none() && node.is_file() && std::env::var_os("ALPHA_TEST_DIR").is_none()
+        && !config.join("repository.json").exists() && !legacy.join("workspace/workspace.json").exists() {
+        let choice = rfd::MessageDialog::new().set_title("Choose Alpha Workspace")
+            .set_description(format!("Use {} for your Workspace? Choose No to select another folder. Your files stay there across updates.", default_root.display()))
+            .set_buttons(rfd::MessageButtons::YesNo).show();
+        if choice == rfd::MessageDialogResult::No {
+            supplied = Some(rfd::FileDialog::new().set_title("Choose an empty folder or existing Alpha Workspace")
+                .set_directory(&documents).pick_folder().ok_or("Workspace selection cancelled")?);
+        }
+    }
     loop {
         let mut command = Command::new(node);
         command.arg(resolver).arg("--config").arg(&config).arg("--default").arg(&default_root)
@@ -291,6 +303,8 @@ fn main() {
             let stdout = child.stdout.take().ok_or("Service output unavailable")?;
             *app.state::<Service>().0.lock().unwrap() = Some(child);
             let app_handle = app.handle().clone();
+            #[cfg(windows)]
+            let update_script = runtime.join("install-msi-update.ps1");
             std::thread::spawn(move || {
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                     let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
@@ -298,14 +312,24 @@ fn main() {
                         "update-install" => {
                             let handle = app_handle.clone();
                             let file = event["file"].as_str().unwrap_or("").to_owned();
+                            let sha256 = event["sha256"].as_str().unwrap_or("").to_owned();
                             let version = event["version"].as_str().unwrap_or("").to_owned();
                             let count = event["activeCount"].as_u64().unwrap_or(0);
+                            #[cfg(windows)]
+                            let script = update_script.clone();
                             let _ = app_handle.run_on_main_thread(move || {
                                 let confirmed = rfd::MessageDialog::new().set_title("Update Alpha")
                                     .set_description(format!("Install Alpha {version}? This closes Alpha and stops {count} running terminal(s). Saved workspace files and history are retained."))
                                     .set_buttons(rfd::MessageButtons::YesNo).show();
                                 if confirmed == rfd::MessageDialogResult::Yes {
-                                    match hidden(Command::new(&file).args(["/P", "/R", "/UPDATE"])).spawn() {
+                                    #[cfg(windows)]
+                                    let launched = hidden(Command::new("powershell.exe")
+                                        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+                                        .arg(script).arg("-Installer").arg(&file).arg("-Sha256").arg(&sha256)
+                                        .arg("-ParentPid").arg(std::process::id().to_string())).spawn();
+                                    #[cfg(not(windows))]
+                                    let launched = Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Windows MSI updates only"));
+                                    match launched {
                                         Ok(_) => handle.exit(0),
                                         Err(error) => { rfd::MessageDialog::new().set_title("Alpha update could not start").set_description(error.to_string()).show(); }
                                     }

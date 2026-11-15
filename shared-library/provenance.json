@@ -1965,7 +1965,8 @@
   ],
   "alphaAdditions": [
     "AGENTS.md",
-    "LIBRARY.md"
+    "LIBRARY.md",
+    ".agents/skills/release-packaging/SKILL.md"
   ],
   "adaptations": [
     "Alpha branding and installed-library usage guidance in first-party documents.",

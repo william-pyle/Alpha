@@ -68,7 +68,10 @@ if (process.platform !== 'win32') { const { chmod } = await import('node:fs/prom
 await mkdir(path.join(runtime, 'service'), { recursive: true });
 const serviceSource = path.join(repo, 'desktop', 'service');
 await cp(serviceSource, path.join(runtime, 'service'), { recursive: true, filter: source => !path.relative(serviceSource, source).split(path.sep).some(part => ['node_modules', 'test', '.cache'].includes(part)) });
-if (process.platform === 'win32') await cp(path.join(repo, 'scripts', 'setup-local-whisper.ps1'), path.join(runtime, 'setup-local-whisper.ps1'));
+if (process.platform === 'win32') {
+  await cp(path.join(repo, 'scripts', 'setup-local-whisper.ps1'), path.join(runtime, 'setup-local-whisper.ps1'));
+  await cp(path.join(repo, 'scripts', 'install-msi-update.ps1'), path.join(runtime, 'install-msi-update.ps1'));
+}
 // A checkout can itself live under a cache/worktree directory. Validate the
 // payload before npm can resolve an unrelated parent package.json.
 for (const file of ['package.json', 'package-lock.json', 'main.mjs', 'server.mjs']) await access(path.join(runtime, 'service', file));

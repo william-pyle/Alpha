@@ -25,14 +25,20 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run desktop:test:ui
-      - run: npm run desktop:build -- --bundles nsis
+      - run: npm run desktop:build -- --bundles msi
       - run: npm run desktop:test:installer
+      # Remove these bridge build/test steps and ALPHA_BRIDGE_NSIS after the first transition release.
+      - run: npm run desktop:build -- --bundles nsis
+      - run: node scripts/test-installer-workspace.mjs
       - run: node desktop/service/test/packaged-runtime.mjs
       - run: node scripts/release.mjs
+        env:
+          ALPHA_BRIDGE_NSIS: '1'
       - uses: actions/upload-artifact@v4
         with:
           name: Alpha-Windows-installer
           path: |
+            release/Alpha-*-windows-x64.msi
             release/Alpha-Setup-*.exe
             release/alpha-update.json
           if-no-files-found: error

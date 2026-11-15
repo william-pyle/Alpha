@@ -21,7 +21,7 @@ test('the service uses the installed application version and does not offer that
 });
 async function fixture(overrides = {}) {
   const bytes = Buffer.from('fixture installer bytes'), requests = [], events = [];
-  const manifest = { version: '0.3.0', platform: 'windows-x64', url: prefix + 'Alpha-Setup-0.3.0-x64.exe', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), ...overrides };
+  const manifest = { version: '0.3.0', platform: 'windows-x64', url: prefix + 'Alpha-0.3.0-windows-x64.msi', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), ...overrides };
   const directory = await mkdtemp(path.join(os.tmpdir(), 'alpha-update-'));
   const fetcher = async url => {
     requests.push(url);
@@ -44,6 +44,8 @@ test('updates require explicit download and installation; downloaded bytes are v
   assert.equal(requests.length, 3); assert.equal(events.length, 0);
   await assert.rejects(updater.install(false));
   await updater.install(true); assert.equal(events.length, 1); assert.equal(events[0].activeCount, 2);
+  assert.equal(events[0].sha256, createHash('sha256').update(Buffer.from('fixture installer bytes')).digest('hex'));
+  assert.match(events[0].file, /[.]msi$/);
   await writeFile(updater.file, 'modified');
   await assert.rejects(updater.install(true), /changed/); assert.equal(events.length, 1);
 });
