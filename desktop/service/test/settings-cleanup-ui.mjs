@@ -54,6 +54,7 @@ try {
   await settings.getByRole('button', { name: 'Save theme' }).click();
   await expect(page.locator('html')).toHaveCSS('--bg', '#152536');
   await settings.getByRole('button', { name: 'Restore built-in' }).click();
+  await expect(settings.getByRole('status')).toContainText('Built-in theme restored.');
   await settings.getByLabel('Theme to edit').selectOption('new');
   await settings.getByLabel('Theme name').fill('Evening blue');
   await settings.getByLabel('Background color').fill('#19283a');
