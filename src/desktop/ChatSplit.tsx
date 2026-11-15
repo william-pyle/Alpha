@@ -9,9 +9,7 @@ const DEFAULT_EDITOR_HEIGHT = 170
 const DIVIDER_HEIGHT = 10
 const MIN_TERMINAL_HEIGHT = 120
 const MIN_EDITOR_HEIGHT = 110
-const heightKey = (id: string) => `alpha.chatEditorHeight.${id}`
-
-export default function ChatSplit({ id, agent, fontSize, appearance, connected, running, showReconnect, restoreError, onAttachmentStatus }: {
+export default function ChatSplit({ id, agent, fontSize, appearance, connected, running, showReconnect, restoreError, savedHeight, onAttachmentStatus }: {
   id: string
   agent: AgentId
   fontSize: number
@@ -20,16 +18,14 @@ export default function ChatSplit({ id, agent, fontSize, appearance, connected, 
   running: boolean
   showReconnect: boolean
   restoreError?: string | null
+  savedHeight?: number
   onAttachmentStatus: (id: string, text: string) => void
 }) {
   const root = useRef<HTMLDivElement>(null)
   const reconnect = useRef<HTMLDivElement>(null)
   const drag = useRef<{ y: number; height: number } | null>(null)
   const [space, setSpace] = useState(0)
-  const [preferred, setPreferred] = useState(() => {
-    const saved = Number(localStorage.getItem(heightKey(id)))
-    return Number.isFinite(saved) && saved >= MIN_EDITOR_HEIGHT ? saved : DEFAULT_EDITOR_HEIGHT
-  })
+  const [preferred, setPreferred] = useState(() => savedHeight && savedHeight >= MIN_EDITOR_HEIGHT ? savedHeight : DEFAULT_EDITOR_HEIGHT)
 
   useEffect(() => {
     const element = root.current
@@ -44,7 +40,7 @@ export default function ChatSplit({ id, agent, fontSize, appearance, connected, 
 
   const maximum = Math.max(MIN_EDITOR_HEIGHT, space - MIN_TERMINAL_HEIGHT - DIVIDER_HEIGHT)
   const height = Math.min(Math.max(preferred, MIN_EDITOR_HEIGHT), maximum)
-  const save = (value: number) => { setPreferred(value); localStorage.setItem(heightKey(id), String(value)) }
+  const save = (value: number) => { setPreferred(value); void api('/settings', { chatEditorHeight: { id, height: Math.round(value) } }).catch(reportError) }
   const start = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     drag.current = { y: event.clientY, height }

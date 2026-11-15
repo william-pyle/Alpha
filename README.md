@@ -12,6 +12,14 @@ tabs, settings, desktop dictation and permission controls.
 
 Version **0.2.3** added a selectable Workspace location in Settings and the installer.
 
+## Version 0.2.10
+
+The message editor accepts images dropped from Windows or the browser. Dropped
+images are saved to the Workspace inbox, and their paths are added to the draft
+without sending. The Chats sidebar width and each chat's editor height now save
+in Workspace settings and restore after Alpha closes. The redundant title and
+Settings shortcut at the right of the menu bar are gone; Settings remains in Tools.
+
 ## Version 0.2.9
 
 Fixes the repeated update prompt after installation. Alpha now passes its native
@@ -62,7 +70,7 @@ The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.9-x64.exe** from the
+Download **Alpha-Setup-0.2.10-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.

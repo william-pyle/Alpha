@@ -18,7 +18,7 @@ const resolve = () => {
 };
 assert.equal(resolve(),repo);
 for (const file of ['node.exe', 'service/main.mjs', 'service/default-categories.json', 'service/node_modules/node-pty/package.json', 'ui/index.html', 'ui/help.html', 'ui/art/alpha.png', 'ui/art/smurfs.png', 'ui/art/rena.png', 'NODE-LICENSE.txt']) await access(path.join(runtime, file));
-const child = spawn(path.join(runtime, 'node.exe'), [path.join(runtime, 'service/main.mjs'), '--repo', repo, '--ui', path.join(runtime, 'ui'), '--library-root', path.join(fixture, 'SharedLibrary'), '--config',configDir], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ALPHA_TEST: '1' } });
+const child = spawn(path.join(runtime, 'node.exe'), [path.join(runtime, 'service/main.mjs'), '--repo', repo, '--ui', path.join(runtime, 'ui'), '--library-root', path.join(fixture, 'SharedLibrary'), '--config',configDir], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ALPHA_TEST: '1', ALPHA_APP_VERSION: product.version } });
 let stderr = ''; child.stderr.on('data', data => { stderr += data; });
 const exited = new Promise(resolve => child.once('exit', resolve));
 const lines = createInterface({ input: child.stdout });

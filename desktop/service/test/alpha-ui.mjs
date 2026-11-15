@@ -31,7 +31,8 @@ try {
   assert.deepEqual(bootstrap.agents.map(item => item.id), ['codex', 'claude', 'shell', 'gitbash']);
   for (const route of ['/mobile', '/mobile/sw.js', '/api/mobile', '/api/mobile/enable']) assert.equal((await fetch(service.origin + route)).status, 404);
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Settings/ }).click();
   const picker = page.getByLabel('Application theme', { exact: true });
   for (const theme of ['alpha', 'smurfs', 'higurashi']) {
     await picker.selectOption(theme);
@@ -58,6 +59,15 @@ try {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down(); await page.mouse.move(box.x + box.width / 2, box.y - 70, { steps: 5 }); await page.mouse.up();
   assert.ok(await height() > before + 40);
+  const sideDivider = page.getByRole('separator', { name: 'Resize Chats sidebar' });
+  const sideBefore = (await page.locator('.mdi-chats').boundingBox()).width;
+  const sideBox = await sideDivider.boundingBox();
+  await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + sideBox.height / 2);
+  await page.mouse.down(); await page.mouse.move(sideBox.x + sideBox.width / 2 + 80, sideBox.y + sideBox.height / 2, { steps: 5 }); await page.mouse.up();
+  const sideAfter = (await page.locator('.mdi-chats').boundingBox()).width;
+  assert.ok(sideAfter > sideBefore + 40);
+  await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).chatSidebarWidth).toBe(Math.round(sideAfter));
+  await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).chatEditorHeights?.[session.id]).toBe(Math.round(await height()));
   const editor = page.getByRole('textbox', { name: 'Write a message' });
   await editor.fill("printf 'ALPHA_COMPOSER_OK\\n'");
   await editor.press('Alt+Enter');
@@ -66,6 +76,26 @@ try {
   await editor.press('Enter');
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_COMPOSER_OK');
   await expect(editor).toHaveValue('');
+
+  const droppedSource = path.join(repo, 'Dropped source.png');
+  await writeFile(droppedSource, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/dZkAAAAASUVORK5CYII=', 'base64'));
+  await editor.fill('echo DROP ');
+  await editor.evaluate((input, source) => {
+    const rect = input.getBoundingClientRect();
+    window.dispatchEvent(new CustomEvent('alpha-file-drop', { detail: { phase: 'drop', paths: [source], x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } }));
+  }, droppedSource);
+  await expect(editor).toHaveValue(/echo DROP ".*Dropped source-.*\.png" /);
+  const droppedPath = (await editor.inputValue()).match(/"([^"]+\.png)"/)[1];
+  assert.deepEqual(await readFile(droppedPath), await readFile(droppedSource));
+  await editor.fill('echo BROWSER DROP ');
+  await editor.evaluate(input => {
+    const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/dZkAAAAASUVORK5CYII='), char => char.charCodeAt(0));
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([bytes], 'Browser drop.png', { type: 'image/png' }));
+    input.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+  });
+  await expect(editor).toHaveValue(/echo BROWSER DROP ".*Browser drop-.*\.png" /);
+  await editor.fill('');
   assert.equal(context.pages().length, 1);
   await expect(page.locator('.terminal-area')).toHaveCount(1);
   await expect(page.locator('.chat-composer')).toHaveCount(1);
@@ -106,6 +136,15 @@ try {
   await expect(page.frameLocator('iframe.report-frame').getByRole('heading', { name: 'Example project report' })).toBeVisible();
   const saved = JSON.parse(await readFile(path.join(repo, '.alpha/settings.json')));
   assert.equal(saved.appTheme, 'higurashi'); assert.equal(saved.defaultBypass, true);
+  const freshContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    const freshPage = await freshContext.newPage();
+    await freshPage.goto(service.urls.workspace);
+    await expect(freshPage.locator('.chat-composer')).toBeVisible();
+    assert.equal(Math.round((await freshPage.locator('.mdi-chats').boundingBox()).width), saved.chatSidebarWidth);
+    assert.equal(Math.round((await freshPage.locator('.chat-composer').boundingBox()).height), saved.chatEditorHeights[session.id]);
+    await expect(freshPage.locator('.mdi-menu-bar .mdi-menu-title, .mdi-menu-bar .mdi-menu-settings')).toHaveCount(0);
+  } finally { await freshContext.close(); }
   assert.deepEqual(errors, []);
-  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, editor keys and image paste, splitter, questions, history, document tabs and report.');
+  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, editor keys and image paste/drop, persisted splitters, questions, history, document tabs and report.');
 } finally { await browser?.close(); await service.close(); }

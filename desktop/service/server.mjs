@@ -228,6 +228,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         const cardImage = /^\/api\/workspace\/cards\/([^/]+)\/(\d+)\/images$/.exec(url.pathname);
         if (method === 'POST' && cardImage) return json(response, 201, await cards.image(decodeURIComponent(cardImage[1]), Number(cardImage[2]), request, url.searchParams.get('name')));
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? (50 * 1024 * 1024 * 6 + 64 * 1024) : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
+        if (method === 'POST' && url.pathname === '/api/attachments/copy') return json(response, 201, await attachments.copyImage(data.path));
         if (method === 'GET' && url.pathname === '/api/updates') return json(response, 200, updates.state);
         if (method === 'GET' && url.pathname === '/api/workspace/location') return json(response, 200, await workspaceLocation.state());
         if (method === 'POST' && url.pathname === '/api/workspace/location/save') return json(response, 200, await workspaceLocation.set(data));
@@ -313,6 +314,13 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (['dark', 'light', 'system'].includes(data.workspaceTheme)) settings.workspaceTheme = data.workspaceTheme;
           if (['medium', 'high'].includes(data.coordinatorEffort)) settings.coordinatorEffort = data.coordinatorEffort;
           if (['cedar', 'marin'].includes(data.voiceName)) settings.voiceName = data.voiceName;
+          if (Number.isInteger(data.chatSidebarWidth) && data.chatSidebarWidth >= 300 && data.chatSidebarWidth <= 2000) settings.chatSidebarWidth = data.chatSidebarWidth;
+          if (data.chatEditorHeight && typeof data.chatEditorHeight === 'object') {
+            const { id, height } = data.chatEditorHeight;
+            if (typeof id === 'string' && sessions.list().some(session => session.id === id) && Number.isInteger(height) && height >= 110 && height <= 2000) {
+              settings.chatEditorHeights = { ...settings.chatEditorHeights, [id]: height };
+            }
+          }
           await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
         }
         if (method === 'POST' && url.pathname === '/api/sessions') { const session = await sessions.create({ ...data, bypass: data.bypass ?? settings.defaultBypass }); await integrations.publish('session', { event: 'started', session }); focus(session.id); return json(response, 201, session); }

@@ -28,7 +28,7 @@ export default function UnifiedShell() {
   const [chatsVisible, setChatsVisible] = useState(true)
   const [archiveVisible, setArchiveVisible] = useState(false)
   const [microphoneVisible, setMicrophoneVisible] = useState(() => localStorage.getItem('alpha.workspaceMicrophoneVisible') === '1')
-  const [chatWidth, setChatWidth] = useState(() => Number(localStorage.getItem('alpha.chatSidebarWidth')) || 390)
+  const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 390)
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
 
@@ -117,15 +117,17 @@ export default function UnifiedShell() {
   }
   const stopDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!drag.current) return
+    const width = Math.min(Math.max(drag.current.width + event.clientX - drag.current.x, 300), Math.max(300, window.innerWidth * .6))
     drag.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    localStorage.setItem('alpha.chatSidebarWidth', String(chatWidth))
+    setChatWidth(width)
+    void api('/settings', { chatSidebarWidth: Math.round(width) }).catch(reportError)
   }
 
   return <div className="unified-shell" onKeyDown={event => { if (event.key === 'Escape') setMenu(null) }}>
-    <div className="mdi-menu-bar"><div className="mdi-brand"><Nose size={21} /><strong>Alpha</strong></div>{Object.entries(menuItems).map(([label, items]) => <div className="mdi-menu-group" key={label}><button type="button" aria-expanded={menu === label} onClick={() => setMenu(current => current === label ? null : label)}>{label}</button>{menu === label && <div className="mdi-menu-popup" role="menu">{items.map(([text, action]) => <button role="menuitem" key={action} type="button" disabled={action === 'close-document' && active === 'workspace'} onClick={() => run(action)}>{text}</button>)}</div>}</div>)}<span className="mdi-menu-spacer" /><span className="mdi-menu-title">{title(activeTab)}</span><button className="mdi-menu-settings" type="button" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={16} /></button></div>
+    <div className="mdi-menu-bar"><div className="mdi-brand"><Nose size={21} /><strong>Alpha</strong></div>{Object.entries(menuItems).map(([label, items]) => <div className="mdi-menu-group" key={label}><button type="button" aria-expanded={menu === label} onClick={() => setMenu(current => current === label ? null : label)}>{label}</button>{menu === label && <div className="mdi-menu-popup" role="menu">{items.map(([text, action]) => <button role="menuitem" key={action} type="button" disabled={action === 'close-document' && active === 'workspace'} onClick={() => run(action)}>{text}</button>)}</div>}</div>)}</div>
     <div className="mdi-body">
-      {chatsVisible && <><aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><Suspense fallback={<div className="desk-muted">Opening Chats…</div>}><Chats embedded /></Suspense></aside><div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setChatWidth(value => { const next = Math.min(Math.max(value + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); localStorage.setItem('alpha.chatSidebarWidth', String(next)); return next }) } }} /></>}
+      {chatsVisible && <><aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><Suspense fallback={<div className="desk-muted">Opening Chats…</div>}><Chats embedded /></Suspense></aside><div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} /></>}
       <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button role="tab" type="button" aria-selected={active === tab.id} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span></button>{tab.kind !== 'workspace' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><App mdi />{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
     </div>
     <QuestionsPanel />

@@ -61,6 +61,7 @@ export async function uploadImage(file: File): Promise<{ path: string; name: str
   if (!response.ok) throw new Error(value.error || 'Image could not be saved')
   return value
 }
+export const copyImagePath = (path: string): Promise<{ path: string; name: string }> => api('/attachments/copy', { path })
 export async function uploadFile(file: File, folder: string): Promise<{ path: string; name: string; renamed: boolean }> {
   const response = await fetch(`/api/files/import?folder=${encodeURIComponent(folder)}&name=${encodeURIComponent(file.name)}`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' }, body: file,

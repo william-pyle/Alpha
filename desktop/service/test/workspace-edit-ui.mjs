@@ -34,7 +34,8 @@ try {
   await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('dev');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Settings/ }).click();
   const settings = page.getByRole('dialog', { name: 'Settings' });
   await settings.getByRole('tab', { name: 'Categories' }).click();
   await settings.getByRole('textbox', { name: 'Name' }).fill('Writing');
@@ -47,7 +48,8 @@ try {
   await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('writing');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Editorial/);
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Settings/ }).click();
   await settings.getByRole('tab', { name: 'Categories' }).click();
   await settings.getByRole('button', { name: 'Delete Editorial' }).click();
   await settings.getByRole('combobox', { name: 'Move cards to' }).selectOption('dev');
