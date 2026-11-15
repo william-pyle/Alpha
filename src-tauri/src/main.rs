@@ -278,7 +278,9 @@ fn main() {
             command.arg(script).arg("--repo").arg(&repo).arg("--ui").arg(ui).current_dir(&repo)
                 .arg("--library-root").arg(library_root)
                 .arg("--config").arg(configuration_folder(app.handle())?).arg("--app-dir").arg(&resource_dir)
-                .env("ALPHA_PARENT_PID", std::process::id().to_string()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
+                .env("ALPHA_PARENT_PID", std::process::id().to_string())
+                .env("ALPHA_APP_VERSION", app.package_info().version.to_string())
+                .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
             #[cfg(target_os = "macos")]
             command.env("PATH", login_path::discover());
             let mut child = hidden(&mut command).spawn()?;

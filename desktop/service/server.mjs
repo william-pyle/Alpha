@@ -23,12 +23,16 @@ import { ProjectAdapterRegistry } from './project-adapters/registry.mjs';
 import { KnowledgeManager, MarkdownKnowledgeProvider } from './knowledge/providers.mjs';
 import { IntegrationManager } from './integrations/manager.mjs';
 import { Dictation } from './dictation.mjs';
-import { Updates } from './updates.mjs';
+import { Updates, effectiveVersion } from './updates.mjs';
 import { CardDocuments } from './card-documents.mjs';
 import { installLibrary } from './shared-library.mjs';
 import { WorkspaceLocation } from './workspace-location.mjs';
 import { Questions, extractTerminalQuestion } from './questions.mjs';
 import product from './package.json' with { type: 'json' };
+
+// The native host owns the installed app version. Package metadata remains a
+// fallback for standalone service tests and development runs.
+const appVersion = effectiveVersion(process.env.ALPHA_APP_VERSION, product.version);
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
@@ -79,7 +83,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const questionTimers = new Map();
   const send = (ws, type, value) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, ...value })); };
   const broadcast = (type, value) => { for (const ws of clients) send(ws, type, value); };
-  const updates = new Updates({ directory: path.join(stateDir, 'updates'), version: product.version, native, activeCount: () => sessions.active().filter(s => s.status === 'running').length, changed: update => broadcast('update', { update }) });
+  const updates = new Updates({ directory: path.join(stateDir, 'updates'), version: appVersion, native, activeCount: () => sessions.active().filter(s => s.status === 'running').length, changed: update => broadcast('update', { update }) });
   const nativeSettings = new NativeSettings(native, value => broadcast('native-settings', value));
   const workspaceLocation = new WorkspaceLocation({ repo, ...locationOptions, native, changed: value => broadcast('workspace-location', value) });
   const show = (window, extra = {}) => { native({ type: 'window', action: 'show', window }); broadcast('navigate', { window, ...extra }); };

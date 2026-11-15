@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 
 const repository = 'https://api.github.com/repos/william-pyle/Alpha';
+export const effectiveVersion = (nativeVersion, packageVersion) => /^\d+\.\d+\.\d+$/.test(nativeVersion || '') ? nativeVersion : packageVersion;
 export const newerVersion = (next, current) => {
   if (!/^\d+\.\d+\.\d+$/.test(next) || !/^\d+\.\d+\.\d+$/.test(current)) return false;
   const a = next.split('.').map(Number), b = current.split('.').map(Number);

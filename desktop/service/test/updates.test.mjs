@@ -1,11 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
-import { Updates, newerVersion } from '../updates.mjs';
+import { fileURLToPath } from 'node:url';
+import { Updates, effectiveVersion, newerVersion } from '../updates.mjs';
 const prefix = 'https://github.com/william-pyle/Alpha/releases/download/v0.3.0/';
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+test('the service uses the installed application version and does not offer that same release again', async () => {
+  const app = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'));
+  const service = JSON.parse(await readFile(path.join(projectRoot, 'desktop/service/package.json'), 'utf8'));
+  const lock = JSON.parse(await readFile(path.join(projectRoot, 'desktop/service/package-lock.json'), 'utf8'));
+  assert.equal(service.version, app.version);
+  assert.equal(lock.version, app.version);
+  assert.equal(lock.packages[''].version, app.version);
+  assert.equal(effectiveVersion(app.version, '0.2.4'), app.version);
+  const updater = new Updates({ directory: os.tmpdir(), version: effectiveVersion(app.version, '0.2.4'), fetcher: async () => Response.json({ tag_name: `v${app.version}`, draft: false, prerelease: false }) });
+  assert.equal((await updater.check()).status, 'current');
+});
 async function fixture(overrides = {}) {
   const bytes = Buffer.from('fixture installer bytes'), requests = [], events = [];
   const manifest = { version: '0.3.0', platform: 'windows-x64', url: prefix + 'Alpha-Setup-0.3.0-x64.exe', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), ...overrides };

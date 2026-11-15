@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const runtime = path.resolve(process.argv[2] || '.cache/desktop-runtime');
+const product = JSON.parse(await readFile('package.json', 'utf8'));
+const serviceProduct = JSON.parse(await readFile(path.join(runtime, 'service/package.json'), 'utf8'));
+assert.equal(serviceProduct.version, product.version, 'Bundled service version must match the installed application');
 await mkdir('.test-output', { recursive: true });
 const fixture = await realpath(await mkdtemp(path.resolve('.test-output/packaged-runtime-')));
 const repo = path.join(fixture,'Workspace'), configDir = path.join(fixture,'config'), nextRepo = path.join(fixture,'Selected Workspace');
@@ -32,6 +35,7 @@ try {
     assert.ok(response.ok, await response.clone().text()); return response.json();
   };
   assert.deepEqual((await call('/bootstrap')).agents.map(agent => agent.id), ['codex', 'claude', 'shell', 'gitbash']);
+  assert.equal((await call('/updates')).currentVersion, product.version, 'Startup updater must report the installed version');
   const library = await call('/library');
   assert.equal(library.skills.length,20); assert.equal(library.conflicts.length,0);
   await access(path.join(library.root,'knowledge/voice-dictation.md'));

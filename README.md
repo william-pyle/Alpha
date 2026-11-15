@@ -12,6 +12,13 @@ tabs, settings, desktop dictation and permission controls.
 
 Version **0.2.3** added a selectable Workspace location in Settings and the installer.
 
+## Version 0.2.7
+
+Fixes the repeated update prompt after installation. Alpha now passes its native
+application version to the bundled service, and packaging checks require all
+version records to agree. Once 0.2.7 is installed, its startup check recognizes
+that release as current.
+
 ## Version 0.2.6
 
 Chats is a resizable left sidebar. A draggable divider separates each terminal
@@ -46,7 +53,7 @@ The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.6-x64.exe** from the
+Download **Alpha-Setup-0.2.7-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.

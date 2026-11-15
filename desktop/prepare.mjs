@@ -6,6 +6,9 @@ import { packageLibrary } from '../scripts/package-library.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = path.join(repo, '.cache', 'desktop-runtime');
+const appPackage = JSON.parse(await readFile(path.join(repo, 'package.json'), 'utf8'));
+const servicePackage = JSON.parse(await readFile(path.join(repo, 'desktop/service/package.json'), 'utf8'));
+if (servicePackage.version !== appPackage.version) throw new Error(`Service version ${servicePackage.version} does not match Alpha ${appPackage.version}.`);
 if (!['win32', 'linux', 'darwin'].includes(process.platform)) throw new Error(`Unsupported desktop platform: ${process.platform}`);
 // Clear only this generated staging directory, after verifying its resolved path.
 const actualRuntime = await realpath(runtime).catch(() => null);
