@@ -9,7 +9,15 @@ $ErrorActionPreference = 'Stop'
 if ($Sha256 -notmatch '^[a-f0-9]{64}$') { throw 'The update checksum is invalid.' }
 $file = (Resolve-Path -LiteralPath $Installer -ErrorAction Stop).Path
 if ([IO.Path]::GetExtension($file) -ine '.msi') { throw 'The update must be an MSI file.' }
-if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Sha256) {
+$hashAlgorithm = [Security.Cryptography.SHA256]::Create()
+$hashStream = [IO.File]::OpenRead($file)
+try {
+  $actualSha256 = [BitConverter]::ToString($hashAlgorithm.ComputeHash($hashStream)).Replace('-', '').ToLowerInvariant()
+} finally {
+  $hashStream.Dispose()
+  $hashAlgorithm.Dispose()
+}
+if ($actualSha256 -ne $Sha256) {
   throw 'The downloaded MSI checksum changed.'
 }
 

@@ -85,7 +85,14 @@ try {
   if (@($shortcuts | Where-Object { $_[0] -eq 'DesktopFolder' }).Count) {
     throw 'The MSI unexpectedly creates a desktop shortcut.'
   }
-  $sha = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+  $hashAlgorithm = [Security.Cryptography.SHA256]::Create()
+  $hashStream = [IO.File]::OpenRead($file)
+  try {
+    $sha = [BitConverter]::ToString($hashAlgorithm.ComputeHash($hashStream)).Replace('-', '').ToLowerInvariant()
+  } finally {
+    $hashStream.Dispose()
+    $hashAlgorithm.Dispose()
+  }
   $handoff = & (Join-Path $PSScriptRoot 'install-msi-update.ps1') -Installer $file -Sha256 $sha -CheckOnly |
     ConvertFrom-Json
   if (-not $handoff.Verified) { throw 'The MSI update helper could not verify the package.' }
