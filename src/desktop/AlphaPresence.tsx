@@ -3,7 +3,7 @@ import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision'
 import { AlphaHeadScene } from './AlphaHeadScene'
 import { liveVoice } from './live'
 import { useDesktop } from './client'
-import { cameraFaceToGaze, GazeSmoother } from './gazeTracking'
+import { cameraFaceToGaze, FACE_LOSS_GRACE_MS, GazeSmoother } from './gazeTracking'
 
 type CameraState = 'starting' | 'tracking' | 'searching' | 'blocked' | 'unavailable'
 
@@ -68,15 +68,17 @@ export default function AlphaPresence() {
             try {
               const faces = detector.detectForVideo(cameraVideo, now).detections
               const box = faces[0]?.boundingBox
-              if (box) {
-                const x = (box.originX + box.width / 2) / cameraVideo.videoWidth
-                const y = (box.originY + box.height / 2) / cameraVideo.videoHeight
+              const x = box ? (box.originX + box.width / 2) / cameraVideo.videoWidth : NaN
+              const y = box ? (box.originY + box.height / 2) / cameraVideo.videoHeight : NaN
+              if (Number.isFinite(x) && Number.isFinite(y)) {
                 scene.current?.setGaze(gaze.update(cameraFaceToGaze(x, y), now))
                 lastSeen = now
                 setCamera(current => current === 'tracking' ? current : 'tracking')
-              } else if (now - lastSeen > 1600) {
+              } else {
                 scene.current?.setGaze(gaze.update({ x: 0, y: 0, found: false }, now))
-                setCamera(current => current === 'searching' ? current : 'searching')
+                if (lastSeen && now - lastSeen > FACE_LOSS_GRACE_MS) {
+                  setCamera(current => current === 'searching' ? current : 'searching')
+                }
               }
             } catch { /* A dropped or changing camera frame can be skipped. */ }
           }

@@ -26,10 +26,11 @@ manifest from that repository. Download and restart are explicit user actions.
 The installer is verified by SHA-256 before native handoff, and the restart
 dialog reports active terminals.
 
-Version 0.2.12 adds the Alpha sidebar tab with a 3D android presence, local
+Version 0.2.12 added the Alpha sidebar tab with a 3D android presence, local
 face tracking, speech-driven mouth movement and circuit activity. A transparent
-render of the head is the Alpha app and project icon. Build and isolated UI
-checks passed; installed camera and voice review follows the update.
+render of the head is the Alpha app and project icon. Version 0.2.13 holds
+brief camera detection gaps, limits sudden head motion and reduces turn range
+after observed overshoot on the laptop.
 
 Build and install instructions are in the root README.md. License notices are
 retained in LICENSE and THIRD_PARTY_NOTICES.md.

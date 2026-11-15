@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. The current release is **0.2.12**.
+knowledge into one Windows desktop window. The current release is **0.2.13**.
 
 ## What you can do
 
@@ -31,7 +31,7 @@ knowledge into one Windows desktop window. The current release is **0.2.12**.
 
 ## Install
 
-Download [Alpha 0.2.12 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.12).
+Download [Alpha 0.2.13 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.13).
 The installer includes the application, local service and Node runtime, terminal
 libraries, three themes, Help and the shared library. It installs WebView2 if
 needed. The installer is currently unsigned.
@@ -85,6 +85,14 @@ The installed library is under
 and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
+
+## 0.2.13
+
+Face tracking holds the last head direction through brief missed camera
+detections, then returns gently toward center if the face remains out of view.
+New detections cannot snap the head to a distant position. The camera-driven
+turn range is smaller, reducing overshoot when the viewer moves. The active
+installation can update through Settings; live laptop review follows that update.
 
 ## 0.2.12
 

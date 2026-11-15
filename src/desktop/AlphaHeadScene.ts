@@ -166,8 +166,8 @@ export class AlphaHeadScene {
   private animate = () => {
     const now = performance.now(), t = (now - this.start) / 1000
     const manual = now < this.manualUntil
-    const targetY = manual ? this.manual.x : this.gaze.found ? this.gaze.x * .38 : Math.sin(t * .32) * .06
-    const targetX = manual ? this.manual.y : this.gaze.found ? -this.gaze.y * .23 : Math.sin(t * .27) * .025
+    const targetY = manual ? this.manual.x : this.gaze.found ? this.gaze.x * .22 : Math.sin(t * .32) * .06
+    const targetX = manual ? this.manual.y : this.gaze.found ? -this.gaze.y * .14 : Math.sin(t * .27) * .025
     this.head.rotation.y += (targetY - this.head.rotation.y) * .065
     this.head.rotation.x += (targetX - this.head.rotation.x) * .065
     this.head.position.y = Math.sin(t * 1.1) * .006
