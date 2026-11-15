@@ -12,7 +12,7 @@ tabs, settings, desktop dictation and permission controls.
 
 Version **0.2.3** added a selectable Workspace location in Settings and the installer.
 
-## Version 0.2.5
+## Version 0.2.6
 
 Chats is a resizable left sidebar. A draggable divider separates each terminal
 from its message editor, and the editor size is saved per chat. **Enter** sends
@@ -33,7 +33,7 @@ state. The bottom-left app logo is gone; voice control is at the lower right.
 ## Version 0.2.4
 
 Alpha 0.2.4 added a multiline chat editor below each
-terminal (its keys changed in 0.2.5), an update notice
+terminal (its keys changed in 0.2.6), an update notice
 from the startup GitHub check, and Workspace card category management with
 editable names and icons. Category definitions are saved in the selected
 Workspace's `workspace/workspace.json`.
@@ -46,7 +46,7 @@ The shared library and editable cards introduced in 0.2.2 remain included.
 
 ## Install
 
-Download **Alpha-Setup-0.2.5-x64.exe** from the
+Download **Alpha-Setup-0.2.6-x64.exe** from the
 [latest release](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the app, local service, Node runtime, native terminal
 libraries, theme artwork, icons, Help and the shared library. It installs WebView2 if needed.
