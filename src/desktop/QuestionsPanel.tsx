@@ -42,6 +42,7 @@ export default function QuestionsPanel() {
   const [open, setOpen] = useState(() => state.questions.length > 0)
   useEffect(() => onServiceEvent(event => { if (event.type === 'questions' && event.questions?.length) setOpen(true) }), [])
   useEffect(() => { const toggle = () => setOpen(value => !value); window.addEventListener('alpha-toggle-questions', toggle); return () => window.removeEventListener('alpha-toggle-questions', toggle) }, [])
+  if (state.questions.length === 0) return null
   return <section className={`questions-panel ${open ? 'is-open' : ''}`} aria-label="Questions">
     <button className="questions-toggle" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}><span><Icon name="help" size={15} />Questions {state.questions.length > 0 && <b>{state.questions.length}</b>}</span><Icon name={open ? 'down' : 'up'} size={15} /></button>
     {open && <div className="questions-list">{state.questions.length ? state.questions.map(question => <QuestionCard key={question.id} question={question} connected={state.connected} />) : <p className="questions-empty">No questions waiting.</p>}</div>}

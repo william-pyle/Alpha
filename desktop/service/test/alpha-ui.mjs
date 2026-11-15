@@ -80,6 +80,7 @@ try {
   await page.getByRole('button', { name: 'Yes', exact: true }).click();
   await page.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('REPLY:Yes');
+  await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
   await page.getByRole('button', { name: 'History', exact: true }).click();
   await expect(page.locator('.history-list')).toContainText('Git Bash check');
   await page.getByRole('button', { name: 'Close history', exact: true }).click();

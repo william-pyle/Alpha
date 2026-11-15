@@ -22,6 +22,7 @@ try {
   await expect(page.getByRole('tablist', { name: 'Documents' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Workspace' })).toBeVisible();
   await expect(page.locator('.mdi-chats')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
   await expect(page.locator('.mdi-statusbar')).toContainText('Connected');
   await page.screenshot({ path: '.test-output/unified-home.png' });
   await page.getByRole('button', { name: 'File', exact: true }).click();
