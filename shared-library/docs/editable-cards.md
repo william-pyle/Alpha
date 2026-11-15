@@ -1,6 +1,6 @@
 # Editable Workspace cards
 
-Use **+ New card** in the desktop Workspace to make a Gallery or Research card.
+Use **File → New card** in Alpha to make a Gallery or Research card.
 Both views use the same content format. You can change the view without losing
 the entries, images or prompts.
 
@@ -65,12 +65,11 @@ An editable step is registered explicitly:
 { "name": "References", "path": "content.card.json", "viewer": "card" }
 ```
 
-Keep the data inside the entity folder:
+Keep the data inside the entity folder. Start from a card created by Alpha and
+retain its format and version fields. This fragment shows editable content:
 
 ```json
 {
-  "format": "mrmak-card",
-  "version": 1,
   "template": "gallery",
   "title": "Character references",
   "summary": "Compare the silhouette before choosing a direction.",

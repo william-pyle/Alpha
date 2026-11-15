@@ -18,7 +18,7 @@ export function completedTurn(record, agent) {
 export function nativeActivity(record, agent) {
   const completed = completedTurn(record, agent);
   if (completed) return completed;
-  if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'function_call' && ['request_user_input', 'ask_user_question'].includes(record.payload.name)) {
+  if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'function_call' && ['request_user_input', 'request_user_input_async', 'ask_user_question'].includes(record.payload.name)) {
     try {
       const input = typeof record.payload.arguments === 'string' ? JSON.parse(record.payload.arguments) : record.payload.arguments;
       if (Array.isArray(input?.questions)) return { kind: 'question', id: record.payload.call_id, questions: input.questions.map(item => ({ text: item.question || item.title, options: item.options || [] })) };

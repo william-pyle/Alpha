@@ -10,6 +10,14 @@ Its img2threejs module retains its Apache-2.0 license and notices in
 JavaScript and Rust dependencies are recorded in their lockfiles and retain
 their respective licenses. The packaged Node runtime includes NODE-LICENSE.txt.
 
+The Alpha android head in `public/models/alpha-head/` was generated with Tripo
+v3.1 for this project. Its transparent application icon is a render of that
+model. No reference photograph is bundled as a face texture.
+
+Local face tracking bundles MediaPipe Tasks Vision 1.2.3 WebAssembly files
+(Apache-2.0) and the BlazeFace short-range model. Their source locations are
+recorded in `public/models/face-detector/README.txt`.
+
 The Windows installer template is adapted from Tauri CLI 2.11.4, commit
 8909f221d1515955fc843808032bdc5d62209c96. Its MIT license is retained in
 `src-tauri/installer/TAURI-LICENSE-MIT`; the source URL is recorded in the template.

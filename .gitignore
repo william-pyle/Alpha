@@ -3,6 +3,7 @@ dist/
 release/
 .test-output/
 .cache/
+/.tripo/
 coverage/
 *.log
 .env

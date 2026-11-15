@@ -16,8 +16,7 @@ Project skills of the same name take precedence over shared skills.
 - `docs/editable-cards.md`: Gallery and Research card format and editing guide.
 - `desktop/service/card-schema.mjs`: reusable card validator.
 
-The initial library comes exclusively from the official MrMak source checkout.
-See `provenance.json` and LICENSE. img2threejs retains its Apache-2.0 license and
+See `provenance.json` and LICENSE for the bundled library's provenance. img2threejs retains its Apache-2.0 license and
 complete supporting files. Tools, models, provider accounts and optional
 Python packages remain separate installations.
 

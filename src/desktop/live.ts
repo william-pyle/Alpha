@@ -11,6 +11,10 @@ export class LiveVoice {
   private channel: RTCDataChannel | null = null
   private microphone: MediaStream | null = null
   private audio = new Audio()
+  private audioContext: AudioContext | null = null
+  private analyser: AnalyserNode | null = null
+  private silentOutput: GainNode | null = null
+  private audioSamples: Uint8Array<ArrayBuffer> | null = null
   private listeners = new Set<() => void>()
   private generation = 0
   private ready = false
@@ -26,6 +30,14 @@ export class LiveVoice {
   private tasks = new Set<number>()
   subscribe = (callback: () => void) => { this.listeners.add(callback); return () => { this.listeners.delete(callback) } }
   snapshot = () => this.state
+  /** Outgoing voice amplitude for the local avatar's mouth animation. */
+  outputLevel() {
+    if (!this.analyser || !this.audioSamples || this.state.status !== 'live') return 0
+    this.analyser.getByteTimeDomainData(this.audioSamples)
+    let energy = 0
+    for (const sample of this.audioSamples) energy += ((sample - 128) / 128) ** 2
+    return Math.min(1, Math.sqrt(energy / this.audioSamples.length) * 6)
+  }
   dismissError() { this.update({ error: '', ...(this.state.status === 'error' ? { status: 'off' as const } : {}) }) }
   private update(patch: Partial<LiveState>) { this.state = { ...this.state, ...patch }; this.listeners.forEach(listener => listener()) }
   private event(value: unknown) { if (this.ready && this.channel?.readyState === 'open') this.channel.send(JSON.stringify(value)) }
@@ -48,7 +60,22 @@ export class LiveVoice {
       if (generation !== this.generation) { microphone.getTracks().forEach(track => track.stop()); return }
       this.microphone = microphone
       const peer = new RTCPeerConnection(); this.peer = peer
-      peer.ontrack = event => { this.audio.srcObject = new MediaStream([event.track]); this.audio.play().catch(() => this.update({ audible: false })) }
+      peer.ontrack = event => {
+        const stream = new MediaStream([event.track])
+        this.audio.srcObject = stream
+        try {
+          this.audioContext = new AudioContext()
+          this.analyser = this.audioContext.createAnalyser()
+          this.analyser.fftSize = 512
+          this.audioSamples = new Uint8Array(new ArrayBuffer(this.analyser.fftSize))
+          this.audioContext.createMediaStreamSource(stream).connect(this.analyser)
+          this.silentOutput = this.audioContext.createGain()
+          this.silentOutput.gain.value = 0
+          this.analyser.connect(this.silentOutput).connect(this.audioContext.destination)
+          void this.audioContext.resume()
+        } catch { this.analyser = null; this.silentOutput = null; this.audioSamples = null }
+        this.audio.play().catch(() => this.update({ audible: false }))
+      }
       peer.onconnectionstatechange = () => { if (generation === this.generation && ['failed', 'closed'].includes(peer.connectionState) && this.state.status !== 'off') this.fail('Voice connection ended. Press the nose to reconnect.') }
       microphone.getAudioTracks().forEach(track => peer.addTrack(track, microphone))
       const channel = peer.createDataChannel('oai-events'); this.channel = channel
@@ -133,6 +160,8 @@ export class LiveVoice {
     this.microphone?.getTracks().forEach(track => track.stop()); this.microphone = null
     this.channel?.close(); this.channel = null; this.peer?.close(); this.peer = null
     this.audio.pause(); this.audio.srcObject = null
+    this.analyser = null; this.silentOutput = null; this.audioSamples = null
+    if (this.audioContext) { void this.audioContext.close(); this.audioContext = null }
     // keepalive: cleanup also runs on pagehide, and WebKit cancels ordinary requests from a closing page.
     api('/live/release', { clientId }, undefined, { keepalive: true }).catch(() => {})
   }

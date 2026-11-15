@@ -17,6 +17,9 @@ test('recognizes structured Codex and Claude question events', () => {
   const codex = nativeActivity({ type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'q-1', arguments: JSON.stringify({ questions: [{ question: 'Pick a theme?', options: [{ label: 'Dark' }, { label: 'Light' }] }] }) } }, 'codex');
   assert.equal(codex.kind, 'question');
   assert.equal(codex.questions[0].text, 'Pick a theme?');
+  const asyncCodex = nativeActivity({ type: 'response_item', payload: { type: 'function_call', name: 'request_user_input_async', call_id: 'q-async', arguments: JSON.stringify({ questions: [{ title: 'Spend 50 credits for the 3D model?', options: ['Yes', 'No'] }] }) } }, 'codex');
+  assert.equal(asyncCodex.kind, 'question');
+  assert.equal(asyncCodex.questions[0].text, 'Spend 50 credits for the 3D model?');
   const claude = nativeActivity({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'AskUserQuestion', id: 'q-2', input: { questions: [{ question: 'Use blue?', options: [{ label: 'Yes' }, { label: 'No' }] }] } }] } }, 'claude');
   assert.equal(claude.kind, 'question');
   assert.equal(claude.questions[0].options[0].label, 'Yes');

@@ -1,31 +1,35 @@
 # Alpha desktop architecture
 
-Alpha forks the MrMak 0.5.1 desktop workflow. A Tauri shell opens Workspace and
-Chats webviews, backed by one authenticated loopback Node service. Each chat uses
-its own native PTY, saved history and selected permission setting.
+Alpha uses a Tauri Windows host with a React interface and one authenticated
+loopback Node service. Chats and Workspace share one native window. Chats has
+a resizable sidebar, terminal and message editor; Workspace, cards, files and
+Help use document tabs. The service manages native PTYs, chat history,
+Workspace storage, questions and update checks.
 
-Chats includes a multiline message editor below the terminal. Enter inserts a
-new line, Ctrl+Enter sends, and the Send button does the same. Drafts are saved
-locally per chat until the local service accepts delivery. The terminal remains
-interactive above the editor.
+The message editor saves drafts per chat. Enter sends and Alt+Enter inserts a
+line. Pasted or dropped images are saved in the Workspace inbox and added to
+the draft. The shared Questions section routes answers to the chat that asked.
 
-Card category definitions live in the selected Workspace's
-`workspace/workspace.json` as `categories` records with stable ID, display name
-and icon. The Categories control in Workspace adds, edits and deletes them;
-deleting a used category moves its cards to a chosen replacement. Older
-Workspace files are read with compatible defaults and save definitions on the
-next card or category change.
+Card categories are stored in the selected Workspace's
+`workspace/workspace.json` as stable IDs with names and icons. Settings
+contains General, MCP, Categories and Skills. Application theme, Workspace
+location, voice controls and updates are managed under General.
 
-Application themes share one persisted setting across both surfaces. Standard
-report reading appearance remains independent of artwork and custom report styles.
-Desktop dictation is retained; phone pairing, its gateway and mobile UI are removed.
+The shared library is packaged from `shared-library/` and installed separately
+from each Workspace. Project skills take precedence over shared skills with
+the same name. The selected Workspace folder and local chat history are kept
+across upgrades; provider-managed conversations stay with their own CLIs.
 
-The update service checks the william-pyle/Alpha GitHub release feed shortly after
-startup and every six hours. An available update appears in both windows. Only a newer
-stable Windows x64 manifest from that repository is accepted. Download and restart
-are explicit user actions. The installer is verified by SHA-256 on download and
-again before native handoff. The native dialog reports running terminals before
-launching the NSIS installer with /P /R /UPDATE and quitting Alpha.
+The update service checks the `william-pyle/Alpha` GitHub release feed shortly
+after startup and every six hours. It accepts a newer stable Windows x64
+manifest from that repository. Download and restart are explicit user actions.
+The installer is verified by SHA-256 before native handoff, and the restart
+dialog reports active terminals.
 
-Build and install instructions are in the root README.md. Original license notices
-are retained in LICENSE and THIRD_PARTY_NOTICES.md.
+Version 0.2.12 adds the Alpha sidebar tab with a 3D android presence, local
+face tracking, speech-driven mouth movement and circuit activity. A transparent
+render of the head is the Alpha app and project icon. Build and isolated UI
+checks passed; installed camera and voice review follows the update.
+
+Build and install instructions are in the root README.md. License notices are
+retained in LICENSE and THIRD_PARTY_NOTICES.md.

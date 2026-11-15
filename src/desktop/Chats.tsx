@@ -63,7 +63,7 @@ function History({ close, choose }: { close: () => void; choose: (id: string) =>
   </section>
 }
 
-export default function Chats({ embedded = false }: { embedded?: boolean }) {
+export default function Chats({ embedded = false, visible = true }: { embedded?: boolean; visible?: boolean }) {
   const state = useDesktop()
   const [newChat, setNewChat] = useState(false)
   const [switcher, setSwitcher] = useState(false)
@@ -84,7 +84,7 @@ export default function Chats({ embedded = false }: { embedded?: boolean }) {
   const choose = (id: string) => { selectChat(id); setSwitcher(false); setMenu(false); setHistory(false); setRenaming(false) }
   const closeChat = (id: string) => api(`/sessions/${id}`, {}, 'DELETE').catch(reportError)
   useEffect(() => {
-    if (!state.connected || !session?.unread || history || switcher || newChat) return
+    if (!visible || !state.connected || !session?.unread || history || switcher || newChat) return
     let timer = 0
     const viewed = () => {
       clearTimeout(timer)
@@ -98,10 +98,11 @@ export default function Chats({ embedded = false }: { embedded?: boolean }) {
     window.addEventListener('blur', viewed)
     document.addEventListener('visibilitychange', viewed)
     return () => { clearTimeout(timer); window.removeEventListener('focus', viewed); window.removeEventListener('blur', viewed); document.removeEventListener('visibilitychange', viewed) }
-  }, [state.connected, session?.id, session?.unread, session?.completionVersion, history, switcher, newChat])
+  }, [visible, state.connected, session?.id, session?.unread, session?.completionVersion, history, switcher, newChat])
   useEffect(() => {
     document.title = 'Alpha — Chats'
     const shortcut = (event: KeyboardEvent) => {
+      if (!visible) return
       if (modKey(event) && event.shiftKey && event.code === 'KeyT') { event.preventDefault(); setNewChat(true) }
       if (modKey(event) && event.shiftKey && event.code === 'KeyP') { event.preventDefault(); setSwitcher(value => !value) }
       if (event.key === 'Escape') { setSwitcher(false); setMenu(false); setNewChat(false); setHistory(false) }
@@ -126,7 +127,7 @@ export default function Chats({ embedded = false }: { embedded?: boolean }) {
     window.addEventListener('keydown', shortcut)
     window.addEventListener('alpha-select-chat', menuSelect)
     return () => { window.removeEventListener('keydown', shortcut); window.removeEventListener('alpha-select-chat', menuSelect) }
-  }, [state.sessions, session?.id])
+  }, [visible, state.sessions, session?.id])
   const changeFont = (delta: number) => { const value = Math.max(10, Math.min(24, fontSize + delta)); setFontSize(value); api('/settings', { terminalFontSize: value }).catch(reportError) }
   async function rename(event: React.FormEvent) { event.preventDefault(); if (!session) return; try { await api(`/sessions/${session.id}`, { name: title }, 'PATCH'); setRenaming(false) } catch (error) { reportError(error) } }
 
