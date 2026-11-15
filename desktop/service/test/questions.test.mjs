@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import { Questions, extractQuestions, extractTerminalQuestion } from '../questions.mjs';
 import { nativeActivity } from '../native-events.mjs';
@@ -23,6 +23,7 @@ test('recognizes structured Codex and Claude question events', () => {
 });
 
 test('persists pending questions and clears one only after its answer reaches the source chat', async () => {
+  await mkdir('.test-output', { recursive: true });
   const root = await mkdtemp(path.resolve('.test-output/questions-'));
   const questions = await new Questions(root).init();
   const source = { id: 'chat-one', agent: 'codex', name: 'First chat' };
