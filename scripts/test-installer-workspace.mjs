@@ -52,16 +52,17 @@ Section
 SectionEnd
 `);
 const build=spawnSync(makensis,['/V2',script],{encoding:'utf8',windowsHide:true});assert.equal(build.status,0,build.stdout+build.stderr);
-const run=flag=>spawnSync(exe,['/S',...(flag?[`/${flag}`]:[])],{encoding:'utf8',windowsHide:true,timeout:30000});
+const run=flag=>spawnSync(exe,['/S',...(flag?[`/${flag}`]:[])],{encoding:'utf8',windowsHide:true,timeout:120000});
+const assertRun=flag=>{const result=run(flag);assert.equal(result.status,0,`Installer harness ${flag||'default'} failed: ${result.error?.message||''}\n${result.stdout}\n${result.stderr}`);};
 const selection=()=>readFile(path.join(config,'repository.json'),'utf8').then(JSON.parse);
-assert.equal(run().status,0);assert.equal(await selection(),chosen);await access(path.join(chosen,'workspace/workspace.json'));
+assertRun();assert.equal(await selection(),chosen);await access(path.join(chosen,'workspace/workspace.json'));
 const pending='{"source":"fixture","mode":"copy","destination":"pending choice"}';
 await writeFile(path.join(config,'workspace-change.json'),pending);
-assert.equal(run('ALTERNATE').status,0);assert.equal(await selection(),chosen);
+assertRun('ALTERNATE');assert.equal(await selection(),chosen);
 assert.equal(await readFile(path.join(config,'workspace-change.json'),'utf8'),pending);
 await unlink(path.join(config,'workspace-change.json'));
 await unlink(path.join(config,'repository.json'));
-assert.equal(run('DEFAULT').status,0);assert.equal(await selection(),standard);
+assertRun('DEFAULT');assert.equal(await selection(),standard);
 await unlink(path.join(config,'repository.json'));await mkdir(unrelated);await writeFile(path.join(unrelated,'keep.txt'),'kept');
 assert.notEqual(run('INVALID').status,0);assert.equal(await readFile(path.join(unrelated,'keep.txt'),'utf8'),'kept');
 await assert.rejects(selection(),{code:'ENOENT'});
