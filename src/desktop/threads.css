@@ -1,0 +1,19 @@
+.mdi-chats .thread-conversation{height:100%;width:100%;flex:1;border:0;overflow:hidden}
+.mdi-sidebar-panels{display:flex!important;flex-direction:column;min-height:0}
+.mdi-sidebar-panels .mdi-chat-panel{position:relative!important;inset:auto!important;flex:1;min-height:0}
+.mdi-sidebar-panels .mdi-alpha-panel{position:relative!important;inset:auto!important;flex:0 0 260px;max-height:40%;order:-1;overflow:auto}
+.thread-picker{display:flex;flex-wrap:wrap;gap:6px;padding:10px;border-bottom:1px solid var(--hairline)}
+.thread-picker select{flex:1 1 100%;min-width:0;width:100%}
+.thread-conversation select,.thread-conversation button{background:var(--bg);color:var(--text);border:1px solid var(--hairline-strong);border-radius:6px;padding:6px;font:inherit;font-size:12px;cursor:pointer}
+.thread-conversation button:disabled{opacity:.5;cursor:default}
+.thread-conversation button[aria-pressed=true]{border-color:var(--pink)}
+.thread-activity,.thread-attention{flex:none;border-top:1px solid var(--hairline-strong);padding:8px 12px;font-size:12px;max-height:45%;overflow:auto}
+.thread-activity summary,.thread-attention summary{cursor:pointer;font-weight:600;padding:5px}
+.thread-activity p,.thread-attention p{line-height:1.5;overflow-wrap:anywhere}
+.thread-attention article{border-top:1px solid var(--hairline);padding:10px 0}
+.thread-attention small{color:var(--text-dim)}
+.thread-attention button{margin:3px}
+.thread-terminal{height:260px;min-height:160px;position:relative;display:flex}
+.thread-terminal .terminal-area{flex:1;min-width:0;min-height:0}
+.thread-legacy{max-height:85vh;overflow:auto}.thread-legacy article{border-top:1px solid var(--hairline);white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:900px){.mdi-chats{flex:1 1 60%!important}.mdi-center{flex:1 1 40%!important}.mdi-chats .thread-conversation{height:100%;flex:1}.thread-activity,.thread-attention{max-height:35%}}

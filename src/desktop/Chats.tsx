@@ -11,7 +11,7 @@ import { orderedChats, tabColors } from './chatOrder'
 import DictationComposer from './DictationComposer'
 import { isMac, isWindows, modKey, modLabel, shortcutLabel } from './platform'
 
-function NewChat({ close }: { close: () => void }) {
+export function NewChat({ close }: { close: () => void }) {
   const state = useDesktop()
   const [agent, setAgent] = useState<AgentId>(state.settings.defaultAgent)
   const [name, setName] = useState('')

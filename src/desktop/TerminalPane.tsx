@@ -12,7 +12,7 @@ import { decorateTerminal, focusTheme, originalTheme, type TerminalAppearance } 
 import { fileManager, isMac, modKey, modLabel } from './platform'
 import { terminalClipboardGate } from './terminalClipboard'
 
-export default function TerminalPane({ id, agent, fontSize, appearance, onAttachmentStatus }: { id: string; agent: AgentId; fontSize: number; appearance: TerminalAppearance; onAttachmentStatus: (id: string, text: string) => void }) {
+export default function TerminalPane({ id, agent, fontSize, appearance, onAttachmentStatus, readOnly = false }: { id: string; agent: AgentId; fontSize: number; appearance: TerminalAppearance; onAttachmentStatus: (id: string, text: string) => void; readOnly?: boolean }) {
   const appTheme = useApplicationTheme()
   const { resolved } = useWorkspaceTheme()
   const host = useRef<HTMLDivElement>(null)
@@ -24,7 +24,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
   const uploading = useRef(false)
   const choosing = useRef(false)
   async function pasteImages(files: File[]) {
-    if (!files.length || uploading.current) return
+    if (readOnly || !files.length || uploading.current) return
     clearTimeout(statusTimer.current)
     uploading.current = true; setDragging(false); onAttachmentStatus(id, 'Saving image to inbox…')
     try {
@@ -38,7 +38,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
     finally { uploading.current = false; clearTimeout(statusTimer.current); statusTimer.current = window.setTimeout(() => onAttachmentStatus(id, ''), 1600) }
   }
   async function attachPaths(paths: string[]) {
-    if (!paths.length || uploading.current) return
+    if (readOnly || !paths.length || uploading.current) return
     clearTimeout(statusTimer.current)
     uploading.current = true; setDragging(false)
     try {
@@ -147,7 +147,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       // Terminal protocol replies intentionally contain ASCII control characters.
       // eslint-disable-next-line no-control-regex
       const deviceReply = /^\x1b\[[?>0-9;]*[RcnIO]$/.test(data) || /^\x1b\][\s\S]*(?:\x07|\x1b\\)$/.test(data)
-      if (ready && !deviceReply) sendEvent({ type: 'input', id, data })
+      if (!readOnly && ready && !deviceReply) sendEvent({ type: 'input', id, data })
     })
     terminal.attachCustomKeyEventHandler(event => {
       // Windows/Linux: agent chats use Ctrl+C exclusively for copy. Even an empty
@@ -199,7 +199,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       element.removeEventListener('paste', paste, true); window.removeEventListener('focus', focus); clearTimeout(statusTimer.current)
       onAttachmentStatus(id, ''); terminal.dispose(); terminalRef.current = null; fitRef.current = null
     }
-  }, [id, agent, onAttachmentStatus])
+  }, [id, agent, onAttachmentStatus, readOnly])
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return

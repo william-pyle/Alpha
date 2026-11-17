@@ -14,6 +14,7 @@ if (isDesktop && token) {
 const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
+  threads: [], selectedThreadId: null, awareness: { settings: { enabled: true, quiet: false, desktop: false }, desktop: null, items: [] },
   ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [], questions: [],
   settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], replies: [], speech: { speaking: false, error: null }, preview: null, voiceHistory: [],
 }
@@ -30,6 +31,7 @@ export const reportError = (error: unknown) => update({ error: error instanceof 
 export const contentUrl = (relative: string) => isDesktop ? `${state.contentBase}${relative}` : relative
 
 export async function api<T>(path: string, data?: unknown, method?: string, options: { keepalive?: boolean } = {}): Promise<T> {
+  if ((path === '/coordinator' || /^\/common-agents\/[^/]+\/run$/.test(path)) && data && typeof data === 'object' && state.selectedThreadId) data = { threadId: state.selectedThreadId, ...data }
   const response = await fetch(`/api${path}`, {
     ...options,
     method: method || (data === undefined ? 'GET' : 'POST'),
@@ -78,6 +80,11 @@ export function selectChat(id: string) {
   update({ selectedId: id }); sendEvent({ type: 'selected', id })
   localStorage.setItem('alpha.selectedChat', id)
 }
+export async function selectThread(id: string) {
+  window.dispatchEvent(new Event('alpha-thread-switch'))
+  await api(`/threads/${id}/select`, {})
+  update({ selectedThreadId: id })
+}
 export const windowAction = (window: 'workspace' | 'chats', action = 'show', value?: boolean) => api('/window', { window, action, value }).catch(reportError)
 
 export async function startDesktop() {
@@ -96,6 +103,11 @@ function connect() {
   socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token, clientId, surface }))
   socket.onmessage = ({ data }) => {
     const event = JSON.parse(data) as ServiceEvent
+    if (event.type === 'threads' && event.threads) {
+      if (state.selectedThreadId && event.selectedThreadId && event.selectedThreadId !== state.selectedThreadId) window.dispatchEvent(new Event('alpha-thread-switch'))
+      update({ threads: event.threads, selectedThreadId: event.selectedThreadId ?? state.selectedThreadId })
+    }
+    if (event.type === 'awareness' && event.awareness) update({ awareness: event.awareness })
     if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, questions: event.questions || state.questions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
     if (event.type === 'selection') update({ selectedId: event.selectedId || null })
     if (event.type === 'session' && event.session) {

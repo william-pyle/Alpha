@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. Version **0.2.16** adds a dedicated conversation, local speech, common agents and restart notes.
+knowledge into one Windows desktop window. Version **0.2.17** brings one conversation surface, isolated threads, staged awareness and Windows speech-driven face animation.
 
 ## What you can do
 
@@ -66,19 +66,24 @@ apply it on Alpha's next normal launch. A copy keeps the original folder.
 
 ## Use Alpha
 
-Choose **New chat**, select a launcher, working folder and project, then name the
-chat. If you leave the project unspecified, answer Alpha in **Questions** before
-sending work. The selected project is saved with that conversation.
-In the message editor, **Enter sends** and **Alt+Enter adds a line**. Drag the
-divider between the terminal and editor to change their heights. **Always
-approve** is available for agent chats and as a saved default in Settings; it
-bypasses agent permission prompts.
+Choose **New conversation** and a project. If you leave the project unspecified,
+answer in **Questions** before sending work. Each conversation has its own
+history, saved draft, images, voice and worker links. Use the conversation selector
+to switch; **History** includes archived threads. Alpha shares titles, purposes,
+projects and statuses across threads, without automatically sharing transcripts.
+**Share** copies one previewed message to a chosen conversation without starting work.
+
+**Enter sends**; **Shift+Enter adds a line**. Paste or drop images into the composer.
+Expand **Activity** for native worker output. **Enable terminal controls** is for
+native permission prompts or CLI recovery. Existing Codex/Claude identities and
+history remain intact; **Load earlier native conversation** imports verified user
+messages and final replies. New native launchers are under **New conversation ?
+Advanced launchers**. Their existing approval settings still apply.
 
 Workspace stays open as a document tab. Use **File → New card** for Gallery or
 Research content, **File → Open file** for a file tab and **Help → Open Help**
 for the built-in guide. **Tools → Settings** contains General, Speech-to-text,
-Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens the archive and controls the Workspace
-microphone.
+Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens the archive and controls the conversation sidebar.
 
 Alpha checks GitHub shortly after startup and every six hours. To check now,
 open **Settings → Updates**. Choose **Download update**, then
@@ -106,18 +111,42 @@ and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
 
-## Unreleased fixes
+## 0.2.17
 
-The installed 0.2.16 update exposed two startup problems. The MSI helper now
-waits for the installer process and reads its exit code directly, avoiding a
-false failure after a successful GUI installation. Windows launcher discovery
-also checks the per-user OpenAI Codex installation when an installer-launched
-app inherits an incomplete PATH. Focused tests cover both cases. These fixes
-are not yet included in the published 0.2.16 installer.
+One Alpha window now has one selected conversation and composer. Independent
+coordinator contexts keep conversation histories isolated. Background work stays
+in Activity, with unread indicators and origin-bound Questions. Legacy mixed
+conversation/voice records remain in a read-only archive, outside new prompts.
+
+**Awareness** notices explicit Questions, errors, exits and completed turns that
+need review. Possible overlapping projects are labelled suggestions. Dismiss,
+snooze, quiet mode and pause prevent repeated chatter; silence is never treated
+as task success. Optional **app names only** reads the foreground Windows
+executable name, at most every five seconds while Alpha is visible. No window
+titles, screenshots, clipboard or input are collected. The current sample stays
+in memory; sharing it with a conversation requires that thread's visible toggle.
+
+Camera tracking defaults off. When enabled, it uses local face position for eye
+contact, with no identification or saved frames; leaving the Alpha tab or hiding
+the window stops it. Microphone capture starts only through Talk/live voice or
+dictation controls. Dictation keeps a recoverable recording until accepted or
+explicitly discarded. Live voice uses its configured provider and current thread.
+
+Windows voices now send playback-timed SAPI visemes to the mouth animation;
+stop, error and thread switching return it to neutral. This follows Alpha's
+speech, without recording system audio or a microphone. Live voice retains its
+output audio animation. New requests acknowledge promptly and stream replies;
+stage timings are recorded, but model and tool latency can still vary.
+
+Local Whisper setup now pins a compatible PyAV decoder and verifies actual audio decoding. This repairs installations where faster-whisper 1.2.1 was paired with incompatible PyAV 19.
+
+The MSI helper waits for the installer process and checks its exit code directly.
+Codex discovery also checks its per-user installation when an installer-launched
+app inherits an incomplete PATH. These correct the two 0.2.16 restart failures.
 
 ## 0.2.16
 
-The separate scrolling conversation shows your messages and completed replies;
+In 0.2.16, the separate scrolling conversation showed your messages and completed replies;
 terminal work stays in Chats. **Speak replies** uses installed Windows voices,
 without an API key. Settings → Voice selects the voice and automatic speaking.
 The conversation microphone sends local Whisper dictation directly to Alpha.

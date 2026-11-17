@@ -21,6 +21,7 @@ $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVer
 $pythonSha256 = '67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb'
 $packageVersion = '1.2.1'
 $hubVersion = '1.32.0'
+$avVersion = '18.1.0' # faster-whisper 1.2.1 still passes metadata_errors, removed in PyAV 19.
 $modelRepo = 'Systran/faster-whisper-small'
 $modelRevision = '536b0662742c02347bc0e980a01041f333bce120'
 
@@ -37,7 +38,19 @@ function Test-WhisperReady([string]$RuntimeRoot) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $false }
   }
   try {
-    & $python -c 'import faster_whisper' 2>$null | Out-Null
+    # Import success does not establish that this package combination can decode.
+    $probe = @'
+import io, sys, wave, av
+from faster_whisper.audio import decode_audio
+assert av.__version__ == sys.argv[1]
+buffer = io.BytesIO()
+with wave.open(buffer, 'wb') as output:
+    output.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
+    output.writeframes(bytes(3200))
+buffer.seek(0)
+assert len(decode_audio(buffer)) > 0
+'@
+    $probe | & $python - $avVersion 2>$null | Out-Null
     return $LASTEXITCODE -eq 0
   } catch { return $false }
 }
@@ -110,7 +123,7 @@ try {
   }
   $venvVersion = & $venvPython -c 'import sys; print(sys.version_info.major, sys.version_info.minor, sep=chr(46))'
   if ($LASTEXITCODE -ne 0 -or $venvVersion.Trim() -ne '3.12') { throw "Existing Whisper environment is not Python 3.12: $venvPython" }
-  Invoke-Checked $venvPython @('-m', 'pip', 'install', '--disable-pip-version-check', '--only-binary=:all:', '--no-input', "faster-whisper==$packageVersion", "huggingface-hub==$hubVersion") 'Installing faster-whisper packages'
+  Invoke-Checked $venvPython @('-m', 'pip', 'install', '--disable-pip-version-check', '--only-binary=:all:', '--no-input', "faster-whisper==$packageVersion", "huggingface-hub==$hubVersion", "av==$avVersion") 'Installing compatible faster-whisper packages'
 
   $model = Join-Path $InstallRoot 'model'
   $env:HF_HUB_DISABLE_IMPLICIT_TOKEN = '1'
@@ -141,7 +154,7 @@ else:
     Remove-Item -LiteralPath $helper -Force -ErrorAction SilentlyContinue
   }
   if (-not (Test-WhisperReady $InstallRoot)) { throw 'The installed local Whisper files are incomplete.' }
-  [ordered]@{ packageVersion = $packageVersion; model = $modelRepo; modelRevision = $modelRevision; python = $basePython; installedAt = (Get-Date).ToUniversalTime().ToString('o') } |
+  [ordered]@{ packageVersion = $packageVersion; avVersion = $avVersion; model = $modelRepo; modelRevision = $modelRevision; python = $basePython; installedAt = (Get-Date).ToUniversalTime().ToString('o') } |
     ConvertTo-Json | Set-Content -LiteralPath $marker -Encoding UTF8
   Write-Host "Local Whisper is ready at $InstallRoot"
   exit 0

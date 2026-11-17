@@ -172,6 +172,8 @@ export class AlphaHeadScene {
     this.head.rotation.x += (targetX - this.head.rotation.x) * .065
     this.head.position.y = Math.sin(t * 1.1) * .006
     const opening = this.audio > .025 ? Math.pow(this.audio, .66) * .12 : 0
+    const measuredOpening = opening.toFixed(3)
+    if (this.host.dataset.mouthOpening !== measuredOpening) this.host.dataset.mouthOpening = measuredOpening
     for (const mesh of this.jawMeshes) {
       const influences = mesh.morphTargetInfluences
       if (influences) influences[0] += ((opening / .12) - influences[0]) * .38

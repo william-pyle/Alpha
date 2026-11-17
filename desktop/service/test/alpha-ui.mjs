@@ -45,7 +45,9 @@ try {
   await expect.poll(async () => (await call('/bootstrap')).settings.defaultBypass).toBe(true);
   await page.getByRole('button', { name: 'Close settings' }).last().click();
 
-  await page.getByRole('button', { name: 'New chat', exact: true }).click();
+  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await page.getByText('Advanced launchers', { exact: true }).click();
+  await page.getByRole('button', { name: 'New native conversation', exact: true }).click();
   assert.equal(await page.locator('.agent-choice').count(), 4);
   await page.getByRole('button', { name: /^Git Bash/ }).click();
   await page.getByLabel(/Chat name/).fill('Git Bash check');
@@ -55,13 +57,10 @@ try {
   const session = (await call('/bootstrap')).sessions[0];
   await call(`/sessions/${session.id}/input`, { text: "printf 'ALPHA_GITBASH_OK\\n'; pwd\r", paste: false });
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_GITBASH_OK');
-  const divider = page.getByRole('separator', { name: 'Resize terminal and message editor' });
-  await expect(divider).toBeVisible();
-  const height = async () => (await page.locator('.chat-composer').boundingBox()).height;
-  const before = await height(), box = await divider.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down(); await page.mouse.move(box.x + box.width / 2, box.y - 70, { steps: 5 }); await page.mouse.up();
-  assert.ok(await height() > before + 40);
+  await page.getByLabel('Conversation', { exact: true }).selectOption(session.id);
+  await page.locator('.thread-activity summary').click();
+  await expect(page.locator('.thread-terminal')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enable terminal controls' })).toBeVisible();
   const sideDivider = page.getByRole('separator', { name: 'Resize Chats sidebar' });
   const sideBefore = (await page.locator('.mdi-chats').boundingBox()).width;
   const sideBox = await sideDivider.boundingBox();
@@ -70,10 +69,9 @@ try {
   const sideAfter = (await page.locator('.mdi-chats').boundingBox()).width;
   assert.ok(sideAfter > sideBefore + 40);
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).chatSidebarWidth).toBe(Math.round(sideAfter));
-  await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).chatEditorHeights?.[session.id]).toBe(Math.round(await height()));
-  const editor = page.getByRole('textbox', { name: 'Write a message' });
+  const editor = page.getByRole('textbox', { name: 'Message Alpha' });
   await editor.fill("printf 'ALPHA_COMPOSER_OK\\n'");
-  await editor.press('Alt+Enter');
+  await editor.press('Shift+Enter');
   await expect(editor).toHaveValue("printf 'ALPHA_COMPOSER_OK\\n'\n");
   await page.waitForTimeout(2600);
   await editor.press('Enter');
@@ -87,8 +85,8 @@ try {
     const rect = input.getBoundingClientRect();
     window.dispatchEvent(new CustomEvent('alpha-file-drop', { detail: { phase: 'drop', paths: [source], x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } }));
   }, droppedSource);
-  await expect(editor).toHaveValue(/echo DROP ".*Dropped source-.*\.png" /);
-  const droppedPath = (await editor.inputValue()).match(/"([^"]+\.png)"/)[1];
+  await expect(page.getByLabel('Attached images', { exact: true }).locator('img')).toHaveCount(1);
+  const droppedPath = JSON.parse(await page.evaluate(id => localStorage.getItem('alpha.threadDraft.' + id), session.id)).paths[0];
   assert.deepEqual(await readFile(droppedPath), await readFile(droppedSource));
   await editor.fill('echo BROWSER DROP ');
   await editor.evaluate(input => {
@@ -97,14 +95,16 @@ try {
     dataTransfer.items.add(new File([bytes], 'Browser drop.png', { type: 'image/png' }));
     input.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
   });
-  await expect(editor).toHaveValue(/echo BROWSER DROP ".*Browser drop-.*\.png" /);
+  await expect(page.getByLabel('Attached images', { exact: true }).locator('img')).toHaveCount(2);
+  await page.getByLabel('Attached images', { exact: true }).getByRole('button', { name: /^Remove / }).first().click();
+  await page.getByLabel('Attached images', { exact: true }).getByRole('button', { name: /^Remove / }).first().click();
   await editor.fill('');
   assert.equal(context.pages().length, 1);
   await expect(page.locator('.terminal-area')).toHaveCount(1);
-  await expect(page.locator('.chat-composer')).toHaveCount(1);
+  await expect(page.locator('.mak-composer')).toHaveCount(1);
   await page.waitForTimeout(2600);
   await editor.fill("printf 'ALPHA_MULTI_1\\n'\nprintf 'ALPHA_MULTI_2\\n'");
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await page.getByRole('button', { name: 'Send to Alpha', exact: true }).click();
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_MULTI_2');
   assert.equal(context.pages().length, 1);
 
@@ -115,8 +115,8 @@ try {
     clipboardData.items.add(new File([bytes], 'Screenshot.png', { type: 'image/png' }));
     input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }));
   });
-  await expect(editor).toHaveValue(/echo IMAGE ".*Screenshot-.*\.png" /);
-  const imagePath = (await editor.inputValue()).match(/"([^"]+\.png)"/)[1];
+  await expect(page.getByLabel('Attached images', { exact: true }).locator('img')).toHaveCount(1);
+  const imagePath = JSON.parse(await page.evaluate(id => localStorage.getItem('alpha.threadDraft.' + id), session.id)).paths[0];
   assert.deepEqual([...await readFile(imagePath)].slice(0, 8), [137, 80, 78, 71, 13, 10, 26, 10]);
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen).not.toContain('IMAGE ');
   await page.waitForTimeout(2600);
@@ -131,8 +131,9 @@ try {
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('REPLY:Yes');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
   await page.getByRole('button', { name: 'History', exact: true }).click();
-  await expect(page.locator('.history-list')).toContainText('Git Bash check');
-  await page.getByRole('button', { name: 'Close history', exact: true }).click();
+  await expect(page.getByLabel('Conversation', { exact: true })).toContainText('Git Bash check');
+  await expect(page.getByRole('button', { name: 'Older mixed Alpha history' })).toBeVisible();
+  await page.getByRole('button', { name: 'History', exact: true }).click();
 
   await page.getByText('Example project', { exact: true }).last().click();
   await expect(page.getByRole('tab', { name: 'Example project' })).toBeVisible();
@@ -143,11 +144,10 @@ try {
   try {
     const freshPage = await freshContext.newPage();
     await freshPage.goto(service.urls.workspace);
-    await expect(freshPage.locator('.chat-composer')).toBeVisible();
+    await expect(freshPage.locator('.mak-composer')).toBeVisible();
     assert.equal(Math.round((await freshPage.locator('.mdi-chats').boundingBox()).width), saved.chatSidebarWidth);
-    assert.equal(Math.round((await freshPage.locator('.chat-composer').boundingBox()).height), saved.chatEditorHeights[session.id]);
     await expect(freshPage.locator('.mdi-menu-bar .mdi-menu-title, .mdi-menu-bar .mdi-menu-settings')).toHaveCount(0);
   } finally { await freshContext.close(); }
   assert.deepEqual(errors, []);
-  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, editor keys and image paste/drop, persisted splitters, questions, history, document tabs and report.');
+  console.log('Alpha desktop workflow passed: one window, themes, real Git Bash, one composer, Activity, editor keys and image paste/drop, persisted sidebar, questions, history, document tabs and report.');
 } finally { await browser?.close(); await service.close(); }

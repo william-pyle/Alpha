@@ -18,12 +18,15 @@ await cp(path.join(root, 'public/assets'), path.join(uiDir, 'assets'), { recursi
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 const service = await createService({ repo, uiDir, mcpOptions: { home: repo, env: {} } });
 const requests = [];
+const thread = service.threads.create({ name: 'Voice input', projectId: 'fixture' });
+service.threads.select(thread.id);
+const coordinator = await service.getCoordinator(thread.id);
 let fail = false;
-service.coordinator.ask = async data => {
+coordinator.ask = async data => {
   requests.push(data);
-  const operation = { ...data, at: new Date().toISOString(), status: fail ? 'failed' : 'completed', result: fail ? 'Fixture request failed. Please retry.' : 'Fixture completed.' };
-  service.coordinator.operations.set(data.id, operation);
-  service.coordinator.emit('result', operation);
+  const operation = { ...data, at: new Date().toISOString(), status: 'completed', result: 'Fixture completed.' };
+  coordinator.operations.set(data.id, operation);
+  coordinator.emit('result', operation);
   return operation;
 };
 service.quick.ask = async () => null;
@@ -39,25 +42,21 @@ try {
     // Patch the prototype: WebKit ignores an own-property override on navigator.mediaDevices.
     MediaDevices.prototype.getUserMedia = async () => { window.fixtureMicRequests++; throw new DOMException('Permission denied', 'NotAllowedError'); };
   });
+  await page.route('**/api/threads/*/input', route => fail ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Fixture request failed. Please retry."}' }) : route.continue());
   for (const surface of ['chats', 'workspace']) {
     await page.goto(service.urls[surface]);
-    if (surface === 'chats') {
-      await page.getByRole('button', { name: 'Start voice', exact: true }).click();
-      await page.getByRole('alert').filter({ hasText: 'Permission denied' }).waitFor();
-      await page.getByRole('button', { name: 'Dismiss voice error' }).click();
-      assert.equal(await page.getByRole('alert').count(), 0);
-      assert.equal(await page.evaluate(() => window.fixtureMicRequests), 1);
-    } else await page.getByRole('complementary', { name: 'Alpha replies' }).waitFor();
+    await page.route('**/api/dictation', route => route.fulfill({ contentType: 'application/json', body: '{"provider":"local","available":true,"maxSeconds":120,"maxBytes":1000000}' }));
+    await page.reload();
+    await page.getByRole('button', { name: 'Dictate a message', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Allow microphone access' }).waitFor();
+    await page.getByRole('button', { name: 'Dismiss voice input error' }).click();
+    assert.equal(await page.evaluate(() => window.fixtureMicRequests), 1);
     const input = page.getByRole('textbox', { name: 'Message Alpha' });
     const before = requests.length;
     await input.fill('First line'); await input.press('Shift+Enter'); await input.pressSequentially('Second line');
     assert.equal(await input.inputValue(), 'First line\nSecond line'); assert.equal(requests.length, before);
     await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
     assert.equal(requests.length, before);
-    if (surface === 'chats') {
-      await page.getByRole('button', { name: 'Toggle conversation' }).click();
-      await page.getByRole('button', { name: 'Toggle conversation' }).click();
-    }
     assert.equal(await input.inputValue(), 'First line\nSecond line');
     await input.press('Enter');
     await page.waitForFunction(() => document.querySelector('.voice-compose textarea')?.value === '');
@@ -95,6 +94,6 @@ try {
     assert.equal(await attached.count(), 0);
   }
   assert.deepEqual(errors, []);
-  console.log('Alpha conversation input passed newline/send/IME, errors, images, retry and draft retention in both windows.');
+  console.log('Alpha conversation input passed newline/send/IME, errors, images, retry and draft retention through both compatible routes to the same window.');
   console.log(`Screenshots: ${repo}`);
 } finally { await browser?.close(); await service.close(); }

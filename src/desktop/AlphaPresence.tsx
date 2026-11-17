@@ -17,9 +17,12 @@ export default function AlphaPresence() {
   const [cameraError, setCameraError] = useState('')
   const [modelError, setModelError] = useState('')
   const [cameraAttempt, setCameraAttempt] = useState(0)
-  const [cameraEnabled, setCameraEnabled] = useState(true)
+  const [cameraEnabled, setCameraEnabled] = useState(false)
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible')
-  const working = desktop.coordinator === 'working' || desktop.sessions.some(item => item.activity === 'working')
+  const working = desktop.threads.find(item => item.id === desktop.selectedThreadId)?.status === 'working'
+  const speech = useRef(desktop.speech)
+  const selected = useRef(desktop.selectedThreadId)
+  useEffect(() => { speech.current = desktop.speech; selected.current = desktop.selectedThreadId }, [desktop.speech, desktop.selectedThreadId])
 
   useEffect(() => {
     if (!host.current) return
@@ -35,7 +38,11 @@ export default function AlphaPresence() {
   }, [])
   useEffect(() => {
     let frame = 0
-    const update = () => { scene.current?.setAudioLevel(liveVoice.outputLevel()); frame = requestAnimationFrame(update) }
+    const update = () => {
+      const current = speech.current
+      const windowsLevel = current.speaking && current.threadId === selected.current && Date.now() - (current.levelAt || 0) < (current.durationMs || 150) + 100 ? current.level || 0 : 0
+      scene.current?.setAudioLevel(Math.max(liveVoice.outputLevel(), windowsLevel)); frame = requestAnimationFrame(update)
+    }
     update()
     return () => cancelAnimationFrame(frame)
   }, [])
@@ -112,7 +119,7 @@ export default function AlphaPresence() {
   }
   return <section className="alpha-presence" aria-label="Alpha 3D presence">
     <div className="alpha-presence-stage" ref={host}>
-      <div className="alpha-presence-top"><span className={`alpha-presence-pulse ${working ? 'working' : ''}`} /> <strong>ALPHA</strong><span>{working ? 'Thinking' : 'Present'}</span></div>
+      <div className="alpha-presence-top"><span className={`alpha-presence-pulse ${working ? 'working' : ''}`} /> <strong>ALPHA</strong><span>{desktop.speech.speaking && desktop.speech.threadId === desktop.selectedThreadId ? 'Speaking' : working ? 'Thinking' : 'Present'}</span></div>
       <div className="alpha-presence-bottom"><span className={camera === 'tracking' && pageVisible ? 'active' : ''}><i />{cameraEnabled ? pageVisible ? cameraLabel[camera] : 'Camera paused' : 'Camera off'}</span><span>Drag to turn</span></div>
     </div>
     <video ref={video} className="alpha-camera-video" muted playsInline aria-hidden="true" />
@@ -124,6 +131,6 @@ export default function AlphaPresence() {
     {cameraError && cameraEnabled && <p className="alpha-presence-note" role="status">{cameraError}</p>}
     {modelError && <p className="alpha-presence-note" role="status">{modelError}</p>}
     {live.error && <p className="alpha-presence-note" role="status">{live.error}</p>}
-    <p className="alpha-presence-privacy">Face tracking runs on this device while this tab is visible. The camera stops when you leave the tab or minimize Alpha.</p>
+    <p className="alpha-presence-privacy">Optional camera: local face position for eye contact, without identification or saved frames. It stops when you leave this tab or minimize Alpha. Microphone starts only when you choose Talk or dictate.</p>
   </section>
 }

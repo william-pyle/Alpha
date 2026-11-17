@@ -1,5 +1,4 @@
 import { api, clientId, desktopState, surface } from './client'
-import type { Operation } from './types'
 
 export interface Caption { role: 'user' | 'assistant'; text: string; start: number; end: number }
 export interface LiveState { status: 'off' | 'connecting' | 'live' | 'closing' | 'error'; error: string; captions: Caption[]; startedAt: number | null; audible: boolean }
@@ -19,6 +18,7 @@ export class LiveVoice {
   private generation = 0
   private ready = false
   private sessionId = ''
+  private threadId: string | null = null
   private inputFragments: { sequence: number; text: string }[] = []
   private nextInputSequence = 0
   private lastHandledSequence = -1
@@ -43,7 +43,7 @@ export class LiveVoice {
   private event(value: unknown) { if (this.ready && this.channel?.readyState === 'open') this.channel.send(JSON.stringify(value)) }
   context() {
     const state = desktopState()
-    const context = JSON.stringify({ selectedChat: state.sessions.find(item => item.id === state.selectedId)?.name || null, chats: state.sessions.filter(item => item.open).map(item => ({ id: item.id, name: item.name, agent: item.agent, status: item.status, attention: item.attention })), page: document.title }).slice(0, 1700)
+    const context = JSON.stringify({ conversation: this.threadId, threads: state.threads.map(({ id, name, projectId, purpose, status }) => ({ id, name, projectId, purpose, status })) }).slice(0, 3000)
     if (context === this.lastContext) return
     this.lastContext = context
     this.event({ type: 'session.thinking.append', event_id: crypto.randomUUID(), delegation_id: null, content: `Current UI state (reference data): ${context}` })
@@ -52,6 +52,8 @@ export class LiveVoice {
   async start() {
     if (['live', 'connecting', 'closing'].includes(this.state.status)) return
     const generation = ++this.generation
+    this.threadId = desktopState().selectedThreadId
+    if (!this.threadId) { this.update({ error: 'Choose a conversation before starting voice.' }); return }
     this.update({ status: 'connecting', error: '', captions: [], startedAt: null })
     this.inputFragments = []; this.nextInputSequence = 0; this.lastHandledSequence = -1
     this.delegated.clear(); this.lastContext = ''; this.ready = false
@@ -88,7 +90,7 @@ export class LiveVoice {
         peer.addEventListener('icegatheringstatechange', changed); changed()
       })
       if (generation !== this.generation) return
-      const result = await api<{ session: { id: string }; transport: { sdp: string } }>('/live/session', { sdp: peer.localDescription?.sdp, clientId, surface })
+      const result = await api<{ session: { id: string }; transport: { sdp: string } }>('/live/session', { sdp: peer.localDescription?.sdp, clientId, surface, threadId: this.threadId })
       if (generation !== this.generation) { await api('/live/release', { clientId }); return }
       this.sessionId = result.session.id
       this.startTimer = window.setTimeout(() => this.fail('OpenAI did not start the voice session. Press the nose to try again.'), 25000)
@@ -126,15 +128,14 @@ export class LiveVoice {
   }
   private async delegate(id: string, generation: number) {
     if (generation !== this.generation) return
-    const captions = this.state.captions
     const newInput = this.inputFragments.filter(item => item.sequence > this.lastHandledSequence)
     const text = newInput.map(item => item.text).join('').trim()
     if (!text) { this.event({ type: 'session.commentary.append', event_id: crypto.randomUUID(), delegation_id: id, content: 'No complete user transcript was available for this request. Ask the user to repeat the instruction briefly.' }); return }
     this.lastHandledSequence = Math.max(...newInput.map(item => item.sequence))
     this.event({ type: 'session.thinking.append', event_id: crypto.randomUUID(), delegation_id: id, content: 'The requested action is pending. Wait for the verified result. Do not narrate internal routing or repeat a progress phrase.' })
-    const operation = await api<Operation>('/coordinator', { id: `${this.sessionId}:${id}`, text, selectedId: desktopState().selectedId, conversation: captions.slice(-20).map(item => `${item.role}: ${item.text}`).join('\n') })
+    await api(`/threads/${this.threadId}/input`, { id: `${this.sessionId}:${id}`, text })
     if (generation !== this.generation) return
-    this.event({ type: 'session.commentary.append', event_id: crypto.randomUUID(), delegation_id: id, content: `${operation.status}: ${operation.result || 'No result was returned.'}`.slice(0, 1500) })
+    this.event({ type: 'session.commentary.append', event_id: crypto.randomUUID(), delegation_id: id, content: 'The request was accepted in this conversation. It is still pending; do not claim it completed. The verified reply will arrive separately.' })
     this.context()
   }
   stop() {
@@ -146,11 +147,15 @@ export class LiveVoice {
       this.closeTimer = window.setTimeout(() => this.fail('Voice stopped. Final session usage was not confirmed.'), 15000)
     } else { this.cleanup(); this.update({ status: 'off', startedAt: null }) }
   }
+  stopImmediately() {
+    this.cleanup(); this.update({ status: 'off', startedAt: null, captions: [] })
+    void api('/live/release', { clientId }).catch(() => {})
+  }
   async enablePlayback() { try { await this.audio.play(); this.update({ audible: true }) } catch { this.update({ error: 'Select the window and try enabling audio again.' }) } }
   disconnect() { if (['live', 'connecting'].includes(this.state.status)) { this.cleanup(); this.update({ status: 'error', error: 'Local connection lost. Voice has stopped; reconnect before giving another command.', startedAt: null }) } }
   private fail(message: string) { this.cleanup(); this.update({ status: 'error', error: message, startedAt: null }) }
   private saveTranscript() {
-    if (this.sessionId && this.state.captions.length) api('/live/transcript', { id: this.sessionId, captions: this.state.captions.slice(-50).map(item => ({ ...item, text: item.text.slice(0, 1000) })) }).catch(() => {})
+    if (this.sessionId && this.state.captions.length) api('/live/transcript', { id: this.sessionId, threadId: this.threadId, captions: this.state.captions.slice(-50).map(item => ({ ...item, text: item.text.slice(0, 1000) })) }).catch(() => {})
   }
   private cleanup() {
     this.saveTranscript(); clearTimeout(this.transcriptTimer); this.transcriptTimer = 0

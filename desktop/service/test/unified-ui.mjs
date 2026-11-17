@@ -16,6 +16,7 @@ await writeFile(path.join(repo, 'workspace/example/icon.png'), Buffer.from('iVBO
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'example', title: 'Example project', description: 'An isolated desktop test', folder: 'example', icon: 'icon.png', category: 'project', status: 'active', sample: true, created: '2026-11-08', steps: [{ name: 'Report', path: 'report.html' }] }] }));
 const bundle = path.join(repo, 'library-bundle'); await packageLibrary(bundle);
 const service = await createService({ repo, uiDir: path.resolve('dist'), sharedLibrary: { bundle, root: path.join(repo, 'SharedLibrary') }, mcpOptions: { home: repo, env: {}, probe: async () => ({ status: 'available' }) } });
+const thread = service.threads.create({ name: 'Example conversation', projectId: 'example' }); service.threads.select(thread.id);
 let browser;
 try {
   browser = await launchBrowser({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
@@ -29,11 +30,12 @@ try {
   await expect(page.getByRole('textbox', { name: 'Search Workspace' })).toHaveCount(0);
   await expect(page.locator('.mdi-chats')).toBeVisible();
   await expect(page.getByRole('tablist', { name: 'Sidebar' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Conversations', exact: true })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Alpha', exact: true }).click();
   await expect(page.locator('.alpha-presence-stage canvas')).toBeVisible();
   await expect(page.locator('.alpha-presence-stage')).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
   await expect(page.getByRole('button', { name: 'Talk to Alpha' })).toBeVisible();
+  await page.getByRole('button', { name: 'Camera off', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.alpha-camera-video')?.srcObject?.getVideoTracks()[0]?.readyState === 'live');
   // Detector startup time varies on CI; the live camera track and model-ready state
   // above verify this surface without depending on inference speed.
@@ -58,14 +60,14 @@ try {
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
   await page.waitForFunction(() => document.querySelector('.alpha-camera-video')?.srcObject?.getVideoTracks()[0]?.readyState === 'live');
   await page.evaluate(() => { window.alphaCameraTrack = document.querySelector('.alpha-camera-video').srcObject.getVideoTracks()[0]; });
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+  await page.getByRole('tab', { name: 'Conversations', exact: true }).click();
   await expect(page.locator('.alpha-presence')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.alphaCameraTrack?.readyState)).toBe('ended');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
-  await expect(page.getByRole('complementary', { name: 'Alpha replies' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alpha conversation', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message Alpha' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('complementary', { name: 'Alpha replies' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alpha conversation', exact: true })).toBeVisible();
   await expect(page.locator('.mdi-statusbar')).toContainText('Connected');
   await page.screenshot({ path: '.test-output/unified-home.png' });
   await page.getByRole('button', { name: 'File', exact: true }).click();
@@ -100,7 +102,7 @@ try {
   await page.getByRole('button', { name: 'Help', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Open Help' }).click();
   await expect(page.getByRole('tab', { name: 'Help' })).toBeVisible();
-  await expect(page.frameLocator('iframe').getByText('Alpha combines Chats and Workspace')).toBeVisible();
+  await expect(page.frameLocator('iframe').getByText('One Windows window holds selectable Alpha conversations', { exact: false })).toBeVisible();
   await page.screenshot({ path: '.test-output/unified-help.png' });
   await page.getByRole('tab', { name: 'Workspace' }).click();
   await page.getByText('Example project', { exact: true }).last().click();

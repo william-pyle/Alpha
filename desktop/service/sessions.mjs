@@ -18,7 +18,7 @@ import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId,
 const { Terminal } = headless;
 const publicSession = session => {
   const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending } = session;
-  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending };
+  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending, alphaThreadId: session.alphaThreadId || null };
 };
 
 export class Sessions extends EventEmitter {
@@ -98,7 +98,7 @@ export class Sessions extends EventEmitter {
       id: randomUUID(), agent, name: englishTitle(options.name, `Conversation ${this.items.size + 1}`),
       tabOrder: Math.max(-1, ...this.list().map(item => item.tabOrder)) + 1,
       cwd, bypass: ['codex', 'claude'].includes(agent) && options.bypass === true, createdAt: now, lastInputAt: null, lastOutputAt: null,
-      effort: options.effort,
+      effort: options.effort, alphaThreadId: options.alphaThreadId || null,
       projectId: options.projectId || null, projectPending: this.trackProjects === true && !options.projectId,
       status: 'starting', nativeId: options.resumeId || (agent === 'claude' ? randomUUID() : null),
       open: true, pinned: false, updatedAt: now, preview: '', hasConversation: !!options.resumeId, restoreError: null,

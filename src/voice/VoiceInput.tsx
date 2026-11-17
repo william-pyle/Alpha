@@ -15,6 +15,7 @@ export default function VoiceInput({ id, connected, disabled, config, onText, on
   const [recording, setRecording] = useState<VoiceDraft | null>(null), [recovered, setRecovered] = useState(false)
   const alive = useRef(true), stream = useRef<MediaStream | null>(null), recorder = useRef<MediaRecorder | null>(null)
   const timer = useRef(0), controller = useRef<AbortController | null>(null), discard = useRef(false), serial = useRef(0)
+  const switching = useRef(false)
   const textHandler = useRef(onText), busyHandler = useRef(onBusy)
   useEffect(() => { textHandler.current = onText; busyHandler.current = onBusy }, [onText, onBusy])
   const supported = !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined'
@@ -32,11 +33,19 @@ export default function VoiceInput({ id, connected, disabled, config, onText, on
       setRecovered(true)
     }).catch(() => { if (alive.current) { setRecovered(true); setError('Recording recovery is unavailable. Keep this page open while dictating.') } })
     const hidden = () => { if (document.visibilityState === 'hidden') stop() }
+    const switchThread = () => {
+      if (!id.startsWith('alpha-thread-')) return
+      switching.current = true; serial.current++; controller.current?.abort(); stop()
+      setPhase(current => current === 'transcribing' ? 'saved' : current)
+      busyHandler.current(false)
+    }
     document.addEventListener('visibilitychange', hidden)
-    return () => { alive.current = false; controller.current?.abort(); stop(); document.removeEventListener('visibilitychange', hidden) }
+    window.addEventListener('alpha-thread-switch', switchThread)
+    return () => { alive.current = false; controller.current?.abort(); stop(); document.removeEventListener('visibilitychange', hidden); window.removeEventListener('alpha-thread-switch', switchThread) }
   }, [id, stop])
   useEffect(() => { onBusy(phase === 'permission' || phase === 'recording' || phase === 'transcribing') }, [phase, onBusy])
   async function transcribe(saved: VoiceDraft) {
+    switching.current = false
     const request = ++serial.current
     setPhase('transcribing'); setError(''); busyHandler.current(true)
     const abort = new AbortController(); controller.current = abort
@@ -58,6 +67,7 @@ export default function VoiceInput({ id, connected, disabled, config, onText, on
     if (!config?.available) { setError(config?.provider === 'off' ? 'Dictation is off. Choose a provider in Phone settings or desktop Settings.' : config?.provider === 'openai' || config?.provider === 'openrouter' ? 'The selected paid provider needs an API key on your computer. Choose Local Whisper for free dictation.' : 'Set up local Whisper on your computer to enable free voice input.'); return }
     if (!supported) { setError('Microphone recording is unavailable in this browser. Check the Windows microphone permission for Alpha.'); return }
     setPhase('permission'); setError(''); busyHandler.current(true); discard.current = false
+    switching.current = false
     const request = ++serial.current
     try {
       const captured = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })
@@ -85,7 +95,7 @@ export default function VoiceInput({ id, connected, disabled, config, onText, on
           if (!alive.current) return
           setRecording(saved); setSeconds(saved.seconds); setPhase('saved'); busyHandler.current(false)
           if (!durable) setError('Keep this page open: Alpha could not save the recording. You can still transcribe or download it.')
-          if (durable && document.visibilityState === 'visible') await transcribe(saved)
+          if (durable && document.visibilityState === 'visible' && !switching.current) await transcribe(saved)
         })()
       }
       active.start(500); setSeconds(0); setPhase('recording')

@@ -22,6 +22,7 @@ try {
   const errors = []; page.on('pageerror', error => { errors.push(error.message); console.log(error.stack); });
   await page.goto(service.urls.workspace);
   const session = await request('/sessions', { agent: 'shell', name: 'Unassigned Work' });
+  (await service.getCoordinator(session.id)).ask = service.coordinator.ask;
   const questions = page.getByRole('region', { name: 'Questions' });
   await expect(page.locator('.mdi-statusbar')).toContainText('Connected');
   await expect(questions.getByText('Which card or project should I track Unassigned Work under?')).toBeVisible();

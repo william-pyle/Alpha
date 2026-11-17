@@ -172,6 +172,8 @@ fn normalize_node_path(path: PathBuf) -> PathBuf {
     path
 }
 
+mod desktop_context;
+
 fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result<(), Box<dyn std::error::Error>> {
     let (mut x, mut y, mut width, mut height) = (0.0, 0.0, 1440.0, 900.0);
     if let Some(monitor) = app.primary_monitor()? {
@@ -342,6 +344,12 @@ fn main() {
                                 let handle = app_handle.clone();
                                 let request_id = event["requestId"].as_str().map(str::to_owned);
                                 let _ = app_handle.run_on_main_thread(move || set_shortcut(&handle, enabled, request_id.as_deref()));
+                            }
+                        },
+                        "desktop-context" => {
+                            let reply = serde_json::json!({ "type": "desktop-context", "application": desktop_context::foreground_application() });
+                            if let Some(child) = app_handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
                             }
                         },
                         "ready" => {

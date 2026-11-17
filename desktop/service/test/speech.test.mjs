@@ -5,9 +5,24 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createService } from '../server.mjs';
-import { spokenReply } from '../speech.mjs';
+import { spokenReply, Speech } from '../speech.mjs';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+test('Windows playback levels retain thread ownership and stop on replacement, error or cancellation', async () => {
+  const children = [], states = [];
+  const speech = new Speech(value => states.push(value), { platform: 'win32', spawnProcess: () => {
+    const child = new EventEmitter(); child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => child.emit('exit', 0); children.push(child); return child;
+  } });
+  await speech.speak('First', '', 'A'); assert.equal(speech.state.phase, 'preparing');
+  children[0].stdout.write('{"level":80}\n'); assert.equal(speech.state.level, .8); assert.equal(speech.state.threadId, 'A');
+  await speech.speak('Second', '', 'B'); children[0].stdout.write('{"level":90}\n'); assert.equal(speech.state.threadId, 'B'); assert.equal(speech.state.level, 0);
+  children[1].stdout.write('{"level":45}\n'); assert.equal(speech.state.level, .45);
+  speech.stop(); assert.equal(speech.state.speaking, false); assert.equal(speech.state.level || 0, 0);
+  await speech.speak('Third', '', 'B'); children[2].emit('error', new Error('device failed')); assert.equal(speech.state.speaking, false); assert.match(speech.state.error, /device failed/);
+  assert.ok(states.some(value => value.phase === 'playing'));
+});
 test('spoken replies omit code and preserve prose', () => {
   assert.equal(spokenReply('Hello [friend](https://example.com).\n```js\nsecret()\n```'), 'Hello friend. Code example is in the chat.');
   const longReply = 'Here is the explanation. '.repeat(150) + 'This final sentence must also be spoken.';

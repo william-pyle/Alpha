@@ -48,17 +48,18 @@ export class Questions extends EventEmitter {
     return this;
   }
   list() { return this.items.filter(item => item.status === 'pending').sort((a, b) => a.createdAt.localeCompare(b.createdAt)); }
-  async ask({ text, options = [], source = 'coordinator', sourceId, operationId, context, chatName = 'Alpha', sessionId = 'alpha' }) {
+  async ask({ text, options = [], source = 'coordinator', sourceId, operationId, context, chatName = 'Alpha', sessionId = 'alpha', threadId }) {
     if (typeof text !== 'string' || text.trim().length < 8 || text.length > 500) throw new Error('Write a question between 8 and 500 characters.');
     if (!['coordinator', 'maintenance', 'project'].includes(source)) throw new Error('Unknown question source.');
     const existing = this.items.find(item => item.source === source && item.sourceId === sourceId && item.text === text.trim() && (source !== 'project' || item.status === 'pending'));
     if (existing) return existing;
     const item = { id: randomUUID(), sessionId: source === 'project' ? sessionId : 'alpha', source, sourceId: sourceId || null, operationId: operationId || null, context: String(context || '').slice(0, 6000), chatName, text: text.trim(), options: options.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, source === 'project' ? 100 : 6), status: 'pending', createdAt: new Date().toISOString() };
+    if (threadId) item.threadId = threadId;
     this.items.push(item); await this.changed(); return item;
   }
   async captureAlpha(operation) {
     const added = [];
-    for (const question of extractQuestions(operation.result)) added.push(await this.ask({ ...question, sourceId: operation.id, operationId: operation.id, context: operation.text }));
+    for (const question of extractQuestions(operation.result)) added.push(await this.ask({ ...question, sourceId: operation.id, operationId: operation.id, context: operation.text, threadId: operation.threadId }));
     return added;
   }
   changed() {
@@ -77,6 +78,7 @@ export class Questions extends EventEmitter {
       if (this.items.some(item => item.status === 'pending' && item.sessionId === session.id && item.text.toLowerCase() === text.toLowerCase())) continue;
       const options = (candidate.options || []).map(option => typeof option === 'string' ? option : option?.label).filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, 6);
       const item = { id: randomUUID(), sessionId: session.id, chatName: session.name, text, options, status: 'pending', sourceId: source.id || null, createdAt: new Date().toISOString() };
+      item.threadId = session.alphaThreadId || session.id;
       this.items.push(item); added.push(item);
     }
     if (added.length) { this.items = this.items.slice(-500); this.changed().catch(error => this.emit('error', error)); }
@@ -104,6 +106,7 @@ export class Questions extends EventEmitter {
     if (session.status !== 'running') throw new Error('This chat is stopped. Reconnect it before answering.');
     sessions.input(session.id, text.trim(), { composed: true, submit: true, questionAnswer: true });
     question.status = 'answered'; question.answer = text.trim(); question.answeredAt = new Date().toISOString();
+    this.emit('answer', { question, text: text.trim() });
     await this.changed();
     return { delivered: true, questionId: id, sessionId: session.id, note: 'Answer delivered to the terminal. Check the chat to confirm the agent accepted it.' };
   }
