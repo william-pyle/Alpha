@@ -513,7 +513,29 @@ export class Sessions extends EventEmitter {
       const subscription = proc.onExit(() => { clearTimeout(timer); subscription.dispose(); resolve(); });
       try { this.requestStop(session); } catch { clearTimeout(timer); subscription.dispose(); resolve(); }
     })));
-    for (const session of this.items.values()) { session.stopNativeWatch?.(); session.process?.kill(); this.flushOutput(session); }
+    await Promise.all([...this.items.values()].map(async session => {
+      session.stopNativeWatch?.();
+      const proc = session.process;
+      if (proc) await new Promise((resolve, reject) => {
+        let fallback;
+        const timeout = setTimeout(() => { subscription.dispose(); reject(new Error(`Terminal shutdown did not finish: ${session.name}`)); }, 8000);
+        const subscription = proc.onExit(() => { clearTimeout(timeout); clearTimeout(fallback); subscription.dispose(); resolve(); });
+        try {
+          proc.kill();
+          if (process.platform === 'win32') fallback = setTimeout(() => {
+            // node-pty 1.1 defers kill until first output and, with ConPTY DLL,
+            // only drains its worker after more output. A quiet/starting shell
+            // can supply neither. Finish the owned console, then drain its
+            // worker explicitly; wait for exit before disposing the terminal.
+            try {
+              if (proc._isReady === false) { proc._deferreds = []; proc._agent.kill(); }
+              proc._agent?._conoutSocketWorker?.dispose();
+            } catch (error) { clearTimeout(timeout); subscription.dispose(); reject(error); }
+          }, 1000);
+        } catch (error) { clearTimeout(timeout); subscription.dispose(); reject(error); }
+      });
+      this.flushOutput(session);
+    }));
     await this.persist();
     for (const session of this.items.values()) session.terminal?.dispose();
   }
