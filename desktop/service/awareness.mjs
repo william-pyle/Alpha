@@ -30,6 +30,11 @@ export class Awareness {
     }
     this.publish(); return this.snapshot();
   }
+  resolve(predicate) {
+    let changed = false;
+    for (const item of this.items) if (!item.dismissed && predicate(item)) { item.dismissed = true; changed = true; }
+    if (changed) this.publish();
+  }
   sample(application) {
     if (!this.settings.enabled || !this.settings.desktop) { this.desktop = null; return; }
     // The native host returns only an executable basename, never a title/path.

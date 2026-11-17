@@ -73,6 +73,7 @@ test('service binds project questions and coordinator tools to the originating t
     assert.ok(question);
     assert.equal((await request(`/questions/${question.id}/answer`, { answer: 'alpha' })).status, 200);
     assert.equal(service.threads.get(a.id).projectId, 'alpha');
+    assert.ok(!service.awareness.snapshot().items.some(item => item.id === `question:${question.id}`));
     service.threads.message(a.id, { id: 'private', role: 'user', text: 'PRIVATE_A_MARKER' });
     const coordA = await service.getCoordinator(a.id), coordB = await service.getCoordinator(b.id);
     assert.notEqual(coordA, coordB); assert.notEqual(coordA.stateDir, coordB.stateDir);

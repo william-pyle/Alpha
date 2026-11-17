@@ -332,6 +332,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     if (notice.kind === 'attention') awareness.event({ id: notice.id, threadId: threads.owner(notice.sessionId)?.id, kind: 'attention', text: 'A native worker reported that it needs attention. Check Questions and Activity.', source: 'Native attention event' });
   });
   questions.on('changed', items => {
+    const pending = new Set(items.map(item => `question:${item.id}`));
+    awareness.resolve(item => item.kind === 'question' && !pending.has(item.id));
     for (const item of items) awareness.event({ id: `question:${item.id}`, threadId: item.threadId || threads.owner(item.sessionId)?.id, kind: 'question', text: 'A decision is waiting in Questions.', source: 'Questions' });
   });
   questions.on('answer', ({ question, text }) => {
@@ -434,6 +436,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           }
           if (method === 'POST' && threadRoute[2] === 'select') {
             speech.stop(); threads.select(thread.id);
+            awareness.resolve(item => item.threadId === thread.id && item.kind === 'review');
             selectedId = thread.sessionIds[0] || null; settings.selectedId = selectedId; scheduleSettings();
             return json(response, 200, thread);
           }
