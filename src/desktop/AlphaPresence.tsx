@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision'
 import { AlphaHeadScene } from './AlphaHeadScene'
 import { liveVoice } from './live'
@@ -12,6 +12,12 @@ export default function AlphaPresence() {
   const live = useSyncExternalStore(liveVoice.subscribe, liveVoice.snapshot)
   const host = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
+  const cameraStream = useRef<MediaStream | null>(null)
+  const stopCamera = useCallback(() => {
+    cameraStream.current?.getTracks().forEach(track => track.stop())
+    cameraStream.current = null
+    if (video.current) { video.current.pause(); video.current.srcObject = null }
+  }, [])
   const scene = useRef<AlphaHeadScene | null>(null)
   const [camera, setCamera] = useState<CameraState>('starting')
   const [cameraError, setCameraError] = useState('')
@@ -32,10 +38,10 @@ export default function AlphaPresence() {
   }, [])
   useEffect(() => { scene.current?.setWorking(working) }, [working])
   useEffect(() => {
-    const visibility = () => setPageVisible(document.visibilityState === 'visible')
+    const visibility = () => { if (document.visibilityState !== 'visible') stopCamera(); setPageVisible(document.visibilityState === 'visible') }
     document.addEventListener('visibilitychange', visibility)
     return () => document.removeEventListener('visibilitychange', visibility)
-  }, [])
+  }, [stopCamera])
   useEffect(() => {
     let frame = 0
     const update = () => {
@@ -61,12 +67,13 @@ export default function AlphaPresence() {
         // passed to the bundled, local face detector and never reach the service.
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 24 } }, audio: false })
         if (cancelled) { stream.getTracks().forEach(track => track.stop()); return }
+        cameraStream.current = stream
         cameraVideo.srcObject = stream
         await cameraVideo.play()
         const base = `${import.meta.env.BASE_URL}models/face-detector/`
         const fileset = await FilesetResolver.forVisionTasks(`${base}wasm`)
         detector = await FaceDetector.createFromOptions(fileset, { baseOptions: { modelAssetPath: `${base}blaze_face_short_range.tflite`, delegate: 'CPU' }, runningMode: 'VIDEO', minDetectionConfidence: .55 })
-        if (cancelled) { detector.close(); return }
+        if (cancelled) { try { detector.close() } catch { /* Capture already stopped. */ } return }
         setCamera('searching')
         const scan = (now: number) => {
           if (cancelled || !detector) return
@@ -105,12 +112,14 @@ export default function AlphaPresence() {
     return () => {
       cancelled = true
       cancelAnimationFrame(frame)
-      detector?.close()
+      // Releasing capture must not depend on a WASM detector's teardown.
       stream?.getTracks().forEach(track => track.stop())
+      stopCamera()
       if (cameraVideo) { cameraVideo.pause(); cameraVideo.srcObject = null }
+      try { detector?.close() } catch { /* Camera is off even if inference cleanup fails. */ }
       scene.current?.setGaze({ x: 0, y: 0, found: false })
     }
-  }, [cameraAttempt, cameraEnabled, pageVisible])
+  }, [cameraAttempt, cameraEnabled, pageVisible, stopCamera])
 
   const voiceActive = ['connecting', 'live', 'closing'].includes(live.status)
   const cameraLabel: Record<CameraState, string> = {
@@ -125,7 +134,7 @@ export default function AlphaPresence() {
     <video ref={video} className="alpha-camera-video" muted playsInline aria-hidden="true" />
     <div className="alpha-presence-controls">
       <button type="button" className={voiceActive ? 'active' : ''} disabled={!desktop.connected || live.status === 'closing'} onClick={() => { if (desktop.voice.configured) { if (voiceActive) liveVoice.stop(); else liveVoice.start() } else document.querySelector<HTMLButtonElement>('.alpha-conversation-pane .dictation-mic')?.click() }}>{voiceActive ? 'Stop voice' : 'Talk to Alpha'}</button>
-      <button type="button" aria-pressed={cameraEnabled} onClick={() => setCameraEnabled(value => !value)}>{cameraEnabled ? 'Camera on' : 'Camera off'}</button>
+      <button type="button" aria-pressed={cameraEnabled} onClick={() => { if (cameraEnabled) stopCamera(); setCameraEnabled(value => !value) }}>{cameraEnabled ? 'Camera on' : 'Camera off'}</button>
       {cameraEnabled && (camera === 'blocked' || camera === 'unavailable') && <button type="button" onClick={() => setCameraAttempt(value => value + 1)}>Retry camera</button>}
     </div>
     {cameraError && cameraEnabled && <p className="alpha-presence-note" role="status">{cameraError}</p>}
