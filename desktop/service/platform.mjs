@@ -21,6 +21,8 @@ export function shellCommand(env = process.env) {
 export function commandSearchRoots(env = process.env, home = os.homedir()) {
   const roots = [];
   if (isWindows && env.APPDATA) roots.push(path.join(env.APPDATA, 'npm'));
+  // Installer-launched apps can inherit a PATH without the user's CLI entries.
+  if (isWindows) roots.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Programs', 'OpenAI', 'Codex', 'bin'));
   if (isWindows) roots.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'agy', 'bin'));
   roots.push(path.join(home, '.opencode', 'bin'), path.join(home, '.kimi-code', 'bin'), path.join(home, '.local', 'bin'));
   return roots;

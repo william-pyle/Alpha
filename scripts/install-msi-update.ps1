@@ -59,5 +59,5 @@ if ($oldUninstaller) {
     throw 'The old Alpha installation could not be removed. The MSI was not started.'
   }
 }
-& msiexec.exe /i $file /passive /norestart AUTOLAUNCHAPP=1
-if ($LASTEXITCODE -notin @(0, 3010)) { throw "Alpha MSI failed with exit code $LASTEXITCODE." }
+$installed = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\msiexec.exe') -ArgumentList @('/i', ('"{0}"' -f $file), '/passive', '/norestart', 'AUTOLAUNCHAPP=1') -Wait -PassThru -WindowStyle Hidden
+if ($installed.ExitCode -notin @(0, 3010)) { throw "Alpha MSI failed with exit code $($installed.ExitCode)." }

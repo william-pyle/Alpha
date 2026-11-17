@@ -26,3 +26,17 @@ test('OpenCode install directory is included in command lookup roots', async () 
   assert.ok(commandSearchRoots({}, home).includes(bin));
   assert.equal(resolveCommand('opencode', { PATH: '' }, home), executable);
 });
+
+test('Windows Codex installation is found with an installer-style PATH', { skip: process.platform !== 'win32' }, async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'alpha-codex-home-'));
+  const local = path.join(home, 'AppData', 'Local');
+  const bin = path.join(local, 'Programs', 'OpenAI', 'Codex', 'bin');
+  await mkdir(bin, { recursive: true });
+  const executable = path.join(bin, 'codex.exe');
+  await writeFile(executable, '');
+  assert.equal(resolveCommand('codex', { PATH: '', LOCALAPPDATA: local }, home), executable);
+  assert.equal(resolveCommand('codex', { PATH: '' }, home), executable);
+  const preferred = path.join(home, 'chosen-bin');
+  await mkdir(preferred); await writeFile(path.join(preferred, 'codex.exe'), '');
+  assert.equal(resolveCommand('codex', { PATH: preferred, LOCALAPPDATA: local }, home), path.join(preferred, 'codex.exe'));
+});

@@ -106,6 +106,15 @@ and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
 
+## Unreleased fixes
+
+The installed 0.2.16 update exposed two startup problems. The MSI helper now
+waits for the installer process and reads its exit code directly, avoiding a
+false failure after a successful GUI installation. Windows launcher discovery
+also checks the per-user OpenAI Codex installation when an installer-launched
+app inherits an incomplete PATH. Focused tests cover both cases. These fixes
+are not yet included in the published 0.2.16 installer.
+
 ## 0.2.16
 
 The separate scrolling conversation shows your messages and completed replies;
