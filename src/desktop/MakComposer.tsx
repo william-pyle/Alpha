@@ -8,9 +8,18 @@ import VoiceInput from '../voice/VoiceInput'
 import { useDictation } from './useDictation'
 
 const maxImages = 12
+type Draft = { text: string; paths: string[] }
+const writes = new Map<string, Promise<unknown>>()
+function saveDraft(id: string, draft: Draft) {
+  if (id === 'legacy') return Promise.resolve()
+  const write = (writes.get(id) || Promise.resolve()).catch(() => {}).then(() => api(`/threads/${id}/draft`, draft, 'POST', { keepalive: true }))
+  writes.set(id, write)
+  return write
+}
 
-export default function MakComposer({ connected, sending, onSend, autoSendVoice = false, draftId = 'legacy' }: {
+export default function MakComposer({ connected, sending, onSend, autoSendVoice = false, draftId = 'legacy', initialDraft }: {
   draftId?: string
+  initialDraft?: Draft
   connected: boolean
   sending: boolean
   onSend: (text: string, images: string[]) => Promise<void>
@@ -20,14 +29,26 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
   const [error, setError] = useState('')
   const { info: dictation } = useDictation()
   const [saved] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`alpha.threadDraft.${draftId}`) || 'null') as { text: string; paths: string[] } | null } catch { return null }
+    try { return JSON.parse(localStorage.getItem(`alpha.threadDraft.${draftId}`) || 'null') as Draft | null || initialDraft || null } catch { return initialDraft || null }
   })
-  const [draft, setDraft] = useState(() => saved?.text || localStorage.getItem(`alpha.chatDraft.${draftId}`) || '')
+  const [draft, setDraft] = useState(() => saved?.text ?? localStorage.getItem(`alpha.chatDraft.${draftId}`) ?? '')
   const [images, setImages] = useState<Preview[]>(() => (saved?.paths || []).map(path => ({ path, name: path.split(/[\\/]/).pop() || 'Image', size: 0, kind: 'image' })))
   const alive = useRef(true)
   const area = useRef<HTMLTextAreaElement>(null)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
-  useEffect(() => { localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify({ text: draft, paths: images.map(image => image.path) })) }, [draft, images, draftId])
+  const currentDraft = useRef<Draft>({ text: draft, paths: images.map(image => image.path) })
+  useEffect(() => {
+    const value = { text: draft, paths: images.map(image => image.path) }
+    currentDraft.current = value
+    localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify(value))
+    const timer = window.setTimeout(() => { void saveDraft(draftId, value).catch(() => { if (alive.current) setError('Draft could not be saved to Alpha. Keep this window open and reconnect before restarting.') }) }, 250)
+    return () => clearTimeout(timer)
+  }, [draft, images, draftId])
+  useEffect(() => {
+    const flush = () => { void saveDraft(draftId, currentDraft.current).catch(() => {}) }
+    window.addEventListener('pagehide', flush)
+    return () => { window.removeEventListener('pagehide', flush); flush() }
+  }, [draftId])
   useEffect(() => {
     let cancelled = false
     if (saved?.paths.length) void Promise.all(saved.paths.map(path => api<Preview>(`/preview?path=${encodeURIComponent(path)}`))).then(values => { if (!cancelled) setImages(current => current.map(item => values.find(value => value.path === item.path) || item)) }).catch(report => { if (!cancelled) setError(String(report)) })
@@ -56,6 +77,7 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
       const stored = JSON.parse(localStorage.getItem(`alpha.threadDraft.${draftId}`) || '{"text":"","paths":[]}') as { text: string; paths: string[] }
       stored.paths.push(preview.path)
       localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify(stored))
+      void saveDraft(draftId, stored).catch(() => {})
       window.dispatchEvent(new CustomEvent('alpha-draft-updated', { detail: draftId }))
     }
   }
@@ -103,6 +125,7 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
       await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path))
       if (!alive.current) {
         localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify({ text: '', paths: [] }))
+        void saveDraft(draftId, { text: '', paths: [] }).catch(() => {})
         window.dispatchEvent(new CustomEvent('alpha-draft-updated', { detail: draftId }))
       }
       setDraft(''); setImages([])

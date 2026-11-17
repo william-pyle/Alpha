@@ -19,7 +19,7 @@ export interface Settings { appTheme?: string; themeProfiles?: ThemeProfile[]; d
 export interface AgentReply { id: string; sessionId: string; name: string; text: string; at: string }
 export interface SpeechState { speaking: boolean; error: string | null; threadId?: string | null; level?: number; levelAt?: number; durationMs?: number; source?: string; phase?: string }
 export interface ThreadMessage { id: string; role: 'user' | 'assistant'; text: string; at: string; status?: string; images?: string[]; error?: string; source?: string }
-export interface AlphaThread { id: string; kind: 'alpha' | 'native'; name: string; purpose: string; projectId: string | null; projectPending: boolean; sessionIds: string[]; messages: ThreadMessage[]; messageCount?: number; status: string; archived: boolean; unread: boolean; desktopContext?: boolean; nativeHistoryImported?: { count: number } }
+export interface AlphaThread { draft?: { text: string; paths: string[] }; id: string; kind: 'alpha' | 'native'; name: string; purpose: string; projectId: string | null; projectPending: boolean; sessionIds: string[]; messages: ThreadMessage[]; messageCount?: number; status: string; archived: boolean; unread: boolean; desktopContext?: boolean; nativeHistoryImported?: { count: number } }
 export interface AwarenessState { settings: { enabled: boolean; quiet: boolean; desktop: boolean }; desktop: { application: string; source: string; at: number } | null; items: { id: string; threadId: string | null; kind: string; text: string; source: string; inference: boolean; at: number }[] }
 export interface VoiceOwner { clientId: string; surface: 'chats' | 'workspace' }
 export interface FileEntry { name: string; path: string; directory: boolean; size: number; modifiedAt: string | null }

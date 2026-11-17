@@ -398,9 +398,15 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (related) awareness.event({ id: `overlap:${thread.id}:${related.id}`, threadId: thread.id, kind: 'overlap', inference: true, text: `This may overlap with ${related.name}: both are assigned to ${thread.projectId}. Compare their purposes before duplicating work.`, source: 'Project assignment metadata' });
           return json(response, 201, thread);
         }
-        const threadRoute = /^\/api\/threads\/([\w-]+)(?:\/(select|input|resume|share|messages|native-history))?$/.exec(url.pathname);
+        const threadRoute = /^\/api\/threads\/([\w-]+)(?:\/(select|input|resume|share|messages|native-history|draft))?$/.exec(url.pathname);
         if (threadRoute) {
           const thread = threads.get(threadRoute[1]);
+          if (method === 'POST' && threadRoute[2] === 'draft') {
+            if (typeof data.text !== 'string' || data.text.length > 30000) throw new Error('Draft is too long.');
+            const images = await attachments.coordinatorImages(data.paths || []);
+            thread.draft = { text: data.text, paths: images };
+            await threads.save(); return json(response, 200, { saved: true });
+          }
           if (method === 'POST' && threadRoute[2] === 'native-history') {
             if (thread.kind !== 'native') throw new Error('This conversation has no native history binding.');
             const session = sessions.get(thread.sessionIds[0]);

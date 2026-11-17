@@ -11,7 +11,7 @@ const repo = await mkdtemp(path.resolve('.test-output/conversations-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'example', title: 'Example', folder: 'example', steps: [] }] }));
 await writeFile(path.join(repo, '.alpha/settings.json'), JSON.stringify({ speakReplies: false, transcribeProvider: 'local' }));
-const service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+let service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
 const a = service.threads.create({ name: 'Architecture', projectId: 'example' });
 const b = service.threads.create({ name: 'Research', projectId: 'example' }); service.threads.select(a.id);
 const requests = [], spoken = [];
@@ -84,5 +84,14 @@ try {
   await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await learning.getByRole('button', { name: 'Back to our chat' }).click();
   await page.screenshot({ path: path.join(repo, 'conversations-wide.png') });
   for (const width of [768, 390]) { await page.setViewportSize({ width, height: 1000 }); await expect(pane).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.screenshot({ path: path.join(repo, `conversations-${width}.png`) }); }
-  assert.deepEqual(errors, []); console.log(`Thread UI passed isolation, drafts, late voice, sharing, awareness and learning. Evidence: ${repo}`);
+  await expect.poll(() => service.threads.get(b.id).draft?.text).toBe('Draft B');
+  const oldOrigin = service.origin;
+  await service.close();
+  service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+  assert.notEqual(service.origin, oldOrigin);
+  await page.goto(service.urls.workspace);
+  await expect(editor).toHaveValue('Draft B');
+  await picker.selectOption(a.id); await expect(editor).toHaveValue('');
+  await picker.selectOption(b.id); await expect(editor).toHaveValue('Draft B');
+  assert.deepEqual(errors, []); console.log(`Thread UI passed isolation, drafts across service restart/new origin, late uploads/voice, sharing, awareness and learning. Evidence: ${repo}`);
 } finally { await browser?.close(); await service.close(); }

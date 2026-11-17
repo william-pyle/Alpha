@@ -5,7 +5,7 @@ const params = new URLSearchParams(window.location.search)
 export const isDesktop = params.get('desktop') === '1'
 export const surface = params.get('surface') === 'chats' ? 'chats' : 'workspace'
 export const clientId = crypto.randomUUID()
-let token = params.get('token') || sessionStorage.getItem('alpha.token') || ''
+const token = params.get('token') || sessionStorage.getItem('alpha.token') || ''
 if (isDesktop && token) {
   sessionStorage.setItem('alpha.token', token)
   params.delete('token')
@@ -151,7 +151,7 @@ function connect() {
 
 // Exposing a capability through a DOM attribute would give report pages access to it.
 // It lives only in this UI origin, which is separate from the report server.
-window.addEventListener('pagehide', () => { token = ''; socket?.close(); clearTimeout(reconnectTimer) })
+window.addEventListener('pagehide', () => { socket?.close(); clearTimeout(reconnectTimer) })
 
 export async function transcribeDesktopAudio(recording: import('../voice/voice-drafts').VoiceDraft, signal: AbortSignal): Promise<{ text: string }> {
   const response = await fetch('/api/transcribe', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': recording.audio.type, 'X-Transcription-Id': recording.id }, body: recording.audio, signal: AbortSignal.any([signal, AbortSignal.timeout(270000)]) })
