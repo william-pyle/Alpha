@@ -15,10 +15,10 @@ interface HomeGridProps {
 
 function greeting(): string {
   const h = new Date().getHours()
-  if (h < 5) return 'Burning the midnight oil, sir?'
-  if (h < 12) return 'Good morning, sir.'
-  if (h < 18) return 'Good day, sir.'
-  return 'Good evening, sir.'
+  if (h < 5) return 'Still up? I am here with you.'
+  if (h < 12) return 'Good morning!'
+  if (h < 18) return 'Good afternoon!'
+  return 'Good evening!'
 }
 
 export default function HomeGrid({
@@ -88,8 +88,8 @@ export default function HomeGrid({
       {shown === 0 && !searching && (
         <div className="home-empty">
           {offline
-            ? 'Could not load workspace.json — is the public/workspace link in place? Run npm run dev again, sir.'
-            : 'Nothing here yet. New work will appear as cards, sir.'}
+            ? 'Could not load workspace.json. Check the public/workspace link and run npm run dev again.'
+            : 'Nothing here yet. New work will appear as cards.'}
         </div>
       )}
     </div>

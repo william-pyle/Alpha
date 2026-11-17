@@ -62,15 +62,10 @@ try {
   await expect(page.locator('.alpha-presence')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.alphaCameraTrack?.readyState)).toBe('ended');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
-  await expect(page.locator('.voice-dock.workspace')).toBeHidden();
-  await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Show microphone' }).click();
-  await expect(page.locator('.voice-dock.workspace')).toBeVisible();
-  await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Hide microphone' }).click();
-  await expect(page.locator('.voice-dock.workspace')).toBeHidden();
+  await expect(page.getByRole('complementary', { name: 'Alpha replies' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message Alpha' })).toBeVisible();
   await page.reload();
-  await expect(page.locator('.voice-dock.workspace')).toBeHidden();
+  await expect(page.getByRole('complementary', { name: 'Alpha replies' })).toBeVisible();
   await expect(page.locator('.mdi-statusbar')).toContainText('Connected');
   await page.screenshot({ path: '.test-output/unified-home.png' });
   await page.getByRole('button', { name: 'File', exact: true }).click();

@@ -16,14 +16,17 @@ function NewChat({ close }: { close: () => void }) {
   const [agent, setAgent] = useState<AgentId>(state.settings.defaultAgent)
   const [name, setName] = useState('')
   const [cwd, setCwd] = useState(state.repo)
+  const [projectId, setProjectId] = useState('')
+  const [projects, setProjects] = useState<{ id: string; title: string }[]>([])
   const [bypass, setBypass] = useState(state.settings.defaultBypass)
   const [resumeId, setResumeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => { void api<{ entities: { id: string; title: string }[] }>('/workspace').then(value => setProjects(value.entities)).catch(error => setError(error.message)) }, [])
   async function launch(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      const session = await api<ChatSession>('/sessions', { agent, name: name.trim() || undefined, cwd, bypass, resumeId: resumeId.trim() || undefined })
+      const session = await api<ChatSession>('/sessions', { agent, name: name.trim() || undefined, cwd, projectId: projectId || undefined, bypass, resumeId: resumeId.trim() || undefined })
       await api('/settings', { defaultAgent: agent, defaultBypass: bypass })
       selectChat(session.id); close()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); setBusy(false) }
@@ -33,6 +36,7 @@ function NewChat({ close }: { close: () => void }) {
     <div className="agent-picker">{state.agents.map(item => <button type="button" key={item.id} className={`agent-choice ${agent === item.id ? 'selected' : ''}`} onClick={() => setAgent(item.id)} disabled={!item.available} style={{ '--agent-color': item.color } as React.CSSProperties}><span className="agent-mark"><AgentLogo agent={item.id} size={23} /></span><span>{item.label}<small>{item.available ? ['shell', 'gitbash'].includes(item.id) ? 'Local terminal' : 'Your CLI account' : 'Not installed'}</small></span>{agent === item.id && <span className="choice-check">✓</span>}</button>)}</div>
     <label className="desk-field">Chat name <small>English only</small><input autoFocus placeholder="e.g. Dream Game · animations" value={name} onChange={event => setName(event.target.value)} maxLength={100} /></label>
     <label className="desk-field">Working folder<input value={cwd} onChange={event => setCwd(event.target.value)} required spellCheck={false} /></label>
+    <label className="desk-field">Project<select aria-label="Project for new chat" value={projectId} onChange={event => setProjectId(event.target.value)}><option value="">Ask me in Questions</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
     {!['shell', 'gitbash'].includes(agent) && <><label className="desk-check"><input type="checkbox" checked={bypass} onChange={event => setBypass(event.target.checked)} /><span>Always approve<small>{`Same ${isMac ? 'macOS' : isWindows ? 'Windows' : 'user'} account and file access as your usual terminal.`}</small></span></label><details className="desk-details"><summary>Resume an existing CLI conversation</summary><p>For a conversation started outside Alpha, copy its ID from your CLI's session details or resume picker. Chats created here return automatically.</p><label className="desk-field">Native session ID<input value={resumeId} onChange={event => setResumeId(event.target.value)} placeholder="Optional session ID" /></label></details></>}
     {error && <p className="desk-error-inline" role="alert">{error}</p>}
     <button className="desk-primary" disabled={busy || !state.connected}>{busy ? 'Opening…' : 'Open chat'}<Icon name="arrow" size={16} /></button>

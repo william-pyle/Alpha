@@ -13,6 +13,7 @@ test('voice session keeps the English default even with a custom delivery style'
     assert.doesNotMatch(session.instructions, /russian|[\u0400-\u04ff]/iu);
   }
   assert.match(defaultVoiceStyle, /Speak English by default/);
+  assert.match(voiceSession({ conversationStyle: 'Be curious and upbeat.' }).instructions, /Conversation personality: Be curious and upbeat\./);
 });
 
 test('quick command confirmations and empty results are English without a model', async () => {

@@ -37,7 +37,7 @@ try {
   assert.deepEqual((await call('/bootstrap')).agents.map(agent => agent.id), ['codex', 'claude', 'shell', 'gitbash']);
   assert.equal((await call('/updates')).currentVersion, product.version, 'Startup updater must report the installed version');
   const library = await call('/library');
-  assert.equal(library.skills.length,21); assert.equal(library.conflicts.length,0);
+  assert.equal(library.skills.length,22); assert.equal(library.conflicts.length,0);
   await access(path.join(library.root,'knowledge/voice-dictation.md'));
   await access(path.join(library.root,'.claude/skills/workspace-authoring/SKILL.md'));
   const card = await call('/workspace/cards', { title: 'Packaged editable card', template: 'research' });
@@ -54,7 +54,7 @@ try {
   assert.equal((await call('/workspace/location')).available,true);
   await call('/workspace/location/save',{path:nextRepo,mode:'copy'});
   assert.equal(JSON.parse(await readFile(path.join(configDir,'repository.json'),'utf8')),repo);
-  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Packaged Local Whisper setup script', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed', '21 installed shared skills and support files', 'Editable Research card creation and reading'] }, null, 2));
+  await writeFile('.test-output/packaged-runtime-result.json', JSON.stringify({ passed: true, runtime, checks: ['Bundled Node', 'Production service', 'Native terminal dependency', 'Packaged Local Whisper setup script', 'Production UI and theme assets', 'Packaged Help', 'Phone routes removed', '22 installed shared skills and support files', 'Editable Research card creation and reading'] }, null, 2));
   console.log('Packaged runtime passed: bundled Node, UI, themes, Help, shared library, editable cards and real native terminal.');
 } finally {
   child.stdin.end('quit\n');

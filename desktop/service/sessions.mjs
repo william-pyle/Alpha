@@ -17,8 +17,8 @@ import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId,
 
 const { Terminal } = headless;
 const publicSession = session => {
-  const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError } = session;
-  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError };
+  const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending } = session;
+  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending };
 };
 
 export class Sessions extends EventEmitter {
@@ -99,6 +99,7 @@ export class Sessions extends EventEmitter {
       tabOrder: Math.max(-1, ...this.list().map(item => item.tabOrder)) + 1,
       cwd, bypass: ['codex', 'claude'].includes(agent) && options.bypass === true, createdAt: now, lastInputAt: null, lastOutputAt: null,
       effort: options.effort,
+      projectId: options.projectId || null, projectPending: this.trackProjects === true && !options.projectId,
       status: 'starting', nativeId: options.resumeId || (agent === 'claude' ? randomUUID() : null),
       open: true, pinned: false, updatedAt: now, preview: '', hasConversation: !!options.resumeId, restoreError: null,
       attention: false, cols: Math.min(500, Math.max(20, options.cols || 90)), rows: Math.min(200, Math.max(5, options.rows || 32)),
@@ -140,9 +141,14 @@ export class Sessions extends EventEmitter {
     if (this.closed || !session.open) throw new Error('The chat was closed before its terminal started.');
     if (session.agent === 'antigravity' && resumeId && !validAntigravityId(resumeId)) throw new Error('Use the Antigravity conversation UUID from its /resume picker.');
     const antigravityLog = session.agent === 'antigravity' ? await prepareAntigravityLog(this.stateDir, session.id) : undefined;
-    const command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog });
+    const initialPrompt = await this.restartNotes?.claim(session, resumeId);
+    let command;
+    try { command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt }); }
+    catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;
-    const proc = pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }));
+    let proc;
+    try { proc = pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows })); }
+    catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     session.process = proc;
     session.deviceReplies?.dispose();
     // Inactive tabs still have a terminal: answer device queries without needing
@@ -225,6 +231,9 @@ export class Sessions extends EventEmitter {
   }
 
   nativeEvent(session, event) {
+    this.restartNotes?.observe(session, event).catch(error => this.emit('service-error', error));
+    if (event.kind === 'task-input') { this.emit('task-input', { session: publicSession(session), text: event.text }); return; }
+    if (event.taskText) this.emit('task-input', { session: publicSession(session), text: event.taskText });
     if (event.kind === 'turn-started') {
       if (session.activity === 'working') return;
       session.activity = 'working'; session.attention = false;
@@ -244,6 +253,8 @@ export class Sessions extends EventEmitter {
     session.hasConversation = true; session.updatedAt = new Date().toISOString();
     this.changed(session);
     if (event.kind === 'question' || event.kind === 'turn-completed' && event.message) this.emit('question-source', { session: publicSession(session), source: { id: event.id, message: event.message, questions: event.questions } });
+    if (event.kind === 'turn-completed' && event.message?.trim()) this.emit('reply', { id: `${session.id}:${event.id || session.completionVersion}`, sessionId: session.id, name: session.name, text: event.message });
+    if (event.kind === 'turn-completed') this.emit('task-completed', { session: publicSession(session), event });
     if (event.text) this.emit('notice', { id: randomUUID(), sessionId: session.id, name: session.name, kind: event.kind, text: `${session.name}: ${event.text}`, at: new Date().toISOString() });
   }
 
@@ -323,6 +334,7 @@ export class Sessions extends EventEmitter {
 
   input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false } = {}) {
     const session = this.get(id);
+    if (session.projectPending && (coordinator || composed) && submit && !questionAnswer) throw new Error('Choose this conversation\'s project in Questions before sending work through Alpha.');
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
@@ -354,6 +366,7 @@ export class Sessions extends EventEmitter {
       session.updatedAt = new Date().toISOString();
     }
     this.changed(session);
+    if ((coordinator || composed) && submit && !questionAnswer) this.emit('task-input', { session: publicSession(session), text: data });
     return { delivered: true, sessionId: id, name: session.name, note: 'Text delivered to the terminal. Check the screen for CLI readiness or permission prompts; delivery does not confirm the agent accepted the task.' };
   }
 

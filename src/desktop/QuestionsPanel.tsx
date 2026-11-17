@@ -29,18 +29,18 @@ function QuestionCard({ question, connected }: { question: ChatQuestion; connect
   return <article className="question-card">
     <header><strong>{question.chatName}</strong><time>{new Date(question.createdAt).toLocaleString()}</time></header>
     <p>{question.text}</p>
-    {!!question.options.length && <div className="question-options" role="group" aria-label={`Suggested answers for ${question.chatName}`}>{question.options.map(option => <button key={option} type="button" aria-pressed={draft === option} onClick={() => change(option)}>{option}</button>)}</div>}
+    {question.source === 'project' ? <label>Project<select aria-label={`Project for ${question.chatName}`} value={question.options.includes(draft) ? draft : ''} onChange={event => change(event.target.value)}><option value="">Choose a card or project</option>{question.options.map(option => <option key={option}>{option}</option>)}</select></label> : !!question.options.length && <div className="question-options" role="group" aria-label={`Suggested answers for ${question.chatName}`}>{question.options.map(option => <button key={option} type="button" aria-pressed={draft === option} onClick={() => change(option)}>{option}</button>)}</div>}
     <label htmlFor={`question-answer-${question.id}`}>Your answer</label>
     <textarea id={`question-answer-${question.id}`} aria-label={`Answer ${question.chatName}`} value={draft} onChange={event => change(event.target.value)} placeholder="Choose an answer or type your own…" rows={2} maxLength={64000} />
     {error && <p className="question-error" role="alert">{error}</p>}
-    <footer><button type="button" onClick={() => api(`/sessions/${question.sessionId}/focus`, {}).catch(reportError)}>Open chat</button><button type="button" onClick={() => void dismiss()} disabled={busy || !connected}>Dismiss</button><button className="question-send" type="button" onClick={() => void send()} disabled={!draft.trim() || busy || !connected}>{busy ? 'Sending…' : 'Send answer'}</button></footer>
+    <footer>{!question.source && <button type="button" onClick={() => api(`/sessions/${question.sessionId}/focus`, {}).catch(reportError)}>Open chat</button>}{question.source !== 'project' && <button type="button" onClick={() => void dismiss()} disabled={busy || !connected}>Dismiss</button>}<button className="question-send" type="button" onClick={() => void send()} disabled={!draft.trim() || busy || !connected}>{busy ? 'Sending…' : 'Send answer'}</button></footer>
   </article>
 }
 
 export default function QuestionsPanel() {
   const state = useDesktop()
-  const [open, setOpen] = useState(() => state.questions.length > 0)
-  useEffect(() => onServiceEvent(event => { if (event.type === 'questions' && event.questions?.length) setOpen(true) }), [])
+  const [open, setOpen] = useState(true)
+  useEffect(() => onServiceEvent(event => { if (['questions', 'connected'].includes(event.type) && event.questions?.length) setOpen(true) }), [])
   useEffect(() => { const toggle = () => setOpen(value => !value); window.addEventListener('alpha-toggle-questions', toggle); return () => window.removeEventListener('alpha-toggle-questions', toggle) }, [])
   if (state.questions.length === 0) return null
   return <section className={`questions-panel ${open ? 'is-open' : ''}`} aria-label="Questions">

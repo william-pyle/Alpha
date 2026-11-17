@@ -28,6 +28,8 @@ export interface WorkspaceEntity {
   pinned?: boolean
   /** Starter examples remain visible until explicitly archived. */
   sample?: boolean
+  /** Local tool definitions are interpreted only by the authenticated desktop service. */
+  tools?: { id: string; name: string; kind: 'managed-process' | 'observed-external' | 'one-shot' }[]
 }
 
 export interface WorkspaceState {

@@ -1,6 +1,6 @@
 // No microphone, paid model request, native terminal or personal workspace is used.
 import assert from 'node:assert/strict';
-import { copyFile, cp, mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createService } from '../server.mjs';
@@ -10,9 +10,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 await mkdir(path.join(root, '.cache'), { recursive: true });
 const repo = await mkdtemp(path.join(root, '.cache/voice-ui-'));
 await mkdir(path.join(repo, 'workspace'));
+await mkdir(path.join(repo, '.alpha'));
+await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');
 const uiDir = path.join(repo, 'ui');
 await cp(path.join(root, 'dist'), uiDir, { recursive: true });
-for (const name of ['mak-nose.svg', 'mak-nose-chats.svg']) await copyFile(path.join(root, 'public/assets', name), path.join(uiDir, 'assets', name));
+await cp(path.join(root, 'public/assets'), path.join(uiDir, 'assets'), { recursive: true });
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 const service = await createService({ repo, uiDir, mcpOptions: { home: repo, env: {} } });
 const requests = [];
@@ -39,19 +41,23 @@ try {
   });
   for (const surface of ['chats', 'workspace']) {
     await page.goto(service.urls[surface]);
-    await page.getByRole('button', { name: 'Start voice', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: 'Permission denied' }).waitFor();
-    await page.getByRole('button', { name: 'Dismiss voice error' }).click();
-    assert.equal(await page.getByRole('alert').count(), 0);
-    assert.equal(await page.evaluate(() => window.fixtureMicRequests), 1);
+    if (surface === 'chats') {
+      await page.getByRole('button', { name: 'Start voice', exact: true }).click();
+      await page.getByRole('alert').filter({ hasText: 'Permission denied' }).waitFor();
+      await page.getByRole('button', { name: 'Dismiss voice error' }).click();
+      assert.equal(await page.getByRole('alert').count(), 0);
+      assert.equal(await page.evaluate(() => window.fixtureMicRequests), 1);
+    } else await page.getByRole('complementary', { name: 'Alpha replies' }).waitFor();
     const input = page.getByRole('textbox', { name: 'Message Alpha' });
     const before = requests.length;
     await input.fill('First line'); await input.press('Shift+Enter'); await input.pressSequentially('Second line');
     assert.equal(await input.inputValue(), 'First line\nSecond line'); assert.equal(requests.length, before);
     await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
     assert.equal(requests.length, before);
-    await page.getByRole('button', { name: 'Toggle conversation' }).click();
-    await page.getByRole('button', { name: 'Toggle conversation' }).click();
+    if (surface === 'chats') {
+      await page.getByRole('button', { name: 'Toggle conversation' }).click();
+      await page.getByRole('button', { name: 'Toggle conversation' }).click();
+    }
     assert.equal(await input.inputValue(), 'First line\nSecond line');
     await input.press('Enter');
     await page.waitForFunction(() => document.querySelector('.voice-compose textarea')?.value === '');
@@ -89,6 +95,6 @@ try {
     assert.equal(await attached.count(), 0);
   }
   assert.deepEqual(errors, []);
-  console.log('Talk to Mak: newline/send/IME, dismissable errors, image paste/upload/preview/removal, retry and hidden-panel draft retention passed in both windows.');
+  console.log('Alpha conversation input passed newline/send/IME, errors, images, retry and draft retention in both windows.');
   console.log(`Screenshots: ${repo}`);
 } finally { await browser?.close(); await service.close(); }

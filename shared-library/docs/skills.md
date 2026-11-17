@@ -1,6 +1,6 @@
 # Project skills
 
-Twenty-one skills live in this project. `.agents/skills` is the maintained source
+Twenty-two skills live in this project. `.agents/skills` is the maintained source
 for Codex; `.claude/skills` contains complete, identical copies for Claude Code,
 including scripts and references. Both Skills sections open the full instructions.
 These are local project files, not global installations.
@@ -15,6 +15,7 @@ The package builder generates the Claude copy from the maintained source.
 
 | Skill | Use it for |
 | --- | --- |
+| [common-agent-maintenance](../.agents/skills/common-agent-maintenance/SKILL.md) | Detect repeated work across projects, maintain versioned reusable roles from evidence, and route missing decisions through Alpha Questions. |
 | [3d-production-routing](../.agents/skills/3d-production-routing/SKILL.md) | Choose a practical workflow for 3D concepts, generated meshes, material maps, procedural Three.js reconstruction and game animation. |
 | [blender-game-animation](../.agents/skills/blender-game-animation/SKILL.md) | Rig and animate supplied characters in Blender, revise motion from references, and deliver editable sources plus a verified game export. |
 | [character-sheet-pipeline](../.agents/skills/character-sheet-pipeline/SKILL.md) | Prepare strict-front character sheets, isolated parts and optional multiview references for 3D modeling from an approved image. |

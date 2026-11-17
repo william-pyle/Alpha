@@ -8,6 +8,7 @@ import Topbar from './components/Topbar'
 import HomeGrid from './components/HomeGrid'
 import EntityControls from './components/EntityControls'
 import ReportBoundary from './components/ReportBoundary'
+import WorkspaceToolControls from './components/WorkspaceToolControls'
 import { contentUrl, isDesktop } from './desktop/client'
 
 const Compare3D = lazy(() => import('./components/Compare3D'))
@@ -179,6 +180,9 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
         />
 
         <div className="content">
+          <div className="workspace-tool-layout">
+          {isDesktop && entity?.tools?.length && step?.name.toLowerCase() === 'overview' ? <WorkspaceToolControls key={entity.id} cardId={entity.id} /> : null}
+          <div className="workspace-tool-body">
           <ReportBoundary key={reportUrl || 'home'} onHome={goHome}>
           {entity && reportUrl && step?.viewer === 'card' ? (
             <Suspense fallback={<div className="report-loading">Opening card…</div>}><EditableCard key={`${entity.id}:${stepIndex}`} url={reportUrl} entityId={entity.id} step={stepIndex} /></Suspense>
@@ -202,6 +206,8 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
             />
           )}
           </ReportBoundary>
+          </div>
+          </div>
         </div>
       </main>
     </div>

@@ -5,8 +5,9 @@ import type { DictationInfo } from './types'
 import { deleteVoiceDraft, readVoiceDraft, saveVoiceDraft, type VoiceDraft } from './voice-drafts'
 
 type Phase = 'idle' | 'permission' | 'recording' | 'transcribing' | 'saved'
-export default function VoiceInput({ id, connected, disabled, config, onText, onBusy, transcriber = transcribeDesktopAudio }: {
+export default function VoiceInput({ id, connected, disabled, config, onText, onBusy, sendOnTranscribe = false, transcriber = transcribeDesktopAudio }: {
   id: string; connected: boolean; disabled: boolean; config?: DictationInfo
+  sendOnTranscribe?: boolean
   transcriber?: typeof transcribeDesktopAudio
   onText: (text: string, recordingId: string) => void | Promise<void>; onBusy: (busy: boolean) => void
 }) {
@@ -115,7 +116,7 @@ export default function VoiceInput({ id, connected, disabled, config, onText, on
   return <div className={`dictation-voice ${phase}`}>
     <button type="button" className="dictation-mic" aria-label={phase === 'recording' ? 'Stop recording and transcribe' : 'Dictate a message'} title="Dictate a message" disabled={phase !== 'recording' && (disabled || !connected || !recovered || phase !== 'idle')} onClick={() => phase === 'recording' ? stop() : void start()}><Icon name={phase === 'recording' ? 'stop' : 'mic'} /></button>
     {phase !== 'idle' && <div className="dictation-voice-panel" role="status">
-      <span>{phase === 'permission' ? 'Allow microphone access…' : phase === 'recording' ? `Recording ${clock} · tap Stop when finished` : phase === 'transcribing' ? 'Transcribing… Your message will stay a draft.' : `Saved recording · ${clock}`}</span>
+      <span>{phase === 'permission' ? 'Allow microphone access…' : phase === 'recording' ? `Recording ${clock} · tap Stop when finished` : phase === 'transcribing' ? (sendOnTranscribe ? 'Transcribing... Your message will be sent to Alpha.' : 'Transcribing... Your message will stay a draft.') : `Saved recording · ${clock}`}</span>
       {phase === 'recording' && <button type="button" onClick={() => stop(true)}>Cancel recording</button>}
       {phase === 'saved' && <div><button type="button" disabled={!connected || disabled} onClick={() => recording && void transcribe(recording)}>Transcribe recording</button><button type="button" onClick={download}>Download audio</button><button type="button" onClick={() => void remove()}>Discard recording</button></div>}
       {phase === 'recording' && <small>Up to {config?.maxSeconds || 120} seconds. Transcription uses {config?.provider === 'local' ? 'local Whisper on your computer; no API credit' : config?.provider === 'openrouter' ? 'OpenRouter API credit' : 'OpenAI API credit'}.</small>}

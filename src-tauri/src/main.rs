@@ -412,6 +412,7 @@ fn main() {
                             }
                         },
                         "reveal" => { if let Some(file) = event["path"].as_str() { let _ = external_links::reveal_path(file); } },
+                        "open-target" => { if let (Some(kind), Some(target)) = (event["kind"].as_str(), event["target"].as_str()) { let _ = external_links::open_target(kind, target); } },
                         _ => {}
                     }
                 }

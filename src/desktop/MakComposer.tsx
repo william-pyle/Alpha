@@ -9,10 +9,11 @@ import { useDictation } from './useDictation'
 
 const maxImages = 12
 
-export default function MakComposer({ connected, sending, onSend }: {
+export default function MakComposer({ connected, sending, onSend, autoSendVoice = false }: {
   connected: boolean
   sending: boolean
   onSend: (text: string, images: string[]) => Promise<void>
+  autoSendVoice?: boolean
 }) {
   const [voiceBusy, setVoiceBusy] = useState(false)
   const { info: dictation } = useDictation()
@@ -62,9 +63,9 @@ export default function MakComposer({ connected, sending, onSend }: {
       <textarea value={draft} rows={2} onChange={event => setDraft(event.target.value)} placeholder="Or tell Alpha here…" aria-label="Message Alpha" aria-describedby="mak-compose-hint" disabled={disabled}
         onPaste={event => { const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (files.length) { event.preventDefault(); void attach(files) } }}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
-      <VoiceInput id="desktop-mak" connected={connected} disabled={disabled} config={dictation} transcriber={transcribeDesktopAudio} onBusy={setVoiceBusy} onText={(text, recordingId) => { if (voiceIds.current.has(recordingId)) return; voiceIds.current.add(recordingId); setDraft(current => current ? `${current}\n${text}` : text) }} />
+      <VoiceInput id={autoSendVoice ? 'desktop-alpha-conversation' : 'desktop-mak'} connected={connected} disabled={disabled} config={dictation} transcriber={transcribeDesktopAudio} onBusy={setVoiceBusy} sendOnTranscribe={autoSendVoice} onText={async (text, recordingId) => { if (voiceIds.current.has(recordingId)) return; if (autoSendVoice) await onSend(text, []); else setDraft(current => current ? `${current}\n${text}` : text); voiceIds.current.add(recordingId) }} />
       <button type="submit" title="Send to Alpha" aria-label="Send to Alpha" disabled={disabled || voiceBusy || (!draft.trim() && !images.length)}><Icon name="send" size={17} /></button>
     </form>
-    <div className="voice-compose-hint" id="mak-compose-hint" role="status">{uploading ? 'Saving images in inbox…' : 'Enter to send · Shift+Enter for a new line · Paste images'}</div>
+    <div className="voice-compose-hint" id="mak-compose-hint" role="status">{uploading ? 'Saving images in inbox...' : autoSendVoice ? 'Tap the microphone, speak, then tap Stop to send. Enter sends typed text.' : 'Enter to send. Shift+Enter adds a new line. Paste images.'}</div>
   </div>
 }

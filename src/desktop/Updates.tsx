@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, onServiceEvent } from './client'
+import RestartPlan from './RestartPlan'
 type Update = { status: string; currentVersion: string; version?: string; releaseUrl?: string; percent?: number; error?: string }
 export default function Updates({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<Update | null>(null), [busy, setBusy] = useState(false), [dismissed, setDismissed] = useState('')
@@ -26,5 +27,6 @@ export default function Updates({ compact = false }: { compact?: boolean }) {
       {compact && <button className="desk-secondary" onClick={() => setDismissed(state.version || '')}>Later</button>}
     </div>
     {!compact && <p>Checks GitHub when Alpha starts and every six hours. Downloads and restarts happen only when you choose them.</p>}
+    {!compact && <RestartPlan />}
   </section>
 }

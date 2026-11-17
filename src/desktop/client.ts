@@ -15,7 +15,7 @@ const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
   ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [], questions: [],
-  settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], preview: null, voiceHistory: [],
+  settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], replies: [], speech: { speaking: false, error: null }, preview: null, voiceHistory: [],
 }
 let socket: WebSocket | null = null
 let started = false
@@ -112,6 +112,8 @@ function connect() {
       const operation = event.operation
       update({ operations: [...state.operations.filter(item => item.id !== operation.id), operation].slice(-50) })
     }
+    if (event.type === 'reply' && event.reply) update({ replies: [...state.replies.filter(item => item.id !== event.reply!.id), event.reply].slice(-200) })
+    if (event.type === 'speech' && event.speech) update({ speech: event.speech })
     if (event.type === 'settings' && event.settings) update({ settings: event.settings })
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
     if (event.type === 'questions' && event.questions) update({ questions: event.questions })

@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. The current release is **0.2.15**.
+knowledge into one Windows desktop window. Version **0.2.16** adds a dedicated conversation, local speech, common agents and restart notes.
 
 ## What you can do
 
@@ -32,11 +32,11 @@ knowledge into one Windows desktop window. The current release is **0.2.15**.
 
 ## Install
 
-Download [Alpha 0.2.15 for Windows x64](https://github.com/william-pyle/Alpha/releases/tag/v0.2.15).
+Download the [latest Alpha for Windows x64](https://github.com/william-pyle/Alpha/releases/latest).
 The installer includes the application, local service and Node runtime, terminal
 libraries, three built-in themes, Help and the shared library. It installs WebView2 if
-needed. Choose the MSI for a fresh installation. Existing NSIS installations can
-update through Alpha to receive the transition installer. The installers are
+needed. Releases use MSI installers. Existing 0.2.14 installations first use the
+0.2.15 transition release; 0.2.15 can update directly to MSI. Installers are
 currently unsigned.
 
 Installation also sets up Local Whisper for offline desktop dictation.
@@ -66,7 +66,9 @@ apply it on Alpha's next normal launch. A copy keeps the original folder.
 
 ## Use Alpha
 
-Choose **New chat**, select a launcher and working folder, then name the chat.
+Choose **New chat**, select a launcher, working folder and project, then name the
+chat. If you leave the project unspecified, answer Alpha in **Questions** before
+sending work. The selected project is saved with that conversation.
 In the message editor, **Enter sends** and **Alt+Enter adds a line**. Drag the
 divider between the terminal and editor to change their heights. **Always
 approve** is available for agent chats and as a saved default in Settings; it
@@ -86,7 +88,7 @@ install a downloaded update.
 
 ## Skills and knowledge
 
-The installer carries 21 reusable skill folders with supporting knowledge,
+The installer carries 22 reusable skill folders with supporting knowledge,
 workflows, scripts and report assets. Open **Settings → Skills** to browse them.
 Read a skill's full instructions before using it. Optional tools, packages and
 provider accounts are separate.
@@ -103,6 +105,43 @@ The installed library is under
 and replace unchanged defaults. Local edits and deletions are preserved, with
 incoming conflicts available for review. See the [library guide](shared-library/LIBRARY.md)
 and [skill index](shared-library/docs/skills.md).
+
+## 0.2.16
+
+The separate scrolling conversation shows your messages and completed replies;
+terminal work stays in Chats. **Speak replies** uses installed Windows voices,
+without an API key. Settings → Voice selects the voice and automatic speaking.
+The conversation microphone sends local Whisper dictation directly to Alpha.
+GPT-Live remains available when its API configuration is present. Microphone and
+speaker access depend on Windows permissions and the selected audio devices.
+
+**What I've learned** stores reusable preferences and corrections locally. You
+can add, edit or forget them. Alpha includes these lessons in future coordinator
+turns and coding handoffs; live voice picks them up on its next connection.
+This improves retained context and behavior, not the underlying model weights.
+The editable personality encourages curiosity, useful suggestions and candid
+discussion of tradeoffs.
+
+**Tools → Common agents** opens reusable roles for Workspace upkeep, build
+verification, release preparation, web deployment, research and Rust Windows
+engineering. Alpha observes completed task requests, recognizes repeated work
+across projects and maintains versioned instructions from failure feedback.
+Additional roles require evidence from three tasks across two projects. You
+can run, disable, revise or roll back a role and exclude projects. A completed
+turn remains unverified until its result is accepted. Automatic maintenance
+can update role definitions; it cannot launch project work, publish or install.
+**Tools → Alpha health** shows observed request timings and problems with a
+proposed next step. Questions from Alpha and agent chats share the Questions area.
+
+Workspace cards can define managed tools with **Start**, **Stop**, readiness
+state and **Launch** controls. Alpha stops only processes it owns and identifies;
+externally observed services remain visible without being claimed as managed.
+Tool definitions and project-specific commands stay in the Workspace registry.
+
+In **Settings → Updates → Resume work after restarting**, save a note for an
+existing Codex conversation. On the next launch, Alpha resumes that exact native
+conversation with the note once. Status distinguishes dispatch, observed resume
+and a completed reply. An uncertain launch does not repeatedly replay the note.
 
 ## 0.2.15
 

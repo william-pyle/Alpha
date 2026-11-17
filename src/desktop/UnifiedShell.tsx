@@ -7,7 +7,8 @@ import { FilePreview } from './FilesRail'
 import QuestionsPanel from './QuestionsPanel'
 import SettingsDialog from './SettingsDialog'
 import NewCard from '../components/NewCard'
-import VoiceDock from './VoiceDock'
+import ConversationPane from './ConversationPane'
+import AgentCenter from './AgentCenter'
 import { categoryIcon } from '../lib/categories'
 import { contentUrl } from './client'
 import { Icon, Nose } from './Icons'
@@ -26,10 +27,10 @@ export default function UnifiedShell() {
   const [active, setActive] = useState('workspace')
   const [menu, setMenu] = useState<string | null>(null)
   const [settings, setSettings] = useState(false)
+  const [agentCenter, setAgentCenter] = useState<'Agents' | 'Health' | null>(null)
   const [chatsVisible, setChatsVisible] = useState(true)
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'alpha'>('chat')
   const [archiveVisible, setArchiveVisible] = useState(false)
-  const [microphoneVisible, setMicrophoneVisible] = useState(() => localStorage.getItem('alpha.workspaceMicrophoneVisible') === '1')
   const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 390)
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
@@ -97,15 +98,16 @@ export default function UnifiedShell() {
     if (action === 'close-document') close(activeTab)
     if (action === 'chats') setChatsVisible(value => !value)
     if (action === 'archive') setArchiveVisible(value => { window.dispatchEvent(new CustomEvent('alpha-show-archive', { detail: !value })); return !value })
-    if (action === 'microphone') setMicrophoneVisible(value => { localStorage.setItem('alpha.workspaceMicrophoneVisible', value ? '0' : '1'); return !value })
     if (action === 'questions') window.dispatchEvent(new Event('alpha-toggle-questions'))
     if (action === 'settings') setSettings(true)
+    if (action === 'common-agents') setAgentCenter('Agents')
+    if (action === 'health') setAgentCenter('Health')
     if (action === 'help') void openHelp()
   }
   const menuItems: Record<string, Array<[string, string]>> = {
     File: [['New card', 'new-card'], ['Open file…', 'open-file'], ['Close document', 'close-document']],
-    View: [['Workspace', 'workspace'], [chatsVisible ? 'Hide Chats' : 'Show Chats', 'chats'], [archiveVisible ? 'Hide archive' : 'Show archive', 'archive'], [microphoneVisible ? 'Hide microphone' : 'Show microphone', 'microphone'], ['Questions', 'questions']],
-    Tools: [['Settings…', 'settings']],
+    View: [['Workspace', 'workspace'], [chatsVisible ? 'Hide Chats' : 'Show Chats', 'chats'], [archiveVisible ? 'Hide archive' : 'Show archive', 'archive'], ['Questions', 'questions']],
+    Tools: [['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings…', 'settings']],
     Help: [['Open Help', 'help']],
   }
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -131,11 +133,12 @@ export default function UnifiedShell() {
     <div className="mdi-body">
       {chatsVisible && <><aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><div className="mdi-sidebar-tabs" role="tablist" aria-label="Sidebar"><button id="mdi-chat-tab" type="button" role="tab" aria-controls="mdi-chat-panel" aria-selected={sidebarTab === 'chat'} onClick={() => setSidebarTab('chat')}>Chat</button><button id="mdi-alpha-tab" type="button" role="tab" aria-controls="mdi-alpha-panel" aria-selected={sidebarTab === 'alpha'} onClick={() => setSidebarTab('alpha')}>Alpha</button></div><div className="mdi-sidebar-panels"><div id="mdi-chat-panel" role="tabpanel" aria-labelledby="mdi-chat-tab" className="mdi-chat-panel" style={{ visibility: sidebarTab === 'chat' ? 'visible' : 'hidden' }}><Suspense fallback={<div className="desk-muted">Opening Chats…</div>}><Chats embedded visible={sidebarTab === 'chat'} /></Suspense></div>{sidebarTab === 'alpha' && <div id="mdi-alpha-panel" role="tabpanel" aria-labelledby="mdi-alpha-tab" className="mdi-alpha-panel"><Suspense fallback={<div className="desk-muted">Opening Alpha…</div>}><AlphaPresence /></Suspense></div>}</div></aside><div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} /></>}
       <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button role="tab" type="button" aria-selected={active === tab.id} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span></button>{tab.kind !== 'workspace' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><App mdi />{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
+      <ConversationPane />
     </div>
     <QuestionsPanel />
-    <div hidden={!microphoneVisible}><VoiceDock /></div>
     <NewCard hideTrigger />
     <footer className="mdi-statusbar"><span><i className={state.connected ? 'connected-dot' : 'disconnected-dot'} />{state.connected ? 'Connected' : 'Reconnecting'}</span><span>{title(activeTab)}</span><span>{state.sessions.find(item => item.id === state.selectedId)?.name || 'No chat selected'}</span><span>{state.questions.length} questions</span><span className="mdi-status-path" title={state.repo}>{state.repo}</span></footer>
     {settings && <SettingsDialog onClose={() => setSettings(false)} />}
+    {agentCenter && <AgentCenter initialTab={agentCenter} onClose={() => setAgentCenter(null)} />}
   </div>
 }

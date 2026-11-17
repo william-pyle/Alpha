@@ -40,6 +40,19 @@ test('native activity separates accepted tasks, tool work, final answers and int
   assert.equal(nativeActivity({ type: 'assistant', message: { stop_reason: 'end_turn' } }, 'kimi'), null);
 });
 
+test('only a verified final agent message enters the separate replies feed', async () => {
+  const { sessions, item } = await fixture();
+  const replies = [];
+  sessions.on('reply', reply => replies.push(reply));
+  try {
+    sessions.nativeEvent(item, { kind: 'turn-started' });
+    sessions.nativeEvent(item, nativeActivity({ type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1', last_agent_message: 'The patch is ready.' } }, 'codex'));
+    sessions.nativeEvent(item, nativeActivity({ type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1', last_agent_message: 'The patch is ready.' } }, 'codex'));
+    assert.deepEqual(replies.map(reply => reply.text), ['The patch is ready.']);
+    assert.equal(replies[0].sessionId, 'chat-a');
+  } finally { await sessions.close(); }
+});
+
 test('unread answers survive new work and restart; stale acknowledgements and duplicate completions are ignored', async () => {
   const { repo, sessions, item } = await fixture();
   let restored;

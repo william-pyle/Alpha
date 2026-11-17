@@ -43,6 +43,9 @@ try {
   await settings.getByRole('tab', { name: 'Voice', exact: true }).click();
   assert.equal(await settings.getByLabel('Spoken voice').locator('option').count(), 38);
   await settings.getByLabel('Spoken voice').selectOption('willow');
+  await expect(settings.getByLabel('Windows reply voice').locator('option').first()).toHaveText('System default');
+  await settings.getByLabel('Conversation personality').fill('Curious, inventive, and friendly.');
+  await settings.getByRole('button', { name: 'Save conversation personality' }).click();
   await settings.getByLabel('Voice personality').fill('A calm, clear voice that speaks English.');
   await settings.getByRole('button', { name: 'Save personality' }).click();
   await settings.getByRole('tab', { name: 'Updates', exact: true }).click();
@@ -81,6 +84,7 @@ try {
   assert.deepEqual(errors, []);
   const saved = JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'), 'utf8'));
   assert.equal(saved.voiceName, 'willow'); assert.equal(saved.voiceStyle, 'A calm, clear voice that speaks English.');
+  assert.equal(saved.conversationStyle, 'Curious, inventive, and friendly.');
   assert.equal(saved.themeProfiles.length, 0);
   console.log('Settings cleanup UI passed: separate sections, Whisper actions, 38 voices, updates, theme edit/create/delete and narrow layout.');
 } finally { await browser?.close(); await service.close(); }

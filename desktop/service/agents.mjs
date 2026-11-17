@@ -68,9 +68,10 @@ export function nativeConversationId(value) {
   return value;
 }
 
-export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog } = {}) {
+export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt } = {}) {
   if (!AGENTS.some(item => item.id === agent)) throw new Error('Unknown agent');
   resumeId = nativeConversationId(resumeId); nativeId = nativeConversationId(nativeId);
+  if (initialPrompt !== undefined && (agent !== 'codex' || !resumeId || typeof initialPrompt !== 'string' || !initialPrompt.trim() || initialPrompt.length > 16000)) throw new Error('A restart prompt requires a saved Codex conversation and a bounded note.');
   const command = agent === 'shell' ? shellCommand() : agent === 'gitbash' ? { file: gitBashPath(), args: ['--login', '-i'] } : { file: commandPath(AGENTS.find(item => item.id === agent).command), args: [] };
   if (!command || !command.file) throw new Error(`${agent} is not installed on this computer`);
   if (agent === 'shell' && (path.isAbsolute(command.file) ? !existsSync(command.file) : !commandPath(command.file))) throw new Error('The local shell is not available on this computer');
@@ -101,6 +102,7 @@ export function terminalCommand(agent, { bypass = false, resumeId, nativeId, eff
     if (resumeId) args.push('--session', resumeId);
     if (bypass) args.push('--auto');
   }
+  if (initialPrompt) args.push('--', initialPrompt);
   if (!isWindows || ['shell', 'gitbash'].includes(agent)) return { file: command.file || command, args: [...(command.args || []), ...args] };
   // No -NoExit: stale coordinator input cannot become shell commands after the agent exits.
   return wrapCommand(command.file, [...(command.args || []), ...args]);

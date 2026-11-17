@@ -46,3 +46,19 @@ test('persists pending questions and clears one only after its answer reaches th
   await restored.close();
   assert.equal((await new Questions(root).init()).list().length, 0);
 });
+
+test('Alpha questions persist, deduplicate and resume once without sending an answer to a terminal', async () => {
+  const root = await mkdtemp(path.resolve('.test-output/alpha-questions-'));
+  const questions = await new Questions(root).init();
+  const question = await questions.ask({ text: 'Which approach should I use?', options: ['Small change', 'Larger redesign'], sourceId: 'operation-one', operationId: 'operation-one', context: 'Improve the layout.' });
+  await questions.captureAlpha({ id: 'operation-one', text: 'Improve the layout.', result: question.text });
+  assert.equal(questions.list().length, 1);
+  const restored = await new Questions(root).init();
+  let resumes = 0;
+  const sessions = { get: () => { throw new Error('Must not address a terminal for an Alpha question'); } };
+  await assert.rejects(restored.answer(question.id, 'Small change', sessions, async () => { throw new Error('Temporary coordinator failure'); }), /Temporary/);
+  assert.equal(restored.list().length, 1);
+  const resume = async (item, answer) => { resumes++; assert.equal(item.context, 'Improve the layout.'); assert.equal(answer, 'Small change'); await new Promise(resolve => setTimeout(resolve, 10)); };
+  await Promise.all([restored.answer(question.id, 'Small change', sessions, resume), restored.answer(question.id, 'Small change', sessions, resume)]);
+  assert.equal(resumes, 1); assert.equal(restored.list().length, 0);
+});

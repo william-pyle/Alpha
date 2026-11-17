@@ -10,6 +10,8 @@ Project skills of the same name take precedence over shared skills.
 - `knowledge/`: general reusable knowledge, including future additions.
 - `knowledge/mailcraft-mcp.md`: MailCraft CLI, MCP bridge, and owner approval behavior.
 - `processes/`: reusable workflows.
+- `.agents/skills/common-agent-maintenance/`: evidence-based upkeep of Alpha's common agents.
+- `common-agents/registry.json`: locally maintained reusable agent definitions and versions, created by Alpha at runtime; never copied into the release package.
 - `scripts/`: supporting helpers; optional dependencies are documented alongside them.
 - `workspace/_shared/`: common report templates to copy into a project when missing.
 - `docs/skills.md`: the skill index.

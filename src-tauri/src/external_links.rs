@@ -62,6 +62,34 @@ pub fn reveal_path(path: &str) -> Result<(), String> {
     }
 }
 
+pub fn open_target(kind: &str, target: &str) -> Result<(), String> {
+    if kind == "url" {
+        let url = tauri::Url::parse(target).map_err(|error| error.to_string())?;
+        return open_browser(&url);
+    }
+    let path = std::path::Path::new(target);
+    if !path.is_absolute() || !path.exists() || (kind == "file" && !path.is_file()) || (kind == "folder" && !path.is_dir()) || !matches!(kind, "file" | "folder") {
+        return Err("Tool launch target is not an existing file or folder.".into());
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::{System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED}, UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL}};
+        let verb: Vec<u16> = "open\0".encode_utf16().collect();
+        let target: Vec<u16> = target.encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            let initialized = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED as u32);
+            let result = ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), target.as_ptr(), std::ptr::null(), std::ptr::null(), SW_SHOWNORMAL) as isize;
+            if initialized >= 0 { CoUninitialize(); }
+            if result > 32 { Ok(()) } else { Err(format!("Windows could not open this target (code {result}).")) }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let program = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+        std::process::Command::new(program).arg(target).spawn().map(|_| ()).map_err(|error| error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

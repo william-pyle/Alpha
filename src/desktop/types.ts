@@ -1,6 +1,7 @@
 export type AgentId = 'codex' | 'claude' | 'shell' | 'gitbash'
 export interface AgentInfo { id: AgentId; label: string; color: string; available: boolean; subscription: boolean }
 export interface ChatSession {
+  projectId?: string | null; projectPending?: boolean
   id: string; name: string; agent: AgentId; cwd: string; bypass: boolean
   effort?: 'medium' | 'high' | 'xhigh' | 'max'
   status: 'starting' | 'running' | 'stopped' | 'exited'; createdAt: string
@@ -11,10 +12,12 @@ export interface ChatSession {
   open: boolean; pinned: boolean; updatedAt: string; preview?: string; hasConversation?: boolean; restoreError?: string | null
 }
 export interface Notice { id: string; sessionId: string; name: string; kind: string; text: string; at: string }
-export interface ChatQuestion { id: string; sessionId: string; chatName: string; text: string; options: string[]; status: 'pending'; createdAt: string }
-export interface Operation { id: string; text: string; status: string; result?: string; at: string; images?: string[] }
+export interface ChatQuestion { id: string; sessionId: string; source?: 'coordinator' | 'maintenance' | 'project'; chatName: string; text: string; options: string[]; status: 'pending'; createdAt: string }
+export interface Operation { id: string; text: string; status: string; result?: string; at: string; images?: string[]; origin?: string }
 export interface ThemeProfile { id: string; label: string; controller: string; icon: string; backdrop: string; background: string; foreground: string; accent: string }
-export interface Settings { appTheme?: string; themeProfiles?: ThemeProfile[]; defaultAgent: AgentId; transcribeProvider?: 'local' | 'openai' | 'openrouter' | 'off'; defaultBypass: boolean; terminalFontSize?: number; terminalAppearance?: 'focus' | 'original'; workspaceTheme?: 'dark' | 'light' | 'system'; workspaceRoute?: string | null; selectedId?: string | null; chatSidebarWidth?: number; chatEditorHeights?: Record<string, number>; coordinatorEffort?: 'medium' | 'high'; voiceName?: string; voiceStyle?: string }
+export interface Settings { appTheme?: string; themeProfiles?: ThemeProfile[]; defaultAgent: AgentId; transcribeProvider?: 'local' | 'openai' | 'openrouter' | 'off'; defaultBypass: boolean; terminalFontSize?: number; terminalAppearance?: 'focus' | 'original'; workspaceTheme?: 'dark' | 'light' | 'system'; workspaceRoute?: string | null; selectedId?: string | null; chatSidebarWidth?: number; chatEditorHeights?: Record<string, number>; coordinatorEffort?: 'medium' | 'high'; voiceName?: string; voiceStyle?: string; conversationStyle?: string; speakReplies?: boolean; speechVoice?: string }
+export interface AgentReply { id: string; sessionId: string; name: string; text: string; at: string }
+export interface SpeechState { speaking: boolean; error: string | null }
 export interface VoiceOwner { clientId: string; surface: 'chats' | 'workspace' }
 export interface FileEntry { name: string; path: string; directory: boolean; size: number; modifiedAt: string | null }
 export interface Folder { path: string; parent: string; entries: FileEntry[]; truncated: boolean; mode: string }
@@ -25,10 +28,12 @@ export interface DesktopState {
   agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]; questions: ChatQuestion[]
   settings: Settings; coordinator: string; voice: { configured: boolean; owner: VoiceOwner | null }
   operations: Operation[]; preview: Preview | null
+  replies: AgentReply[]; speech: SpeechState
   voiceHistory: { id: string; at: string; captions: { role: 'user' | 'assistant'; text: string; start: number; end: number }[] }[]
 }
 export interface ServiceEvent {
-  type: string; id?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
+  type: string; id?: string; cardId?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
   operation?: Operation; settings?: Settings; owner?: VoiceOwner | null; window?: string; route?: string; preview?: Preview; questions?: ChatQuestion[]
+  reply?: AgentReply; speech?: SpeechState
 }

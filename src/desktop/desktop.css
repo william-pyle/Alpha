@@ -171,3 +171,5 @@ html[data-alpha-theme][data-workspace-theme=light] .question-card footer .questi
 .terminal-dictation .dictation-voice-panel small{display:block;margin-top:8px;color:#b6aabe}
 .terminal-dictation .dictation-voice-panel button{margin:8px 5px 0 0;padding:6px;border:1px solid #503648;background:#302332;color:var(--text);border-radius:4px}
 .terminal-dictation .saved .dictation-voice-error{top:155px}
+.alpha-restart-plan{margin-top:18px;border-top:1px solid var(--hairline-strong);padding-top:12px}.alpha-restart-plan summary{cursor:pointer;font-weight:600}.alpha-restart-plan label{display:flex;flex-direction:column;gap:6px;margin:10px 0}.alpha-restart-plan textarea,.alpha-restart-plan select{background:var(--bg);color:var(--text);border:1px solid var(--hairline-strong);padding:8px;font:inherit}.alpha-restart-plan article{margin-top:12px;padding:10px;border:1px solid var(--hairline);border-radius:6px}.alpha-restart-plan article p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.question-card select,.desk-field select{max-width:100%;padding:8px;border:1px solid var(--hairline-strong);background:var(--bg);color:var(--text);border-radius:5px;font:inherit}

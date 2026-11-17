@@ -117,7 +117,7 @@ export default function AlphaPresence() {
     </div>
     <video ref={video} className="alpha-camera-video" muted playsInline aria-hidden="true" />
     <div className="alpha-presence-controls">
-      <button type="button" className={voiceActive ? 'active' : ''} disabled={!desktop.connected || live.status === 'closing'} onClick={() => voiceActive ? liveVoice.stop() : liveVoice.start()}>{voiceActive ? 'Stop voice' : 'Talk to Alpha'}</button>
+      <button type="button" className={voiceActive ? 'active' : ''} disabled={!desktop.connected || live.status === 'closing'} onClick={() => { if (desktop.voice.configured) { if (voiceActive) liveVoice.stop(); else liveVoice.start() } else document.querySelector<HTMLButtonElement>('.alpha-conversation-pane .dictation-mic')?.click() }}>{voiceActive ? 'Stop voice' : 'Talk to Alpha'}</button>
       <button type="button" aria-pressed={cameraEnabled} onClick={() => setCameraEnabled(value => !value)}>{cameraEnabled ? 'Camera on' : 'Camera off'}</button>
       {cameraEnabled && (camera === 'blocked' || camera === 'unavailable') && <button type="button" onClick={() => setCameraAttempt(value => value + 1)}>Retry camera</button>}
     </div>

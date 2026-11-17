@@ -49,6 +49,7 @@ try {
   assert.equal(await page.locator('.agent-choice').count(), 4);
   await page.getByRole('button', { name: /^Git Bash/ }).click();
   await page.getByLabel(/Chat name/).fill('Git Bash check');
+  await page.getByLabel('Project for new chat').selectOption('example');
   await page.getByRole('button', { name: 'Open chat', exact: true }).click();
   await expect.poll(async () => (await call('/bootstrap')).sessions.length).toBe(1);
   const session = (await call('/bootstrap')).sessions[0];

@@ -29,6 +29,7 @@ export function nativeActivity(record, agent) {
     if (ask && Array.isArray(ask.input?.questions)) return { kind: 'question', id: ask.id, questions: ask.input.questions.map(item => ({ text: item.question, options: item.options || [] })) };
   }
   if (agent === 'codex' && record.type === 'event_msg') {
+    if (record.payload?.type === 'user_message' && typeof record.payload.message === 'string') return { kind: 'task-input', text: record.payload.message };
     if (record.payload?.type === 'task_started') return { kind: 'turn-started' };
     if (record.payload?.type === 'turn_aborted') return { kind: 'turn-interrupted' };
   }
@@ -38,7 +39,10 @@ export function nativeActivity(record, agent) {
       const interrupted = value => typeof value === 'string' && value.startsWith('[Request interrupted by user');
       if (interrupted(content) || Array.isArray(content) && content.some(item => item.type === 'text' && interrupted(item.text))) return { kind: 'turn-interrupted' };
       // Tool results also confirm ongoing work; file snapshots and metadata do not.
-      if (content) return { kind: 'turn-started' };
+      if (content) {
+        const taskText = typeof content === 'string' ? content : Array.isArray(content) ? content.filter(item => item.type === 'text').map(item => item.text).join('\n') : '';
+        return { kind: 'turn-started', ...(taskText ? { taskText } : {}) };
+      }
     }
     if (record.type === 'assistant' && record.message?.stop_reason !== 'end_turn') return { kind: 'turn-started' };
   }
