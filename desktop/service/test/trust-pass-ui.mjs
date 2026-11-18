@@ -103,11 +103,14 @@ try {
   await ownership.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(() => service.threads.get(created.id).projectId).toBe('fixture'); await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   await page.locator(`#conversation-tab-${created.id}`).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${created.id}`);
   await menu('Conversation details');
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue(created.name);
   await page.getByLabel('Title', { exact: true }).fill('Startup evidence review');
   await page.getByLabel('Purpose', { exact: true }).fill('Compare startup checks with recorded evidence');
   await page.getByRole('button', { name: 'Save details' }).click();
   await expect.poll(() => service.threads.get(created.id).purpose).toBe('Compare startup checks with recorded evidence');
+  assert.equal(service.threads.get(b.id).purpose, 'Review a decision');
   await editor.fill('Preserved draft');
   await expect.poll(() => service.threads.get(created.id).draft?.text).toBe('Preserved draft');
   await page.screenshot({ path: path.join(repo, 'conversation-metadata.png') });

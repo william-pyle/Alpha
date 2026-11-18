@@ -147,6 +147,7 @@ try {
   checks.push('Questions: options/free text, immediate last-question removal while continuation pending, persisted audit, duplicate prevention, retryable failure/draft reload, multiple pending, event-driven answer, concurrent arrival and cross-thread routing; focus returns to composer.');
 
   await page.locator(`#conversation-tab-${a.id}`).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${a.id}`);
   const idle = service.sessions.get((await service.sessions.create({ agent: 'shell', name: 'Idle fixture', cwd: repo, projectId: 'fixture' })).id);
   // An isolated shell fixture only; no production worker is accessed.
   idle.status = 'running'; idle.activity = 'idle'; idle.nativeId = 'exact-native-fixture';

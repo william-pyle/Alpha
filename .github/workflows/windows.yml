@@ -30,6 +30,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Alpha-UI-failure-evidence
+          include-hidden-files: true
           path: |
             .test-output/*/failure.png
             .test-output/*/failure.json
