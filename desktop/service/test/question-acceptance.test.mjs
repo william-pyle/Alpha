@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { Questions } from '../questions.mjs';
+
+await mkdir('.test-output', { recursive: true });
 
 test('durable acceptance clears before continuation finishes; duplicate retries never repeat work', async () => {
   const root = await mkdtemp('.test-output/question-acceptance-');
