@@ -16,6 +16,14 @@ const templates = [
 export const taskFamily = text => templates.find(item => item.pattern.test(String(text || '').slice(0, 1200)))?.id || null;
 const revision = (instructions, reason, version = 1) => ({ version, instructions, reason, createdAt: new Date().toISOString() });
 
+export function outcomeSummary(runs, version) {
+  const selected = runs.filter(run => version == null || run.version === version);
+  const failures = selected.flatMap(run => (run.feedbackHistory || (run.outcome === 'needs-fix' ? [{ outcome: 'needs-fix', failureKey: run.feedback }] : [])).filter(item => item.outcome === 'needs-fix').map(item => ({ taskId: run.id, key: item.failureKey || 'unspecified' })));
+  const groups = new Map();
+  for (const failure of failures) { if (!groups.has(failure.key)) groups.set(failure.key, new Set()); groups.get(failure.key).add(failure.taskId); }
+  return { runs: selected.length, unverified: selected.filter(run => run.outcome === 'completed-unverified').length, accepted: selected.filter(run => run.outcome === 'accepted').length, verified: selected.filter(run => run.outcome === 'verified' && run.evidence?.reference).length, needsFix: selected.filter(run => run.outcome === 'needs-fix').length, corrections: failures.length, repeatFailures: [...groups].filter(([, ids]) => ids.size > 1).map(([key, ids]) => ({ key, taskIds: [...ids] })) };
+}
+
 export class CommonAgents {
   constructor({ stateDir, libraryRoot, changed = () => {}, onError = () => {} }) {
     this.file = path.join(libraryRoot || stateDir, 'common-agents', 'registry.json');
@@ -52,7 +60,10 @@ export class CommonAgents {
     await saveJson(this.scopeFile, this.scope); this.changed(); return this.scope;
   }
   list() {
-    return this.agents.map(agent => ({ ...agent, runs: this.tasks.filter(task => this.allows(task.project, task.task) && task.agentId === agent.id), instructions: agent.versions.find(item => item.version === agent.activeVersion)?.instructions || '', maintenanceNeeded: this.tasks.some(task => this.allows(task.project, task.task) && task.agentId === agent.id && task.outcome === 'needs-fix' && !task.reviewedAt) }));
+    return this.agents.map(agent => {
+      const runs = this.tasks.filter(task => this.allows(task.project, task.task) && task.agentId === agent.id);
+      return { ...agent, runs, outcomes: outcomeSummary(runs), versionOutcomes: agent.versions.map(item => ({ version: item.version, ...outcomeSummary(runs, item.version) })), instructions: agent.versions.find(item => item.version === agent.activeVersion)?.instructions || '', maintenanceNeeded: runs.some(task => task.outcome === 'needs-fix' && !task.reviewedAt) };
+    });
   }
   patterns() {
     return templates.map(template => {
@@ -60,7 +71,7 @@ export class CommonAgents {
       return { id: template.id, name: template.name, observations: tasks.length, projects: new Set(tasks.map(task => task.project)).size, evidenceIds: tasks.map(task => task.id), agentCreated: this.agents.some(agent => agent.family === template.id) };
     }).filter(item => item.observations);
   }
-  candidates() { return this.tasks.filter(task => this.allows(task.project, task.task) && task.completedAt).slice(-60).map(({ id, project, task, family, outcome, feedback }) => ({ id, project, task, family, outcome, feedback })); }
+  candidates() { return this.tasks.filter(task => this.allows(task.project, task.task) && task.completedAt).slice(-60).map(({ id, project, task, family, agentId, version, outcome, feedback, evidence, feedbackHistory, provenance }) => ({ id, project, task, family, agentId, version, outcome, feedback, evidence, feedbackHistory, provenance })); }
   match(text) { const family = taskFamily(text); return family ? this.agents.find(agent => agent.enabled && agent.family === family) || null : null; }
   instructions(id) {
     const agent = this.get(id); if (!agent.enabled) throw fail('This common agent is disabled.');
@@ -81,6 +92,7 @@ export class CommonAgents {
     this.pending.delete(session.id);
     if (!this.allows(record.project, record.task)) { await this.persist(); return null; }
     record.completedAt = new Date().toISOString(); record.completionId = event.id; record.outcome = 'completed-unverified';
+    record.provenance = { source: 'native-turn-completed', sessionId: session.id, completionId: event.id || null, agentId: record.agentId, version: record.version };
     record.durationMs = Date.parse(record.completedAt) - Date.parse(record.startedAt);
     this.tasks.push(record); this.tasks = this.tasks.slice(-500);
     for (const pattern of this.patterns()) {
@@ -100,12 +112,15 @@ export class CommonAgents {
     this.agents.push(agent); await this.persist(); return agent;
   }
   validateInstructions(value) { if (typeof value !== 'string' || value.trim().length < 80 || value.length > 10000) throw fail('Agent instructions must contain between 80 and 10000 characters.'); }
-  async revise(id, { instructions, reason }) {
+  async revise(id, { instructions, reason, evidenceIds }) {
     const agent = this.get(id); this.validateInstructions(instructions);
     if (typeof reason !== 'string' || reason.trim().length < 10 || reason.length > 1000) throw fail('Explain the evidence and purpose for this revision.');
+    if (evidenceIds !== undefined && (!Array.isArray(evidenceIds) || evidenceIds.some(value => typeof value !== 'string'))) throw fail('Use existing task evidence IDs for this role.');
+    const evidence = this.tasks.filter(task => task.agentId === id && this.allows(task.project, task.task) && task.completedAt && (evidenceIds ? evidenceIds.includes(task.id) : task.outcome === 'needs-fix' && !task.reviewedAt));
+    if (!evidence.length || evidenceIds && evidence.length !== new Set(evidenceIds).size) throw fail('Link this revision to existing task evidence for this role.');
     const version = Math.max(...agent.versions.map(item => item.version)) + 1;
-    agent.versions.push(revision(instructions.includes(base) ? instructions.trim() : `${instructions.trim()}\n\n${base}`, reason.trim(), version)); agent.activeVersion = version;
-    for (const task of this.tasks.filter(task => task.agentId === id && task.outcome === 'needs-fix')) task.reviewedAt = new Date().toISOString();
+    agent.versions.push({ ...revision(instructions.includes(base) ? instructions.trim() : `${instructions.trim()}\n\n${base}`, reason.trim(), version), evidenceIds: evidence.map(task => task.id), validation: 'awaiting-real-outcome' }); agent.activeVersion = version;
+    for (const task of evidence.filter(task => task.outcome === 'needs-fix')) { task.reviewedAt = new Date().toISOString(); task.addressedByVersion = version; }
     await this.persist(); return agent;
   }
   async control(id, { enabled, version }) {
@@ -114,10 +129,18 @@ export class CommonAgents {
     if (version !== undefined) { if (!agent.versions.some(item => item.version === version)) throw fail('Agent version was not found.'); agent.activeVersion = version; }
     await this.persist(); return agent;
   }
-  async feedback(id, { outcome, feedback }) {
+  async feedback(id, { outcome, feedback, evidence, failureKey }) {
     const task = this.tasks.find(item => item.id === id); if (!task) throw fail('Task record was not found.');
-    if (!['accepted', 'needs-fix'].includes(outcome) || typeof feedback !== 'string' || feedback.length > 2000 || outcome === 'needs-fix' && feedback.trim().length < 8) throw fail('Describe the problem or mark the result accepted.');
-    task.outcome = outcome; task.feedback = feedback.trim(); task.reviewedAt = null; await this.persist(); return task;
+    if (!this.allows(task.project, task.task)) throw fail('This project is excluded from common-agent automation.');
+    if (!['accepted', 'needs-fix', 'verified'].includes(outcome) || typeof feedback !== 'string' || feedback.length > 2000 || outcome === 'needs-fix' && feedback.trim().length < 8) throw fail('Describe the problem or mark the result accepted.');
+    if (outcome === 'verified' && (!evidence || !['reference', 'check', 'result', 'sourceRevision'].every(key => typeof evidence[key] === 'string' && evidence[key].trim().length >= 3 && evidence[key].length <= 1000))) throw fail('Verification needs an evidence reference, check, observed result and source revision or artifact identity.');
+    if (failureKey != null && (typeof failureKey !== 'string' || failureKey.length > 160)) throw fail('Use a short repeat-failure label.');
+    const recordedAt = new Date().toISOString();
+    const proof = outcome === 'verified' ? { ...Object.fromEntries(['reference', 'check', 'result', 'sourceRevision'].map(key => [key, evidence[key].trim()])), recordedAt, source: 'owner-recorded-verification', agentId: task.agentId, version: task.version, completionId: task.completionId } : null;
+    task.feedbackHistory ||= [];
+    if (!task.feedbackHistory.length && task.feedback) task.feedbackHistory.push({ outcome: task.outcome, feedback: task.feedback, recordedAt: null, source: 'legacy-feedback', version: task.version });
+    task.feedbackHistory.push({ outcome, feedback: feedback.trim(), failureKey: outcome === 'needs-fix' ? (failureKey || feedback).trim().toLowerCase() : null, evidence: proof, recordedAt, source: 'owner-feedback', version: task.version });
+    task.outcome = outcome; task.feedback = feedback.trim(); task.evidence = proof; task.reviewedAt = null; await this.persist(); return task;
   }
   close() { return this.writes.catch(() => {}); }
 }

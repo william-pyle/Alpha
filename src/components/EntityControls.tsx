@@ -112,7 +112,7 @@ function EntityMenu({ entity, categories, target, onClose, onChanged }: {
       <button type="button" className="entity-pin-toggle" disabled={saving} onClick={() => void save({ pinned: !entity.pinned })}>
         {entity.pinned ? 'Unpin card' : 'Pin card'}
       </button>
-      <p className="entity-menu-hint">Archived cards keep their files and tabs. Find them in search or Show archive.</p>
+      <p className="entity-menu-hint">Archived cards keep their files and tabs. Use the Workspace Archived or All scope to find them. Their original categories are retained.</p>
       {saving && <p className="entity-menu-feedback" role="status">Saving…</p>}
       {error && <p className="entity-menu-error" role="alert">{error}</p>}
     </dialog>, document.body,

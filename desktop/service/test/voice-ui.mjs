@@ -47,10 +47,12 @@ try {
     await page.goto(service.urls[surface]);
     await page.route('**/api/dictation', route => route.fulfill({ contentType: 'application/json', body: '{"provider":"local","available":true,"maxSeconds":120,"maxBytes":1000000}' }));
     await page.reload();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click();
     await page.getByRole('button', { name: 'Dictate a message', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Allow microphone access' }).waitFor();
     await page.getByRole('button', { name: 'Dismiss voice input error' }).click();
     assert.equal(await page.evaluate(() => window.fixtureMicRequests), 1);
+    await page.getByRole('button', { name: 'Close settings' }).click();
     const input = page.getByRole('textbox', { name: 'Message Alpha' });
     const before = requests.length;
     await input.fill('First line'); await input.press('Shift+Enter'); await input.pressSequentially('Second line');

@@ -4,16 +4,21 @@ import { readJson, saveJson } from './util.mjs';
 // Only explicit events enter this ledger. A quiet terminal is not a stall.
 export class Awareness {
   constructor(stateDir, changed = () => {}, clock = Date.now) { this.file = path.join(stateDir, 'awareness.json'); this.changed = changed; this.clock = clock; this.items = []; this.settings = { enabled: true, quiet: false, desktop: false }; this.desktop = null; this.writes = Promise.resolve(); }
-  async init() { const data = await readJson(this.file, {}); this.items = data.items || []; this.settings = { ...this.settings, ...data.settings }; return this; }
+  async init() { const data = await readJson(this.file, {}); this.items = data.items || []; this.receipts = data.receipts || Object.fromEntries(this.items.map(item => [item.id, item.at])); this.settings = { ...this.settings, ...data.settings }; return this; }
   snapshot() {
     if (this.desktop && this.clock() - this.desktop.at > 15000) this.desktop = null;
-    return { settings: this.settings, items: this.items.filter(item => this.clock() - item.at < 30 * 86400000 && !item.dismissed && (!item.snoozeUntil || item.snoozeUntil <= this.clock())), desktop: this.desktop };
+    const priority = { question: 0, error: 1, attention: 2, review: 3 };
+    return { settings: this.settings, items: this.items.filter(item => this.clock() - item.at < 30 * 86400000 && !item.dismissed && (!item.snoozeUntil || item.snoozeUntil <= this.clock())).sort((a, b) => (priority[a.kind] ?? 4) - (priority[b.kind] ?? 4) || b.at - a.at), desktop: this.desktop };
   }
-  event({ id, threadId = null, kind, text, source, inference = false }) {
-    if (!this.settings.enabled || this.items.some(item => item.id === id)) return;
+  event({ id, threadId = null, questionId = null, sessionId = null, kind, text, source, inference = false, at = this.clock() }) {
+    const observedAt = typeof at === 'string' ? Date.parse(at) : at;
+    if (!Number.isFinite(observedAt) || observedAt > this.clock() + 60000 || this.clock() - observedAt >= 30 * 86400000) return;
+    if (!this.settings.enabled || Object.hasOwn(this.receipts, id) || this.items.some(item => item.id === id)) return;
     const last = this.items.findLast(item => item.threadId === threadId && item.kind === kind);
     if (inference && last && this.clock() - last.at < 30 * 60 * 1000) return;
-    this.items.push({ id, threadId, kind, text, source, inference, at: this.clock(), dismissed: false, snoozeUntil: null });
+    this.receipts[id] = observedAt;
+    this.receipts = Object.fromEntries(Object.entries(this.receipts).filter(([, time]) => this.clock() - time < 30 * 86400000));
+    this.items.push({ id, threadId, questionId, sessionId, kind, text, source, inference, at: observedAt, dismissed: false, snoozeUntil: null });
     // Keep dismissal receipts during retention; never repopulate from old scans.
     this.items = this.items.filter(item => this.clock() - item.at < 30 * 86400000).slice(-500);
     this.publish();
@@ -44,6 +49,6 @@ export class Awareness {
     this.changed(this.snapshot());
   }
   publish() { this.changed(this.snapshot()); void this.save().catch(() => {}); }
-  save() { this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, { schemaVersion: 1, settings: this.settings, items: this.items })); return this.writes; }
+  save() { this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, { schemaVersion: 1, settings: this.settings, items: this.items, receipts: this.receipts })); return this.writes; }
   close() { this.desktop = null; return this.save(); }
 }

@@ -34,7 +34,7 @@ try {
   await questions.getByRole('button', { name: 'Compact', exact: true }).click();
   await questions.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(() => service.questions.items.find(item => item.id === question.id).status).toBe('answered');
-  assert.match(calls.at(-1).text, /User's answer: Compact/);
+  await expect.poll(() => calls.at(-1)?.text || '').toMatch(/User's answer: Compact/);
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Common agents' }).click();
   const dialog = page.getByRole('dialog', { name: 'Alpha agents and health' });
@@ -47,6 +47,11 @@ try {
   await agent.getByRole('button', { name: 'Disable Build Verification' }).click();
   await expect(agent.getByRole('button', { name: 'Enable Build Verification' })).toBeVisible();
   await agent.getByRole('button', { name: 'Enable Build Verification' }).click();
+  // Synthetic evidence stays inside this disposable test service.
+  const fixtureSession = { id: 'evidence-fixture', agent: 'codex', cwd: repo };
+  service.common.input(fixtureSession, 'Run fixture checks for native startup.', 'fixture-project', 'build-verification');
+  const fixtureRun = await service.common.complete(fixtureSession, { id: 'fixture-completion' });
+  await service.common.feedback(fixtureRun.id, { outcome: 'needs-fix', feedback: 'Fixture verification omitted the startup check.', failureKey: 'startup-check' });
   await agent.getByText('Instructions & history', { exact: true }).click();
   const instructions = agent.getByLabel('Instructions for Build Verification');
   await instructions.fill((await instructions.inputValue()) + '\nCheck native startup when fixing launch behavior.');

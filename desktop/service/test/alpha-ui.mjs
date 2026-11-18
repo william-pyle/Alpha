@@ -58,9 +58,10 @@ try {
   await call(`/sessions/${session.id}/input`, { text: "printf 'ALPHA_GITBASH_OK\\n'; pwd\r", paste: false });
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_GITBASH_OK');
   await page.getByLabel('Conversation', { exact: true }).selectOption(session.id);
-  await page.locator('.thread-activity summary').click();
+  await page.getByLabel('Conversation menu', { exact: true }).click(); await page.getByRole('button', { name: 'Work details', exact: true }).click();
   await expect(page.locator('.thread-terminal')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enable terminal controls' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close Work details' }).click(); await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Workspace', exact: true }).click();
   const sideDivider = page.getByRole('separator', { name: 'Resize Chats sidebar' });
   const sideBefore = (await page.locator('.mdi-chats').boundingBox()).width;
   const sideBox = await sideDivider.boundingBox();
@@ -100,7 +101,7 @@ try {
   await page.getByLabel('Attached images', { exact: true }).getByRole('button', { name: /^Remove / }).first().click();
   await editor.fill('');
   assert.equal(context.pages().length, 1);
-  await expect(page.locator('.terminal-area')).toHaveCount(1);
+  await expect(page.locator('.terminal-area')).toHaveCount(0);
   await expect(page.locator('.mak-composer')).toHaveCount(1);
   await page.waitForTimeout(2600);
   await editor.fill("printf 'ALPHA_MULTI_1\\n'\nprintf 'ALPHA_MULTI_2\\n'");
@@ -130,10 +131,10 @@ try {
   await page.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('REPLY:Yes');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.getByLabel('Conversation menu', { exact: true }).click(); await page.getByRole('button', { name: 'History', exact: true }).click();
   await expect(page.getByLabel('Conversation', { exact: true })).toContainText('Git Bash check');
   await expect(page.getByRole('button', { name: 'Older mixed Alpha history' })).toBeVisible();
-  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Conversation history' }).click();
 
   await page.getByText('Example project', { exact: true }).last().click();
   await expect(page.getByRole('tab', { name: 'Example project' })).toBeVisible();
@@ -143,7 +144,7 @@ try {
   const freshContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   try {
     const freshPage = await freshContext.newPage();
-    await freshPage.goto(service.urls.workspace);
+    await freshPage.goto(service.urls.workspace); await freshPage.getByRole('button', { name: 'View', exact: true }).click(); await freshPage.getByRole('menuitem', { name: 'Workspace', exact: true }).click();
     await expect(freshPage.locator('.mak-composer')).toBeVisible();
     assert.equal(Math.round((await freshPage.locator('.mdi-chats').boundingBox()).width), saved.chatSidebarWidth);
     await expect(freshPage.locator('.mdi-menu-bar .mdi-menu-title, .mdi-menu-bar .mdi-menu-settings')).toHaveCount(0);

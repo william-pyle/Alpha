@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, copyImagePath, uploadImage, transcribeDesktopAudio } from './client'
+import { api, copyImagePath, uploadImage } from './client'
 import { Icon } from './Icons'
 import { ZoomImage } from '../components/ImagePreview'
 import type { Preview } from './types'
 
-import VoiceInput from '../voice/VoiceInput'
-import { useDictation } from './useDictation'
+import LayoutRegion from './LayoutRegion'
 
 const maxImages = 12
 type Draft = { text: string; paths: string[] }
@@ -17,7 +16,7 @@ function saveDraft(id: string, draft: Draft) {
   return write
 }
 
-export default function MakComposer({ connected, sending, onSend, autoSendVoice = false, draftId = 'legacy', initialDraft }: {
+export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft }: {
   draftId?: string
   initialDraft?: Draft
   connected: boolean
@@ -25,9 +24,7 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
   onSend: (text: string, images: string[]) => Promise<void>
   autoSendVoice?: boolean
 }) {
-  const [voiceBusy, setVoiceBusy] = useState(false)
   const [error, setError] = useState('')
-  const { info: dictation } = useDictation()
   const [saved] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`alpha.threadDraft.${draftId}`) || 'null') as Draft | null || initialDraft || null } catch { return initialDraft || null }
   })
@@ -55,7 +52,6 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
     return () => { cancelled = true }
   }, [draftId, saved])
   const [uploading, setUploading] = useState(false)
-  const voiceIds = useRef(new Set<string>())
   const busy = useRef(false)
   const picker = useRef<HTMLInputElement>(null)
   const disabled = sending || uploading || !connected
@@ -119,7 +115,7 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
 
   async function send(event: React.FormEvent) {
     event.preventDefault()
-    if (disabled || voiceBusy || busy.current || (!draft.trim() && !images.length)) return
+    if (disabled || busy.current || (!draft.trim() && !images.length)) return
     busy.current = true; setError('')
     try {
       await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path))
@@ -133,7 +129,7 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
     finally { busy.current = false }
   }
 
-  return <div className="mak-composer">
+  return <LayoutRegion kind="composer"><div className="mak-composer">
     {error && <div className="voice-error" role="alert"><span>{error}</span><button className="desk-icon" aria-label="Dismiss message error" onClick={() => setError('')}><Icon name="close" size={14} /></button></div>}
     {images.length > 0 && <div className="voice-attachments" aria-label="Attached images">{images.map(image => <div className="voice-attachment" key={image.path}>
       <ZoomImage src={image.url} alt={image.name} />
@@ -142,14 +138,13 @@ export default function MakComposer({ connected, sending, onSend, autoSendVoice 
     <form className="voice-compose" onSubmit={send}>
       <input ref={picker} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Choose images for Alpha" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void attach(files) }} />
       <button type="button" title="Attach images" aria-label="Attach images" disabled={disabled} onClick={() => picker.current?.click()}><Icon name="attach" size={17} /></button>
-      <textarea ref={area} value={draft} rows={2} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" aria-describedby="mak-compose-hint" disabled={disabled}
+      <textarea ref={area} value={draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter sends; Shift+Enter adds a line" disabled={disabled}
         onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' }}
         onDrop={event => { event.preventDefault(); void attach(Array.from(event.dataTransfer.files).filter(file => file.type.startsWith('image/'))) }}
         onPaste={event => { const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (files.length) { event.preventDefault(); void attach(files) } }}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
-      <VoiceInput id={`alpha-thread-${draftId}`} connected={connected} disabled={disabled} config={dictation} transcriber={transcribeDesktopAudio} onBusy={setVoiceBusy} sendOnTranscribe={autoSendVoice} onText={async (text, recordingId) => { if (voiceIds.current.has(recordingId)) return; if (autoSendVoice) await onSend(text, []); else setDraft(current => current ? `${current}\n${text}` : text); voiceIds.current.add(recordingId) }} />
-      <button type="submit" title="Send to Alpha" aria-label="Send to Alpha" disabled={disabled || voiceBusy || (!draft.trim() && !images.length)}><Icon name="send" size={17} /></button>
+      <button type="submit" title="Send to Alpha" aria-label="Send to Alpha" disabled={disabled || (!draft.trim() && !images.length)}><Icon name="send" size={17} /></button>
     </form>
-    <div className="voice-compose-hint" id="mak-compose-hint" role="status">{uploading ? 'Saving images in inbox...' : autoSendVoice ? 'Tap the microphone, speak, then tap Stop to send. Enter sends typed text.' : 'Enter to send. Shift+Enter adds a new line. Paste images.'}</div>
-  </div>
+    {uploading && <div role="status">Saving images...</div>}
+  </div></LayoutRegion>
 }

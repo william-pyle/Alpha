@@ -37,7 +37,8 @@ test('card edits are authenticated, scoped, persistent and preserve reports and 
     const responses = await Promise.all([edit({ status: 'done' }), edit({ category: '3d' }), edit({ pinned: true })]);
     assert.ok(responses.every(response => response.status === 200));
     let state = JSON.parse(await readFile(file, 'utf8'));
-    assert.deepEqual(state.entities[0], { ...first, status: 'done', category: '3d', pinned: true, updated: localDay() });
+    assert.match(state.entities[0].organizationRevision, /^[a-f0-9-]{36}$/);
+    assert.deepEqual(state.entities[0], { ...first, status: 'done', category: '3d', pinned: true, updated: localDay(), organizationRevision: state.entities[0].organizationRevision });
     assert.deepEqual(state.entities[1], second); assert.equal(state.unknownRoot, 'keep');
     assert.equal((await (await edit({ status: 'archived' })).json()).status, 'archived');
     assert.equal((await (await edit({ status: 'active', category: 'dev', pinned: false })).json()).category, 'dev');

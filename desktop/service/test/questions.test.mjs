@@ -25,6 +25,24 @@ test('recognizes structured Codex and Claude question events', () => {
   assert.equal(claude.questions[0].options[0].label, 'Yes');
 });
 
+test('explicit async questions retain trailing context; queued-input status is not a question', async () => {
+  await mkdir('.test-output', { recursive: true });
+  const root = await mkdtemp(path.resolve('.test-output/structured-question-'));
+  const questions = await new Questions(root).init();
+  const session = { id: 'exact-worker', agent: 'codex', name: 'Fixture work', alphaThreadId: 'exact-thread' };
+  const text = 'Native Windows verification is blocked. Can you restore the test connection? Publication waits for the native checks.';
+  const event = nativeActivity({ type: 'response_item', payload: { type: 'function_call', name: 'request_user_input_async', call_id: 'explicit-question', arguments: JSON.stringify({ questions: [{ title: text }] }) } }, 'codex');
+  assert.equal(questions.capture(session, event).length, 1);
+  assert.equal(questions.capture(session, event).length, 0);
+  assert.equal(questions.capture(session, { id: 'status-only', message: 'Queued follow-up inputs — 1 question' }).length, 0);
+  await questions.close();
+  const restored = await new Questions(root).init();
+  assert.equal(restored.list()[0].text, text);
+  assert.equal(restored.list()[0].sessionId, 'exact-worker');
+  assert.equal(restored.list()[0].threadId, 'exact-thread');
+  await restored.close();
+});
+
 test('persists pending questions and clears one only after its answer reaches the source chat', async () => {
   await mkdir('.test-output', { recursive: true });
   const root = await mkdtemp(path.resolve('.test-output/questions-'));

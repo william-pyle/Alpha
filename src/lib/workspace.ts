@@ -10,7 +10,8 @@ export type EntityPatch = Partial<Pick<WorkspaceEntity, 'status' | 'category' | 
 export async function updateWorkspaceEntity(id: string, patch: EntityPatch) {
   const route = `/workspace/entities/${encodeURIComponent(id)}`
   if (!isDesktop) throw new Error('Open the desktop app to edit Workspace cards.')
-  await api(route, patch, 'PATCH')
+  const result = await api<{ undoId?: string; undoError?: string }>(route, patch, 'PATCH')
+  window.dispatchEvent(new CustomEvent('alpha-organization-change', { detail: result }))
   window.dispatchEvent(new Event('alpha-workspace-changed'))
 }
 

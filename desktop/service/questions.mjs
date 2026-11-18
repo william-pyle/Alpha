@@ -51,7 +51,7 @@ export class Questions extends EventEmitter {
   async ask({ text, options = [], source = 'coordinator', sourceId, operationId, context, chatName = 'Alpha', sessionId = 'alpha', threadId }) {
     if (typeof text !== 'string' || text.trim().length < 8 || text.length > 500) throw new Error('Write a question between 8 and 500 characters.');
     if (!['coordinator', 'maintenance', 'project'].includes(source)) throw new Error('Unknown question source.');
-    const existing = this.items.find(item => item.source === source && item.sourceId === sourceId && item.text === text.trim() && (source !== 'project' || item.status === 'pending'));
+    const existing = this.items.find(item => item.source === source && item.sourceId === sourceId && (item.threadId || null) === (threadId || null) && item.text === text.trim() && (source !== 'project' || item.status === 'pending'));
     if (existing) return existing;
     const item = { id: randomUUID(), sessionId: source === 'project' ? sessionId : 'alpha', source, sourceId: sourceId || null, operationId: operationId || null, context: String(context || '').slice(0, 6000), chatName, text: text.trim(), options: options.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, source === 'project' ? 100 : 6), status: 'pending', createdAt: new Date().toISOString() };
     if (threadId) item.threadId = threadId;
@@ -63,17 +63,20 @@ export class Questions extends EventEmitter {
     return added;
   }
   changed() {
-    this.emit('changed', this.list());
     this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, this.items));
-    return this.writes;
+    return this.writes.then(() => this.emit('changed', this.list()));
   }
   capture(session, source) {
     if (!['codex', 'claude', 'shell', 'gitbash'].includes(session.agent)) return [];
-    const questions = Array.isArray(source.questions) ? source.questions : extractQuestions(source.message);
+    const structured = Array.isArray(source.questions);
+    const questions = structured ? source.questions : extractQuestions(source.message);
     const added = [];
     for (const candidate of questions) {
       const text = String(candidate.text || candidate.question || '').trim().slice(0, 500);
-      if (!validQuestion(text)) continue;
+      // An explicit question tool may include context after its question mark.
+      // Terminal/prose detection remains strict so queued-input status labels
+      // never become inferred questions.
+      if (structured ? text.length < 8 || /^https?:\/\//i.test(text) : !validQuestion(text)) continue;
       if (source.id && this.items.some(item => item.sessionId === session.id && item.sourceId === source.id && item.text.toLowerCase() === text.toLowerCase())) continue;
       if (this.items.some(item => item.status === 'pending' && item.sessionId === session.id && item.text.toLowerCase() === text.toLowerCase())) continue;
       const options = (candidate.options || []).map(option => typeof option === 'string' ? option : option?.label).filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, 6);
@@ -90,6 +93,11 @@ export class Questions extends EventEmitter {
     this.answers.set(id, pending); return pending;
   }
   async deliverAnswer(id, text, sessions, resume) {
+    const accepted = this.items.find(item => item.id === id && item.status === 'answered');
+    if (accepted) {
+      if (accepted.answer !== text?.trim()) throw Object.assign(new Error('This question already has a different answer.'), { status: 409 });
+      return { delivered: true, questionId: id, alreadyAccepted: true };
+    }
     const question = this.items.find(item => item.id === id && item.status === 'pending');
     if (!question) throw Object.assign(new Error('Question is no longer pending.'), { status: 404 });
     if (typeof text !== 'string' || !text.trim() || text.length > 64000) throw new Error('Enter an answer before sending.');
@@ -97,17 +105,40 @@ export class Questions extends EventEmitter {
       if (!resume) throw new Error('Alpha cannot receive this answer right now.');
       question.attempts = (question.attempts || 0) + 1;
       await this.changed();
-      await resume(question, text.trim());
+      // Validate and prepare delivery first. A continuation may be returned;
+      // it runs only after the answer is durable and the pending list is updated.
+      const continuation = await resume(question, text.trim());
       question.status = 'answered'; question.answer = text.trim(); question.answeredAt = new Date().toISOString();
-      await this.changed();
+      if (typeof continuation === 'function') question.continuation = 'queued';
+      try { await this.changed(); }
+      catch (error) { question.status = 'pending'; delete question.answer; delete question.answeredAt; delete question.continuation; throw error; }
+      if (typeof continuation === 'function') {
+        void Promise.resolve().then(continuation).then(() => { question.continuation = 'completed'; }, error => {
+          question.continuation = 'failed'; question.continuationError = String(error.message || error);
+          this.emit('continuation-failed', { question, error });
+        }).then(() => this.changed()).catch(error => this.emit('error', error));
+      }
       return { delivered: true, questionId: id, source: question.source };
     }
     const session = sessions.get(question.sessionId);
     if (session.status !== 'running') throw new Error('This chat is stopped. Reconnect it before answering.');
-    sessions.input(session.id, text.trim(), { composed: true, submit: true, questionAnswer: true });
     question.status = 'answered'; question.answer = text.trim(); question.answeredAt = new Date().toISOString();
+    question.delivery = 'queued';
+    // Persist before terminal input so a disk failure cannot invite duplicate input.
+    // Do not publish the removal until input is accepted by the local terminal.
+    try {
+      this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, this.items));
+      await this.writes;
+      sessions.input(session.id, text.trim(), { composed: true, submit: true, questionAnswer: true });
+    } catch (error) {
+      question.status = 'pending'; delete question.answer; delete question.answeredAt; delete question.delivery;
+      await this.changed(); throw error;
+    }
+    question.delivery = 'submitted';
     this.emit('answer', { question, text: text.trim() });
-    await this.changed();
+    // The durable accepted record already prevents replay. A later audit write
+    // failure is reported separately, never advertised as a retryable answer.
+    try { await this.changed(); } catch (error) { this.emit('changed', this.list()); this.emit('error', error); }
     return { delivered: true, questionId: id, sessionId: session.id, note: 'Answer delivered to the terminal. Check the chat to confirm the agent accepted it.' };
   }
   async dismiss(id) {

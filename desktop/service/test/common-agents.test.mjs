@@ -65,6 +65,31 @@ test('an in-flight task survives service state reload without becoming a success
   assert.equal(task.outcome, 'completed-unverified'); assert.equal(task.agentId, 'build-verification');
 });
 
+test('verification requires provenance, acceptance stays separate, corrections and repeat failures retain versions', async () => {
+  const common = await fixture();
+  assert.equal(common.list().find(agent => agent.id === 'build-verification').outcomes.verified, 0);
+  await assert.rejects(common.revise('build-verification', { instructions: common.instructions('build-verification').text, reason: 'A claim without any recorded task evidence.' }), /existing task evidence/);
+  const a = await completed(common, 'fixture-one', 'Run the relevant tests for startup.', 'build-verification');
+  const b = await completed(common, 'fixture-two', 'Run the relevant tests for startup.', 'build-verification');
+  await common.feedback(a.id, { outcome: 'accepted', feedback: 'Looks acceptable.' });
+  assert.equal(common.list().find(agent => agent.id === 'build-verification').outcomes.verified, 0);
+  await assert.rejects(common.feedback(a.id, { outcome: 'verified', feedback: '' }), /evidence reference/);
+  for (const run of [a, b]) await common.feedback(run.id, { outcome: 'needs-fix', feedback: 'Missed the startup failure in this isolated fixture.', failureKey: 'startup-check' });
+  const summary = common.list().find(agent => agent.id === 'build-verification').outcomes;
+  assert.deepEqual(summary.repeatFailures[0].taskIds, [a.id, b.id]);
+  await common.revise('build-verification', { instructions: common.instructions('build-verification').text, reason: 'Address the startup failure recorded in the first fixture.', evidenceIds: [a.id] });
+  assert.equal(b.reviewedAt, null); assert.equal(a.addressedByVersion, 2);
+  const evidence = { reference: 'fixture://startup-check', check: 'Run fixture startup', result: 'Fixture startup rendered', sourceRevision: 'fixture-commit-123' };
+  await common.feedback(a.id, { outcome: 'verified', feedback: 'Fixture repaired and checked.', evidence });
+  const agent = common.list().find(agent => agent.id === 'build-verification');
+  assert.equal(agent.outcomes.verified, 1); assert.equal(agent.outcomes.corrections, 2); assert.equal(agent.outcomes.repeatFailures.length, 1);
+  assert.equal(agent.versionOutcomes.find(item => item.version === 2).verified, 0);
+  assert.equal(a.evidence.version, 1); assert.equal(a.provenance.completionId, a.completionId);
+  await common.close();
+  const restored = await new CommonAgents({ stateDir: path.dirname(common.activityFile) }).init();
+  assert.equal(restored.tasks[0].feedbackHistory.length, 3); await restored.close();
+});
+
 test('health records repeated observed delays once and keeps request bodies out of metrics', async () => {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), 'alpha-health-'));
   const alerts = [], health = await new Health(stateDir, issue => alerts.push(issue)).init();

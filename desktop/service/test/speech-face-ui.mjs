@@ -25,11 +25,11 @@ if (!native) service.speech.speak = async (text, voice, threadId) => {
 };
 try {
   browser = await launchBrowser(); const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await page.goto(service.urls.workspace); await page.getByRole('tab', { name: 'Alpha', exact: true }).click();
+  await page.goto(service.urls.workspace); await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   const face = page.locator('.alpha-presence-stage');
   await expect(face).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
   await expect(face).toHaveAttribute('data-mouth-opening', '0.000');
-  await page.getByRole('button', { name: 'Speak Alpha reply' }).click();
+  await page.locator('[data-message-id="voice-test"]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Read reply aloud' }).click();
   await expect.poll(async () => Number(await face.getAttribute('data-mouth-opening')), { timeout: 20000 }).toBeGreaterThan(.01);
   await page.screenshot({ path: path.join(repo, 'windows-speaking.png') });
   if (native) await expect.poll(() => service.speech.state.speaking, { timeout: 20000 }).toBe(false);

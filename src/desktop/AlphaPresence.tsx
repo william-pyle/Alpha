@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision'
 import { AlphaHeadScene } from './AlphaHeadScene'
+import { captureState } from './captureState'
 import { liveVoice } from './live'
 import { useDesktop } from './client'
 import { cameraFaceToGaze, FACE_LOSS_GRACE_MS, GazeSmoother } from './gazeTracking'
@@ -9,7 +10,7 @@ type CameraState = 'starting' | 'tracking' | 'searching' | 'blocked' | 'unavaila
 
 export default function AlphaPresence() {
   const desktop = useDesktop()
-  const live = useSyncExternalStore(liveVoice.subscribe, liveVoice.snapshot)
+  const capture = useSyncExternalStore(captureState.subscribe, captureState.snapshot)
   const host = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
   const cameraStream = useRef<MediaStream | null>(null)
@@ -22,8 +23,7 @@ export default function AlphaPresence() {
   const [camera, setCamera] = useState<CameraState>('starting')
   const [cameraError, setCameraError] = useState('')
   const [modelError, setModelError] = useState('')
-  const [cameraAttempt, setCameraAttempt] = useState(0)
-  const [cameraEnabled, setCameraEnabled] = useState(false)
+  const cameraEnabled = capture.camera
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible')
   const working = desktop.threads.find(item => item.id === desktop.selectedThreadId)?.status === 'working'
   const speech = useRef(desktop.speech)
@@ -36,9 +36,10 @@ export default function AlphaPresence() {
     catch { requestAnimationFrame(() => setCameraError('The 3D renderer could not start on this graphics device.')); return }
     return () => { scene.current?.dispose(); scene.current = null }
   }, [])
+  useEffect(() => { scene.current?.setReducedMotion(desktop.settings.reducedMotion ?? matchMedia('(prefers-reduced-motion: reduce)').matches) }, [desktop.settings.reducedMotion])
   useEffect(() => { scene.current?.setWorking(working) }, [working])
   useEffect(() => {
-    const visibility = () => { if (document.visibilityState !== 'visible') stopCamera(); setPageVisible(document.visibilityState === 'visible') }
+    const visibility = () => { if (document.visibilityState !== 'visible') { stopCamera(); captureState.set({ camera: false }) }; setPageVisible(document.visibilityState === 'visible') }
     document.addEventListener('visibilitychange', visibility)
     return () => document.removeEventListener('visibilitychange', visibility)
   }, [stopCamera])
@@ -119,27 +120,12 @@ export default function AlphaPresence() {
       try { detector?.close() } catch { /* Camera is off even if inference cleanup fails. */ }
       scene.current?.setGaze({ x: 0, y: 0, found: false })
     }
-  }, [cameraAttempt, cameraEnabled, pageVisible, stopCamera])
+  }, [cameraEnabled, pageVisible, stopCamera])
 
-  const voiceActive = ['connecting', 'live', 'closing'].includes(live.status)
-  const cameraLabel: Record<CameraState, string> = {
-    starting: 'Starting camera', tracking: 'Eye contact active', searching: 'Looking for your face',
-    blocked: 'Camera permission needed', unavailable: 'Camera unavailable',
-  }
+  useEffect(() => { captureState.set({ cameraStatus: camera === 'tracking' ? 'Camera active' : `Camera ${camera}`, error: cameraError || modelError }) }, [camera, cameraError, modelError])
+  useEffect(() => () => captureState.set({ camera: false, cameraStatus: '' }), [])
   return <section className="alpha-presence" aria-label="Alpha 3D presence">
-    <div className="alpha-presence-stage" ref={host}>
-      <div className="alpha-presence-top"><span className={`alpha-presence-pulse ${working ? 'working' : ''}`} /> <strong>ALPHA</strong><span>{desktop.speech.speaking && desktop.speech.threadId === desktop.selectedThreadId ? 'Speaking' : working ? 'Thinking' : 'Present'}</span></div>
-      <div className="alpha-presence-bottom"><span className={camera === 'tracking' && pageVisible ? 'active' : ''}><i />{cameraEnabled ? pageVisible ? cameraLabel[camera] : 'Camera paused' : 'Camera off'}</span><span>Drag to turn</span></div>
-    </div>
+    <div className="alpha-presence-stage" ref={host} />
     <video ref={video} className="alpha-camera-video" muted playsInline aria-hidden="true" />
-    <div className="alpha-presence-controls">
-      <button type="button" className={voiceActive ? 'active' : ''} disabled={!desktop.connected || live.status === 'closing'} onClick={() => { if (desktop.voice.configured) { if (voiceActive) liveVoice.stop(); else liveVoice.start() } else document.querySelector<HTMLButtonElement>('.alpha-conversation-pane .dictation-mic')?.click() }}>{voiceActive ? 'Stop voice' : 'Talk to Alpha'}</button>
-      <button type="button" aria-pressed={cameraEnabled} onClick={() => { if (cameraEnabled) stopCamera(); setCameraEnabled(value => !value) }}>{cameraEnabled ? 'Camera on' : 'Camera off'}</button>
-      {cameraEnabled && (camera === 'blocked' || camera === 'unavailable') && <button type="button" onClick={() => setCameraAttempt(value => value + 1)}>Retry camera</button>}
-    </div>
-    {cameraError && cameraEnabled && <p className="alpha-presence-note" role="status">{cameraError}</p>}
-    {modelError && <p className="alpha-presence-note" role="status">{modelError}</p>}
-    {live.error && <p className="alpha-presence-note" role="status">{live.error}</p>}
-    <p className="alpha-presence-privacy">Optional camera: local face position for eye contact, without identification or saved frames. It stops when you leave this tab or minimize Alpha. Microphone starts only when you choose Talk or dictate.</p>
   </section>
 }

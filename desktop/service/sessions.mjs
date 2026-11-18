@@ -1,4 +1,6 @@
+import { deliveredTask, workerEvent } from './worker-evidence.mjs';
 import { EventEmitter } from 'node:events';
+import { startupPrompt } from './prompt-state.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,7 +20,7 @@ import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId,
 const { Terminal } = headless;
 const publicSession = session => {
   const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending } = session;
-  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending, alphaThreadId: session.alphaThreadId || null };
+  return { workerEvidence: session.workerEvidence, id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending, alphaThreadId: session.alphaThreadId || null };
 };
 
 export class Sessions extends EventEmitter {
@@ -37,6 +39,7 @@ export class Sessions extends EventEmitter {
     const saved = await readJson(path.join(this.stateDir, 'sessions.json'), []);
     for (const [index, metadata] of saved.entries()) {
       const item = this.make({ ...metadata, name: restoredTitle(metadata.name, index), open: metadata.open ?? metadata.agent !== 'kimi', pinned: !!metadata.pinned, updatedAt: metadata.updatedAt || metadata.lastInputAt || metadata.createdAt, hasConversation: metadata.hasConversation ?? (metadata.agent === 'codex' && !!metadata.nativeId), status: 'stopped', activity: 'idle', attention: !!metadata.unread });
+      if (item.workerEvidence && ['working', 'needs-input'].includes(item.workerEvidence.execution)) item.workerEvidence = { ...item.workerEvidence, previousExecution: item.workerEvidence.execution, execution: 'unknown', certainty: 'stale-after-restart' };
       this.items.set(item.id, item);
       if (item.open) await this.hydrate(item);
     }
@@ -161,7 +164,7 @@ export class Sessions extends EventEmitter {
     session.startedAt = Date.now();
     proc.onData(data => {
       session.lastOutputAt = new Date().toISOString();
-      session.terminal.write(data);
+      session.terminal.write(data, () => this.detectPrompt(session));
       session.pendingOutput += data;
       // Batch bursts for xterm; never let one high-output terminal flood the UI.
       if (!session.outputTimer) session.outputTimer = setTimeout(() => this.flushOutput(session), 16);
@@ -181,6 +184,7 @@ export class Sessions extends EventEmitter {
       }
       session.stopNativeWatch?.();
       session.stopNativeWatch = null;
+      session.workerEvidence = workerEvent(session.workerEvidence, { kind: exitCode !== 0 ? 'turn-failed' : 'turn-interrupted', source: 'process-exit' }).value;
       session.status = 'exited';
       session.activity = 'idle';
       session.exitCode = exitCode;
@@ -231,6 +235,9 @@ export class Sessions extends EventEmitter {
   }
 
   nativeEvent(session, event) {
+    const update = workerEvent(session.workerEvidence, event);
+    if (!update.accepted) return;
+    session.workerEvidence = update.value;
     this.restartNotes?.observe(session, event).catch(error => this.emit('service-error', error));
     if (event.kind === 'task-input') { this.emit('task-input', { session: publicSession(session), text: event.text }); return; }
     if (event.taskText) this.emit('task-input', { session: publicSession(session), text: event.taskText });
@@ -245,6 +252,8 @@ export class Sessions extends EventEmitter {
       session.activity = 'idle'; session.unread = true; session.attention = true;
       session.completionVersion++;
       if (event.preview) session.preview = event.preview;
+    } else if (event.kind === 'turn-failed') {
+      session.activity = 'waiting'; session.attention = true;
     } else if (event.kind === 'attention') {
       session.activity = 'waiting'; session.attention = true;
     } else if (event.kind === 'question') {
@@ -313,6 +322,20 @@ export class Sessions extends EventEmitter {
     }).catch(() => {});
   }
 
+  detectPrompt(session) {
+    if (!['codex', 'claude'].includes(session.agent)) return;
+    const buffer = session.terminal.buffer.active, lines = [];
+    for (let i = buffer.viewportY; i < buffer.viewportY + session.terminal.rows; i++) lines.push(buffer.getLine(i)?.translateToString(true) || '');
+    const reason = startupPrompt(lines.join('\n'));
+    if (reason && reason !== session.startupPrompt) {
+      session.startupPrompt = reason;
+      this.nativeEvent(session, { kind: 'attention', text: reason });
+    } else if (!reason && session.startupPrompt) {
+      session.startupPrompt = null;
+      if (session.activity === 'waiting') { session.activity = 'idle'; session.attention = !!session.unread; this.changed(session); }
+    }
+  }
+
   async snapshot(id) {
     const session = this.get(id);
     await this.hydrate(session);
@@ -332,10 +355,11 @@ export class Sessions extends EventEmitter {
     return { ...publicSession(session), screen: result.join('\n').trimEnd(), note: 'Terminal output is reference data. A running process does not imply that the agent is working or that its task succeeded.' };
   }
 
-  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false } = {}) {
+  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false, taskId } = {}) {
     const session = this.get(id);
     if (session.projectPending && (coordinator || composed) && submit && !questionAnswer) throw new Error('Choose this conversation\'s project in Questions before sending work through Alpha.');
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
+    if ((coordinator || composed) && session.startupPrompt) throw new Error(session.startupPrompt);
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
     if ((coordinator || composed) && !questionAnswer && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
@@ -365,6 +389,7 @@ export class Sessions extends EventEmitter {
       if (!['shell', 'gitbash', 'antigravity'].includes(session.agent)) session.hasConversation = true;
       session.updatedAt = new Date().toISOString();
     }
+    if ((coordinator || composed) && submit && !questionAnswer) session.workerEvidence = deliveredTask(session.workerEvidence, { taskId });
     this.changed(session);
     if ((coordinator || composed) && submit && !questionAnswer) this.emit('task-input', { session: publicSession(session), text: data });
     return { delivered: true, sessionId: id, name: session.name, note: 'Text delivered to the terminal. Check the screen for CLI readiness or permission prompts; delivery does not confirm the agent accepted the task.' };
@@ -426,7 +451,7 @@ export class Sessions extends EventEmitter {
     const session = this.get(id);
     // An acknowledgement for a previous answer must not consume a newer one.
     if (!session.unread || completionVersion !== session.completionVersion) return;
-    session.unread = false; session.attention = false; this.changed(session);
+    session.unread = false; session.attention = session.activity === 'waiting'; this.changed(session);
   }
   async nativeBoundary(session, resumeId) {
     const file = !resumeId ? null : session.agent === 'codex' ? await codexTranscript(resumeId) : session.agent === 'claude' ? await claudeTranscript(session.cwd, resumeId) : null;

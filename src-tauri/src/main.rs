@@ -4,6 +4,7 @@ use std::{fs, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, C
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
 use tauri_plugin_window_state::StateFlags;
 mod external_links;
+mod window_chrome;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(windows)]
@@ -59,7 +60,7 @@ fn configuration_folder(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::
 fn reveal(app: &tauri::AppHandle, label: &str) {
     let label = if label == "chats" { "workspace" } else { label };
     if let Some(window) = app.get_webview_window(label) {
-        let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus();
+        let _ = window_chrome::recover(&window); let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus();
     }
 }
 
@@ -185,6 +186,7 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result
     let workspace_window = WebviewWindowBuilder::new(app, "workspace", WebviewUrl::External(workspace.parse()?))
         .on_new_window(|url, _| external_links::open_popup(url))
         .visible(false)
+        .decorations(!cfg!(windows)).resizable(true)
         .title(app.config().product_name.as_deref().unwrap_or("Alpha")).inner_size((width - 6.0).max(750.0), (height - 6.0).max(500.0))
         .position(x + 2.0, y + 2.0).min_inner_size(700.0, 500.0)
         .theme(Some(tauri::Theme::Dark)).background_color(tauri::webview::Color(12, 13, 16, 255)).build()?;
@@ -211,7 +213,16 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result
             api.prevent_close(); let _ = handle.hide();
         }
     });
+    let chrome_window = workspace_window.clone();
+    let chrome_app = app.clone();
+    workspace_window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(_) | tauri::WindowEvent::ScaleFactorChanged { .. }) { window_chrome::publish(&chrome_app, &chrome_window, None); }
+    });
+    window_chrome::recover(&workspace_window)?;
     workspace_window.show()?;
+    window_chrome::publish(app, &workspace_window, None);
+    #[cfg(debug_assertions)]
+    window_chrome::self_test(app);
     #[cfg(windows)]
     window_identity::refresh_shortcuts(app);
     Ok(())
@@ -367,6 +378,7 @@ fn main() {
                             if let Some(window) = app_handle.get_webview_window(if label == "chats" { "workspace" } else { label }) {
                                 match event["action"].as_str().unwrap_or("") {
                                     "show" => reveal(&app_handle, label),
+                                    "drag" | "toggle-maximize" | "close" | "system-menu" | "state" => window_chrome::command(&app_handle, window.clone(), event["action"].as_str().unwrap_or("").to_owned()),
                                     "hide" => { let _ = window.hide(); },
                                     "minimize" => { let _ = window.minimize(); },
                                     "pin" => { let _ = window.set_always_on_top(event["value"].as_bool().unwrap_or(false)); },

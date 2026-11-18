@@ -15,6 +15,7 @@ export function NewChat({ close }: { close: () => void }) {
   const state = useDesktop()
   const [agent, setAgent] = useState<AgentId>(state.settings.defaultAgent)
   const [name, setName] = useState('')
+  const [purpose, setPurpose] = useState('')
   const [cwd, setCwd] = useState(state.repo)
   const [projectId, setProjectId] = useState('')
   const [projects, setProjects] = useState<{ id: string; title: string }[]>([])
@@ -26,7 +27,7 @@ export function NewChat({ close }: { close: () => void }) {
   async function launch(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      const session = await api<ChatSession>('/sessions', { agent, name: name.trim() || undefined, cwd, projectId: projectId || undefined, bypass, resumeId: resumeId.trim() || undefined })
+      const session = await api<ChatSession>('/sessions', { agent, name: name.trim(), purpose, cwd, projectId: projectId || undefined, bypass, resumeId: resumeId.trim() || undefined })
       await api('/settings', { defaultAgent: agent, defaultBypass: bypass })
       selectChat(session.id); close()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); setBusy(false) }
@@ -34,7 +35,8 @@ export function NewChat({ close }: { close: () => void }) {
   return <div className="desk-scrim" onClick={close}><form className="desk-dialog" onClick={event => event.stopPropagation()} onSubmit={launch}>
     <div className="desk-dialog-heading"><div><span className="desk-eyebrow">A PLACE FOR THE NEXT THING</span><h2>New chat</h2></div><button type="button" className="desk-icon" onClick={close} aria-label="Close"><Icon name="close" /></button></div>
     <div className="agent-picker">{state.agents.map(item => <button type="button" key={item.id} className={`agent-choice ${agent === item.id ? 'selected' : ''}`} onClick={() => setAgent(item.id)} disabled={!item.available} style={{ '--agent-color': item.color } as React.CSSProperties}><span className="agent-mark"><AgentLogo agent={item.id} size={23} /></span><span>{item.label}<small>{item.available ? ['shell', 'gitbash'].includes(item.id) ? 'Local terminal' : 'Your CLI account' : 'Not installed'}</small></span>{agent === item.id && <span className="choice-check">✓</span>}</button>)}</div>
-    <label className="desk-field">Chat name <small>English only</small><input autoFocus placeholder="e.g. Dream Game · animations" value={name} onChange={event => setName(event.target.value)} maxLength={100} /></label>
+    <label className="desk-field">Chat name <small>English only</small><input required autoFocus placeholder="e.g. Dream Game · animations" value={name} onChange={event => setName(event.target.value)} maxLength={100} /></label>
+    <label className="desk-field">Purpose<input value={purpose} onChange={event => setPurpose(event.target.value)} maxLength={240} placeholder="The result this conversation should produce" /></label>
     <label className="desk-field">Working folder<input value={cwd} onChange={event => setCwd(event.target.value)} required spellCheck={false} /></label>
     <label className="desk-field">Project<select aria-label="Project for new chat" value={projectId} onChange={event => setProjectId(event.target.value)}><option value="">Ask me in Questions</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
     {!['shell', 'gitbash'].includes(agent) && <><label className="desk-check"><input type="checkbox" checked={bypass} onChange={event => setBypass(event.target.checked)} /><span>Always approve<small>{`Same ${isMac ? 'macOS' : isWindows ? 'Windows' : 'user'} account and file access as your usual terminal.`}</small></span></label><details className="desk-details"><summary>Resume an existing CLI conversation</summary><p>For a conversation started outside Alpha, copy its ID from your CLI's session details or resume picker. Chats created here return automatically.</p><label className="desk-field">Native session ID<input value={resumeId} onChange={event => setResumeId(event.target.value)} placeholder="Optional session ID" /></label></details></>}

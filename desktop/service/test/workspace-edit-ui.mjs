@@ -25,6 +25,7 @@ try {
   const page = await context.newPage(), peer = await context.newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace); await peer.goto(service.urls.workspace);
+  for (const surface of [page, peer]) { await surface.getByRole('button', { name: 'View', exact: true }).click(); await surface.getByRole('menuitem', { name: 'Workspace', exact: true }).click(); }
   const homeCard = page.locator('.home [data-card="sample"]');
   const edit = () => homeCard.getByRole('button', { name: /^Edit Character Workshop:/ });
   const menu = page.getByRole('dialog', { name: 'Card settings: Character Workshop' });
@@ -59,12 +60,10 @@ try {
 
   await edit().click(); await menu.getByRole('button', { name: 'Archived', exact: true }).click();
   await expect(homeCard).toHaveCount(0);
-  await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Show archive' }).click();
+  await page.getByLabel('Workspace scope', { exact: true }).selectOption('all');
   await expect(homeCard).toBeVisible();
   await edit().click(); await menu.getByRole('button', { name: 'Active', exact: true }).click();
-  await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Hide archive' }).click();
+  await page.getByLabel('Workspace scope', { exact: true }).selectOption('active');
   await expect(homeCard).toBeVisible();
   await expect(page.locator('.topbar')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Search Workspace' })).toHaveCount(0);

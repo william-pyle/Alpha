@@ -107,6 +107,7 @@ function connect() {
       if (state.selectedThreadId && event.selectedThreadId && event.selectedThreadId !== state.selectedThreadId) window.dispatchEvent(new Event('alpha-thread-switch'))
       update({ threads: event.threads, selectedThreadId: event.selectedThreadId ?? state.selectedThreadId })
     }
+    if (event.type === 'window-state' && event.nativeWindow) { update({ nativeWindow: event.nativeWindow }); if (event.nativeWindow.error) reportError(event.nativeWindow.error) }
     if (event.type === 'awareness' && event.awareness) update({ awareness: event.awareness })
     if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, questions: event.questions || state.questions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
     if (event.type === 'selection') update({ selectedId: event.selectedId || null })

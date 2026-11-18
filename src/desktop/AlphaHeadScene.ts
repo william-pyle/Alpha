@@ -20,6 +20,7 @@ export class AlphaHeadScene {
   private frame = 0
   private start = performance.now()
   private gaze: Gaze = { x: 0, y: 0, found: false }
+  private reducedMotion = false
   private work = false
   private audio = 0
   private manualUntil = 0
@@ -145,6 +146,7 @@ export class AlphaHeadScene {
     this.jawMeshes.push(mesh)
   }
   setGaze(gaze: Gaze) { this.gaze = gaze }
+  setReducedMotion(value: boolean) { this.reducedMotion = value; this.host.dataset.reducedMotion = String(value) }
   setWorking(working: boolean) { this.work = working }
   setAudioLevel(level: number) { this.audio = clamp(level, 0, 1) }
   private pointerDown = (event: PointerEvent) => { this.drag = { x: event.clientX, y: event.clientY }; this.manualUntil = performance.now() + 6000; this.renderer.domElement.style.cursor = 'grabbing' }
@@ -164,14 +166,14 @@ export class AlphaHeadScene {
     this.camera.updateProjectionMatrix()
   }
   private animate = () => {
-    const now = performance.now(), t = (now - this.start) / 1000
+    const now = performance.now(), t = this.reducedMotion ? 0 : (now - this.start) / 1000
     const manual = now < this.manualUntil
-    const targetY = manual ? this.manual.x : this.gaze.found ? this.gaze.x * .22 : Math.sin(t * .32) * .06
-    const targetX = manual ? this.manual.y : this.gaze.found ? -this.gaze.y * .14 : Math.sin(t * .27) * .025
+    const targetY = manual ? this.manual.x : !this.reducedMotion && this.gaze.found ? this.gaze.x * .22 : Math.sin(t * .32) * .06
+    const targetX = manual ? this.manual.y : !this.reducedMotion && this.gaze.found ? -this.gaze.y * .14 : Math.sin(t * .27) * .025
     this.head.rotation.y += (targetY - this.head.rotation.y) * .065
     this.head.rotation.x += (targetX - this.head.rotation.x) * .065
     this.head.position.y = Math.sin(t * 1.1) * .006
-    const opening = this.audio > .025 ? Math.pow(this.audio, .66) * .12 : 0
+    const opening = !this.reducedMotion && this.audio > .025 ? Math.pow(this.audio, .66) * .12 : 0
     const measuredOpening = opening.toFixed(3)
     if (this.host.dataset.mouthOpening !== measuredOpening) this.host.dataset.mouthOpening = measuredOpening
     for (const mesh of this.jawMeshes) {

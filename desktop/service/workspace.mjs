@@ -1,14 +1,16 @@
+import { randomUUID, createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { realFile, saveJson, sleep } from './util.mjs';
+import { realFile, saveJson, sleep, readJson } from './util.mjs';
 import { validateCard, cardText, CARD_MAX_BYTES } from './card-schema.mjs';
 import defaultCategories from './default-categories.json' with { type: 'json' };
 
 const execute = promisify(execFile);
 export const localDay = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const brief = ({ id, title, description, status, category, created, updated, pinned, steps }) => ({ id, title, description, status, category, created, updated, pinned: !!pinned, steps: (steps || []).map(({ name }, index) => ({ name, index })) });
+const fingerprint = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const invalid = message => Object.assign(new Error(message), { status: 400 });
 const categoryId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
 const categoryName = value => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 60 && !/[\x00-\x1f\x7f]/.test(value);
@@ -48,7 +50,7 @@ export function metadataPatch(value) {
 }
 
 export class Workspace {
-  constructor(repo, changed = () => {}) { this.repo = repo; this.file = path.join(repo, 'workspace', 'workspace.json'); this.changed = changed; this.writes = Promise.resolve(); }
+  constructor(repo, changed = () => {}, stateDir = path.join(repo, '.alpha')) { this.undoFile = path.join(stateDir, 'organization-undo.json'); this.repo = repo; this.file = path.join(repo, 'workspace', 'workspace.json'); this.changed = changed; this.writes = Promise.resolve(); }
   async registry() {
     const registry = JSON.parse(await readFile(this.file, 'utf8'));
     if (!Array.isArray(registry.entities)) throw new Error('Workspace registry is not ready.');
@@ -82,18 +84,26 @@ export class Workspace {
     const cards = registry.entities.filter(item => item.created === date || item.updated === date || paths.some(file => file.startsWith(`workspace/${item.folder}/`))).map(brief);
     return { date, cards, commits: [...new Set(lines.filter(line => !line.startsWith('workspace/')))].slice(0, 15), basis: 'Workspace dates and recorded Git changes; not a complete record of unsaved work.' };
   }
-  update(id, patch) {
+  update(id, patch, undoId = null) {
     const operation = this.writes.catch(() => {}).then(async () => {
       if (patch.status !== undefined && !['active', 'done', 'archived'].includes(patch.status)) throw invalid('Use active, done or archived status.');
       if (patch.pinned !== undefined && typeof patch.pinned !== 'boolean') throw invalid('Pinned must be true or false.');
       if (patch.category !== undefined && !categoryId(patch.category)) throw invalid('Use a category with lowercase letters, numbers and hyphens.');
-      if (patch.status === undefined && patch.pinned === undefined && patch.category === undefined) throw invalid('Choose a status, category or pin change.');
+      if (!undoId && patch.status === undefined && patch.pinned === undefined && patch.category === undefined) throw invalid('Choose a status, category or pin change.');
+      const journal = await readJson(this.undoFile, []);
+      const undo = undoId ? journal.find(item => item.id === undoId && item.entityId === id) : null;
+      if (undoId && !undo) throw Object.assign(new Error('This undo is no longer available.'), { status: 409 });
       for (let attempt = 0; attempt < 6; attempt++) {
         const source = await readFile(this.file, 'utf8');
         const registry = JSON.parse(source);
         registry.categories = categoriesOf(registry);
         const entity = registry.entities.find(item => item.id === id);
         if (!entity) throw Object.assign(new Error('Workspace card was not found.'), { status: 404 });
+        if (undo && fingerprint(entity) !== undo.after) throw Object.assign(new Error('This card changed after that action. Undo would overwrite newer edits; review its current values.'), { status: 409 });
+        const before = structuredClone(entity);
+        if (undo) {
+          for (const key of undo.keys) { if (Object.hasOwn(undo.before, key)) entity[key] = undo.before[key]; else delete entity[key]; }
+        }
         if (patch.status !== undefined) entity.status = patch.status;
         if (patch.pinned !== undefined) entity.pinned = patch.pinned;
         if (patch.category !== undefined) {
@@ -101,6 +111,7 @@ export class Workspace {
           entity.category = patch.category;
         }
         entity.updated = localDay();
+        entity.organizationRevision = randomUUID();
         // Preserve other agents' latest registry changes instead of saving a stale snapshot.
         if (await readFile(this.file, 'utf8') !== source) continue;
         try { await saveJson(this.file, registry, { beforeReplace: async () => {
@@ -114,12 +125,23 @@ export class Workspace {
           continue;
         }
         this.changed();
-        return brief(entity);
+        const record = { id: randomUUID(), entityId: id, before, after: fingerprint(entity), keys: Object.keys(patch), at: new Date().toISOString() };
+        try { await saveJson(this.undoFile, [...journal.filter(item => item.id !== undoId), ...(!undo ? [record] : [])].slice(-100)); }
+        catch { return { ...brief(entity), undoError: 'Saved, but undo history could not be saved.' }; }
+        return { ...brief(entity), undoId: undo ? null : record.id };
+
       }
       throw new Error('Workspace is being updated by another task. Try the change again.');
     });
     this.writes = operation;
     return operation;
+  }
+  async undo(id) {
+    const journal = await readJson(this.undoFile, []), record = journal.find(item => item.id === id);
+    if (!record) throw Object.assign(new Error('This undo is no longer available.'), { status: 409 });
+    const patch = Object.fromEntries(record.keys.map(key => [key, record.before[key]]));
+    // Missing fields are removed inside the guarded transaction, not guessed.
+    return this.update(record.entityId, patch, id);
   }
   changeCategory(action, id, details = {}) {
     const operation = this.writes.catch(() => {}).then(async () => {

@@ -1,0 +1,78 @@
+import assert from 'node:assert/strict';
+import { expect } from '@playwright/test';
+import { mkdir, mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { createService } from '../server.mjs';
+import { launchBrowser } from './browser.mjs';
+
+const repo = await mkdtemp(path.resolve('.test-output/workspace-archive-'));
+await mkdir(path.join(repo, 'workspace/cards'), { recursive: true });
+const today = new Date().toISOString().slice(0, 10), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+const card = (id, category, patch = {}) => ({ id, title: id, description: `Fixture ${id}`, folder: 'cards', category, status: 'active', created: today, steps: [{ name: 'Overview', path: 'report.html' }], ...patch });
+const entities = [card('Design current', 'design'), card('Engineering done', 'engineering', { status: 'done' }), card('Design archived', 'design', { status: 'archived' }), card('Engineering old', 'engineering', { created: '2020-01-01' }), card('Pinned old', 'design', { created: '2020-01-01', pinned: true }), card('Pinned archived', 'engineering', { status: 'archived', pinned: true }), card('Sample old', 'design', { sample: true, created: '2020-01-01' }), card('Cutoff equal', 'engineering', { created: cutoff.toISOString().slice(0, 10) })];
+const registryFile = path.join(repo, 'workspace/workspace.json');
+await writeFile(registryFile, JSON.stringify({ categories: [{ id: 'design', name: 'Design', icon: 'D' }, { id: 'engineering', name: 'Engineering', icon: 'E' }, { id: 'empty', name: 'Empty category', icon: '-' }], entities }));
+await writeFile(path.join(repo, 'workspace/cards/report.html'), '<h1>Archive fixture report</h1>');
+let service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+let browser, page; const checks = [], screenshots = [], errors = [];
+try {
+  browser = await launchBrowser(); page = await browser.newPage({ viewport: { width: 960, height: 900 } });
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(service.urls.workspace);
+  const openWorkspace = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Workspace', exact: true }).click(); };
+  await openWorkspace();
+  const scope = page.getByLabel('Workspace scope', { exact: true }), category = page.getByLabel('Workspace category', { exact: true }), search = page.getByLabel('Search cards', { exact: true });
+  const home = page.locator('.home'), group = id => home.locator(`[data-workspace-group="${id}"]`);
+  const ids = () => home.locator('.mak-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-card') || node.getAttribute('href')));
+  const snap = async name => { const file = path.join(repo, `${name}.png`); await page.screenshot({ path: file }); screenshots.push(file); };
+  await expect(scope).toHaveValue('active'); await expect(home.locator('.home-hero')).toHaveCount(0);
+  await expect(group('design')).toContainText('Design current'); await expect(group('engineering')).toContainText('Engineering done');
+  await expect(group('engineering')).toContainText('Cutoff equal'); await expect(home).toContainText('Pinned old'); await expect(group('design')).toContainText('Sample old');
+  await expect(group('Archived')).toHaveCount(0); await expect(home).not.toContainText('Design archived');
+  const normalOrder = await home.locator('[data-workspace-group]').evaluateAll(nodes => nodes.map(node => node.dataset.workspaceGroup));
+  await group('design').evaluate(node => { node.dataset.fixtureIdentity = 'preserved'; });
+  await scope.selectOption('all'); await expect(group('Archived')).toContainText('Design archived'); await expect(group('Archived')).toContainText('Engineering old'); await expect(group('Archived')).toContainText('Pinned archived');
+  assert.deepEqual((await home.locator('[data-workspace-group]').evaluateAll(nodes => nodes.map(node => node.dataset.workspaceGroup))).filter(id => id !== 'Archived'), normalOrder);
+  await expect(group('design')).toHaveAttribute('data-fixture-identity', 'preserved');
+  const all = await ids(); assert.equal(new Set(all).size, all.length); assert.equal(all.length, entities.length);
+  const saved = JSON.parse(await readFile(registryFile)); assert.deepEqual(saved.entities, entities);
+  await snap('archive-all-dark-960');
+  await scope.selectOption('archived'); await expect(group('design')).toHaveCount(0); await expect(group('engineering')).toHaveCount(0); await expect(group('Archived').locator('.mak-card')).toHaveCount(3);
+  await category.selectOption('design'); await expect(group('Archived').locator('.mak-card')).toHaveCount(1); await expect(group('Archived')).toContainText('Design archived');
+  await search.fill('current'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await scope.selectOption('active'); await expect(group('design')).toContainText('Design current'); await expect(group('Archived')).toHaveCount(0);
+  await search.fill('archived'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await scope.selectOption('all'); await expect(group('Archived')).toContainText('Design archived'); await expect(group('design')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear card search' }).click(); await category.selectOption('empty'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await category.selectOption(''); await expect(scope).toHaveValue('all'); await expect(group('design')).toBeVisible();
+  checks.push('Reproduced before: Show archive replaced Design/Engineering with by date. After: separate virtual Archived, unchanged normal order/DOM identity, no duplicate cards or registry edits; pins, samples, strict age cutoff and done cards preserved. Scope/category/search intersection and empty filters verified.');
+
+  await scope.selectOption('archived'); await snap('archive-only-dark-960'); await scope.selectOption('all');
+  await group('Archived').scrollIntoViewIfNeeded(); await snap('archive-group-dark-960');
+  await group('Archived').getByRole('button', { name: 'Edit Design archived: Archived' }).click();
+  await page.getByRole('dialog', { name: 'Card settings: Design archived' }).getByRole('button', { name: 'Active', exact: true }).click();
+  await expect(group('design')).toContainText('Design archived'); await expect(group('Archived')).not.toContainText('Design archived');
+  const restored = JSON.parse(await readFile(registryFile)).entities.find(item => item.id === 'Design archived');
+  assert.equal(restored.category, 'design'); assert.equal(restored.folder, 'cards'); assert.deepEqual(restored.steps, entities[2].steps);
+  assert.equal(await readFile(path.join(repo, 'workspace/cards/report.html'), 'utf8'), '<h1>Archive fixture report</h1>');
+  await category.selectOption('engineering'); await search.fill('done'); await scope.selectOption('active');
+  await group('engineering').getByText('Engineering done', { exact: true }).click(); await expect(page.frameLocator('iframe').getByRole('heading', { name: 'Archive fixture report' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Workspace', exact: true }).click(); await expect(scope).toHaveValue('active'); await expect(category).toHaveValue('engineering'); await expect(search).toHaveValue('done');
+  await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).workspaceFilters.query).toBe('done');
+  await page.reload(); await openWorkspace(); await expect(category).toHaveValue('engineering'); await expect(search).toHaveValue('done');
+  await scope.focus(); await page.keyboard.press('Tab'); await expect(category).toBeFocused(); await page.keyboard.press('Tab'); await expect(search).toBeFocused();
+  await page.getByRole('button', { name: 'Clear card search' }).click(); await category.selectOption(''); await scope.selectOption('all');
+  await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Show Archived group in Workspace')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption('light'); await page.getByRole('button', { name: 'Close settings' }).click();
+  for (const width of [960, 390]) { await page.setViewportSize({ width, height: 800 }); await expect(scope).toBeVisible(); await expect(category).toBeVisible(); await expect(search).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await snap(`archive-all-light-${width}`); }
+  checks.push('Unarchive returns to original category and preserves ID/folder/report bytes/routes. Compact home toolbar replaces hero. Filter state survives project/back and reload; keyboard order and narrow/light layout verified. No competing archive preference in Settings.');
+  await scope.selectOption('archived'); await category.selectOption('design'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).workspaceFilters.scope).toBe('archived');
+  await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+  await page.goto(service.urls.workspace); await openWorkspace(); await expect(scope).toHaveValue('archived'); await expect(category).toHaveValue('design');
+  assert.deepEqual(errors, []);
+  await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, checks, screenshots, errors }, null, 2));
+  console.log(JSON.stringify({ status: 'passed', evidence: repo }));
+} catch (error) { await page?.screenshot({ path: path.join(repo, 'failure.png') }); console.error(`Archive evidence: ${repo}`); throw error; }
+finally { await browser?.close(); await service.close(); }

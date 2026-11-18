@@ -1,3 +1,5 @@
+import { watch } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { open, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -11,11 +13,15 @@ export function completedTurn(record, agent) {
     const message = record.message.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
     return { kind: 'turn-completed', id: record.message.id, text: 'The agent finished its turn. Review the result.', preview: message.slice(-350), message };
   }
-  if (agent === 'claude' && !record.isSidechain && record.type === 'system' && record.subtype === 'api_error') return { kind: 'attention', text: 'The agent reported an API error.' };
+  if (agent === 'claude' && !record.isSidechain && record.type === 'system' && record.subtype === 'api_error') return { kind: 'turn-failed', text: 'The agent reported an API error.' };
   return null;
 }
 
 export function nativeActivity(record, agent) {
+  const event = activity(record, agent);
+  return event ? { ...event, source: 'provider-record', at: record.timestamp || record.createdAt, nativeTaskId: record.payload?.turn_id || null, eventKey: createHash('sha256').update(JSON.stringify(record)).digest('hex') } : null;
+}
+function activity(record, agent) {
   const completed = completedTurn(record, agent);
   if (completed) return completed;
   if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'function_call' && ['request_user_input', 'request_user_input_async', 'ask_user_question'].includes(record.payload.name)) {
@@ -31,6 +37,7 @@ export function nativeActivity(record, agent) {
   if (agent === 'codex' && record.type === 'event_msg') {
     if (record.payload?.type === 'user_message' && typeof record.payload.message === 'string') return { kind: 'task-input', text: record.payload.message };
     if (record.payload?.type === 'task_started') return { kind: 'turn-started' };
+    if (record.payload?.type === 'error') return { kind: 'turn-failed', text: 'The native provider reported an error.' };
     if (record.payload?.type === 'turn_aborted') return { kind: 'turn-interrupted' };
   }
   if (agent === 'claude' && !record.isSidechain) {
@@ -75,8 +82,10 @@ export function tailNativeFile(file, agent, onEvent, from = 0) {
     } catch { /* CLI may not have created its transcript yet. */ }
     finally { reading = false; }
   };
-  const timer = setInterval(tick, 400); timer.unref(); tick();
-  return () => { closed = true; clearInterval(timer); };
+  let watcher;
+  try { watcher = watch(file, { persistent: false }, () => void tick()); watcher.on('error', () => { watcher?.close(); watcher = null; }); } catch { /* The watchdog also detects creation and missed filesystem notifications. */ }
+  const timer = setInterval(tick, 2000); timer.unref(); tick();
+  return () => { closed = true; clearInterval(timer); watcher?.close(); };
 }
 
 export async function claudeTranscript(cwd, nativeId) {

@@ -1,5 +1,4 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import type { WorkspaceEntity } from './types'
 import { useWorkspace, archiveCutoff } from './lib/workspace'
 import { parseHash, entityHash, resolveStep, type Route } from './lib/route'
 import MakLogo from './components/MakLogo'
@@ -9,25 +8,26 @@ import HomeGrid from './components/HomeGrid'
 import EntityControls from './components/EntityControls'
 import ReportBoundary from './components/ReportBoundary'
 import WorkspaceToolControls from './components/WorkspaceToolControls'
-import { contentUrl, isDesktop } from './desktop/client'
+import { workspaceGroups, type WorkspaceFilters } from './lib/workspace-groups'
+import { api, reportError, contentUrl, isDesktop, useDesktop } from './desktop/client'
 
 const Compare3D = lazy(() => import('./components/Compare3D'))
 const ReportViewer = lazy(() => import('./components/ReportViewer'))
 const EditableCard = lazy(() => import('./components/EditableCard'))
 
-// Freshly-touched work always burns at the top: sort by `updated` (falls back
-// to `created`), regardless of status — a report Mak just edited must not sink
-// under long-lived "active" entities. Status only breaks ties.
-const lastTouched = (e: WorkspaceEntity) => e.updated ?? e.created
-const statusRank = (e: WorkspaceEntity) => (e.status === 'active' ? 0 : 1)
-const byFreshness = (a: WorkspaceEntity, b: WorkspaceEntity) =>
-  lastTouched(b).localeCompare(lastTouched(a)) || statusRank(a) - statusRank(b)
-
 export default function App({ mdi = false }: { mdi?: boolean }) {
   const { workspace, offline, lastSync, reload } = useWorkspace()
   const [route, setRoute] = useState<Route>(parseHash)
-  const [query, setQuery] = useState('')
-  const [showArchived, setShowArchived] = useState(false)
+  const desktop = useDesktop()
+  const [filters, setFilters] = useState<WorkspaceFilters>(() => desktop.settings.workspaceFilters || (() => { try { return JSON.parse(localStorage.getItem('alpha.workspaceFilters') || 'null') } catch { return null } })() || { scope: 'active', category: '', query: '' })
+  const query = filters.query
+  const setQuery = (query: string) => setFilters(current => ({ ...current, query }))
+  useEffect(() => {
+    localStorage.setItem('alpha.workspaceFilters', JSON.stringify(filters))
+    if (!isDesktop) return
+    const timer = setTimeout(() => { void api('/settings', { workspaceFilters: filters }).catch(reportError) }, 180)
+    return () => clearTimeout(timer)
+  }, [filters])
   const [collapsed, setCollapsed] = useState(
     () => isDesktop || localStorage.getItem('mak.sidebarCollapsed') === '1',
   )
@@ -77,12 +77,6 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
     document.title = entity ? `Alpha — ${entity.title}` : 'Alpha — Workspace'
   }, [entity])
 
-  useEffect(() => {
-    const show = (event: Event) => setShowArchived((event as CustomEvent<boolean>).detail)
-    window.addEventListener('alpha-show-archive', show)
-    return () => window.removeEventListener('alpha-show-archive', show)
-  }, [])
-
   const goHome = useCallback(() => {
     history.pushState(null, '', window.location.pathname + window.location.search)
     setRoute({ id: null, step: -1 })
@@ -105,35 +99,7 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
 
   const q = query.trim().toLowerCase()
   const searching = q.length > 0
-  const cutoff = archiveCutoff()
-  // An explicit `archived` status always wins, so a card can be put away by hand
-  // while it is still inside the 7-day window. Otherwise it is the date rule,
-  // which `pinned` overrides in the other direction.
-  const isArchived = (e: WorkspaceEntity) =>
-    e.status === 'archived' || (!e.pinned && !e.sample && lastTouched(e) < cutoff)
-  const matchesQuery = (e: WorkspaceEntity) =>
-    !searching ||
-    [e.title, e.description, e.category, e.id].some(s => s && s.toLowerCase().includes(q))
-
-  // Search digs through everything, archive included; otherwise the
-  // archive stays hidden behind the toggle.
-  const visible = entities.filter(
-    e => matchesQuery(e) && (searching || showArchived || !isArchived(e)),
-  )
-  const archivedCount = entities.filter(isArchived).length
-
-  const pinned = visible.filter(e => e.pinned).sort(byFreshness)
-  const rest = visible.filter(e => !e.pinned).sort(byFreshness)
-  // Category grouping is for the short working set only. With the archive open or a
-  // search running the list is long and the useful order is purely "what did I touch
-  // last", so buckets are dropped and everything stays in one date-sorted run.
-  const flat = showArchived || searching
-  const grouped = new Map<string, WorkspaceEntity[]>()
-  for (const e of rest) {
-    const cat = flat ? 'by date' : e.category || 'other'
-    if (!grouped.has(cat)) grouped.set(cat, [])
-    grouped.get(cat)!.push(e)
-  }
+  const { pinned, grouped } = workspaceGroups(entities, filters, archiveCutoff())
 
   return (
     <EntityControls entities={entities} categories={categories} onChanged={reload}>
@@ -146,9 +112,6 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
         query={query}
         onQuery={setQuery}
         searchRef={searchRef}
-        archivedCount={archivedCount}
-        showArchived={showArchived}
-        onToggleArchived={() => setShowArchived(v => !v)}
         total={entities.length}
         offline={offline}
         lastSync={lastSync}
@@ -202,7 +165,8 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
               grouped={grouped}
               offline={offline}
               searching={searching}
-              query={query}
+              filters={filters}
+              onFilters={setFilters}
             />
           )}
           </ReportBoundary>

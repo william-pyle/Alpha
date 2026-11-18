@@ -1,3 +1,4 @@
+import { ARCHIVED_GROUP, type WorkspaceGroup } from '../lib/workspace-groups'
 import type { RefObject } from 'react'
 import type { CardCategory, WorkspaceEntity } from '../types'
 import { entityHash } from '../lib/route'
@@ -10,14 +11,11 @@ import { EntityStatusButton } from './EntityControls'
 interface SidebarProps {
   categories: CardCategory[]
   pinned: WorkspaceEntity[]
-  grouped: Map<string, WorkspaceEntity[]>
+  grouped: Map<WorkspaceGroup, WorkspaceEntity[]>
   activeId: string | null
   query: string
   onQuery: (q: string) => void
   searchRef: RefObject<HTMLInputElement | null>
-  archivedCount: number
-  showArchived: boolean
-  onToggleArchived: () => void
   total: number
   offline: boolean
   lastSync: Date | null
@@ -50,9 +48,6 @@ export default function Sidebar({
   query,
   onQuery,
   searchRef,
-  archivedCount,
-  showArchived,
-  onToggleArchived,
   total,
   offline,
   lastSync,
@@ -115,9 +110,9 @@ export default function Sidebar({
         )}
 
         {[...grouped.entries()].map(([cat, list]) => (
-          <div key={cat}>
+          <div key={cat === ARCHIVED_GROUP ? ":virtual-archive" : cat}>
             <div className="sidebar-section">
-              <span className="sidebar-label">{categoryName(cat, categories)}</span>
+              <span className="sidebar-label">{cat === ARCHIVED_GROUP ? 'Archived' : categoryName(cat, categories)}</span>
               <span className="sidebar-count">{list.length}</span>
             </div>
             {list.map(e => (
@@ -128,13 +123,7 @@ export default function Sidebar({
 
         {empty && <div className="sidebar-empty">Nothing matches yet.</div>}
 
-        {archivedCount > 0 && !query && (
-          <button className="sidebar-archive-toggle" onClick={onToggleArchived}>
-            {showArchived
-              ? `▼ Hide archive (${archivedCount})`
-              : `▶ Show archive (${archivedCount})`}
-          </button>
-        )}
+
       </nav>
 
       <footer className="sidebar-foot">
