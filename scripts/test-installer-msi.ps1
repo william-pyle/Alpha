@@ -1,4 +1,4 @@
-param([string] $MsiPath)
+param([string] $MsiPath, [string] $ExpectedVersion)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -33,6 +33,8 @@ try {
   foreach ($row in (Read-Rows $database 'SELECT `Property`, `Value` FROM `Property`' 2)) {
     $properties[$row[0]] = $row[1]
   }
+  if (-not $ExpectedVersion) { $ExpectedVersion = $version }
+  if ($properties['ProductVersion'] -ne $ExpectedVersion) { throw 'The MSI product version differs from the expected release.' }
   if ($properties['UpgradeCode'].Trim('{}') -ine 'c2fa89e5-546c-51c7-8396-02888a068f36') {
     throw 'The Alpha MSI upgrade identity changed.'
   }

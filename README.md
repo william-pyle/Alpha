@@ -253,9 +253,13 @@ node scripts/release.mjs
 
 The installer and `alpha-update.json` are generated in `release/`. The
 [Windows workflow](https://github.com/william-pyle/Alpha/actions/workflows/windows.yml)
-runs checks on main, pull requests and manual dispatch. A matching `vX.Y.Z`
-tag triggers publication of the tested installer and update manifest to
-[GitHub Releases](https://github.com/william-pyle/Alpha/releases).
+runs the authoritative full checks and builds the installer on main (and checks
+pull requests/manual CI separately). A matching `vX.Y.Z` tag promotes only the
+immutable artifact from successful main push CI for that exact commit; it does
+not rebuild or repeat service/UI/Rust tests. Publication rechecks artifact
+provenance, archive and MSI hashes, product version, installer structure and
+the public update manifest. Missing, failed, mismatched or expired evidence
+refuses publication. See [release procedure](docs/releasing.md).
 
 The source now builds a per-machine WiX MSI with the standard welcome, install
 folder and finish wizard, like ContactCraft and SolidCraft. Tauri builds this

@@ -5,10 +5,16 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to publish from its successful main artifact (leave empty for CI)
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
   build:
+    if: github.ref_type != 'tag' && inputs.release_tag == ''
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +28,7 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm run lint
+      - run: node --test scripts/test/promote-release.test.mjs
       - run: npm test
       - run: npm run build
       - run: npm run desktop:test:ui
@@ -50,26 +57,65 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   release:
-    if: startsWith(github.ref, 'refs/tags/') && github.repository == 'william-pyle/Alpha'
+    if: always() && (startsWith(github.ref, 'refs/tags/') || inputs.release_tag != '') && github.repository == 'william-pyle/Alpha'
     needs: build
     runs-on: windows-latest
+    concurrency:
+      group: alpha-publication-${{ inputs.release_tag || github.ref_name }}
+      cancel-in-progress: false
     permissions:
       contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: Alpha-Windows-installer
-          path: release
-      - name: Publish tested Windows release
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Require successful exact-commit main CI and download its immutable artifact
+        id: evidence
+        run: node scripts/promote-release.mjs gate "$env:RELEASE_TAG"
+      - name: Extract and verify the tested installer and manifest
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath .release-evidence/artifact.zip -DestinationPath .release-evidence/unpacked
+          node scripts/promote-release.mjs verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $verified = Get-Content -Raw .release-evidence/verified.json | ConvertFrom-Json
+          ./scripts/test-installer-msi.ps1 -MsiPath (Join-Path .release-evidence/unpacked $verified.name) -ExpectedVersion $verified.version
+          $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path .release-evidence/unpacked $verified.name)
+          if ($signature.Status -notin @('Valid', 'NotSigned')) { throw "Unexpected installer signing status: $($signature.Status)" }
+          "MSI signing status: $($signature.Status)" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "Source: $($verified.sourceSha); main CI: $($verified.mainRunUrl); artifact: $($verified.artifactId); SHA-256: $($verified.sha256)" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+      - name: Publish the verified main artifact
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ steps.evidence.outputs.source-sha }}
         run: |
-          $artifacts = @(Get-ChildItem -LiteralPath release -File | ForEach-Object { $_.FullName })
-          gh release create $env:RELEASE_TAG @artifacts --draft --verify-tag --title "Alpha $env:RELEASE_TAG" --notes-file "release-notes/$env:RELEASE_TAG.md"
+          $notes = git show "$($env:SOURCE_SHA):release-notes/$env:RELEASE_TAG.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $notes | Set-Content -LiteralPath .release-evidence/notes.md -Encoding utf8
+          $artifacts = @(Get-ChildItem -LiteralPath .release-evidence/unpacked -File | ForEach-Object { $_.FullName })
+          gh release create $env:RELEASE_TAG @artifacts --draft --verify-tag --title "Alpha $env:RELEASE_TAG" --notes-file .release-evidence/notes.md
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit $env:RELEASE_TAG --draft=false --latest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify published installer and update manifest
+        run: node scripts/promote-release.mjs verify-public
+      - name: Retain publication provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alpha-publication-evidence
+          include-hidden-files: true
+          path: |
+            .release-evidence/evidence.json
+            .release-evidence/verified.json
+            .release-evidence/published.json
+          if-no-files-found: ignore
+          retention-days: 30

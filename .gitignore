@@ -26,3 +26,6 @@ Thumbs.db
 *.tsbuildinfo
 /src-tauri/icons/android/
 /src-tauri/icons/ios/
+
+# Verified CI artifacts used only during publication
+.release-evidence/
