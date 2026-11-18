@@ -187,8 +187,13 @@ try {
     await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await closeSettings();
     for (const viewport of [{ width: 960, height: 1440 }, { width: 960, height: 520 }, { width: 768, height: 600 }, { width: 390, height: 600 }]) {
       await page.setViewportSize(viewport); await expect(editor).toBeVisible();
-      const bounds = await page.evaluate(() => { const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom }; }; return { messages: rect('.alpha-conversation-scroll'), editor: rect('[aria-label="Message Alpha"]'), header: rect('.thread-picker'), status: rect('.mdi-statusbar'), overflow: document.documentElement.scrollWidth > innerWidth + 1 }; });
+      let bounds;
+      // ResizeObserver updates the saved composer budget after the viewport changes.
+      // Keep the full geometry assertions, but wait for that measured layout to commit.
+      await expect(async () => {
+      bounds = await page.evaluate(() => { const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom }; }; return { messages: rect('.alpha-conversation-scroll'), editor: rect('[aria-label="Message Alpha"]'), header: rect('.thread-picker'), status: rect('.mdi-statusbar'), overflow: document.documentElement.scrollWidth > innerWidth + 1 }; });
       assert.equal(bounds.overflow, false); assert(bounds.header.height <= 85); assert(bounds.editor.height >= 76); assert(bounds.messages.height >= 120); assert(bounds.editor.bottom <= bounds.status.y + 1); assert(bounds.messages.bottom <= bounds.editor.y);
+      }).toPass({ timeout: 5000 });
       metrics.push({ theme, ...viewport, ...bounds });
       await page.locator('.alpha-conversation-scroll').evaluate(node => { node.scrollTop = 0; }); await snap(`text-${theme}-${viewport.width}x${viewport.height}`);
     }
@@ -226,5 +231,6 @@ try {
   console.log(JSON.stringify({ status: 'passed', checks: checks.length, evidence: repo }));
 } catch (error) {
   if (page) await page.screenshot({ path: path.join(repo, 'failure.png') }).catch(() => {});
+  await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: String(error), checks, metrics, errors }, null, 2));
   console.error(`Isolated evidence: ${repo}`); throw error;
 } finally { await browser?.close(); await service.close(); }

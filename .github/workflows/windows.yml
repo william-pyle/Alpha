@@ -25,6 +25,16 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run desktop:test:ui
+      - name: Preserve isolated UI failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alpha-UI-failure-evidence
+          path: |
+            .test-output/*/failure.png
+            .test-output/*/failure.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run desktop:build -- --bundles msi
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run desktop:test:installer
