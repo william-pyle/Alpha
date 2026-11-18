@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.19**, with conversation tabs, direct real-terminal access, close-to-History, persistent Workspace, quieter attention, verified Codex submission and a fixed app identity. See [release notes](release-notes/v0.2.19.md).
+knowledge into one Windows desktop window. This source targets **0.2.20**, with conversation tabs, direct real-terminal access, close-to-History, persistent Workspace, quieter attention, verified Codex submission and a fixed app identity. See [release notes](release-notes/v0.2.20.md).
 
 ## What you can do
 
@@ -214,7 +214,7 @@ its document tabs. Questions also recognizes asynchronous Codex prompts.
 Build and isolated UI checks passed. Actual laptop movement, working-state
 lights and live speech can be reviewed after updating the active installation.
 
-## Fixed application identity (0.2.19)
+## Fixed application identity (0.2.20)
 
 Alpha's application mark is a solid blue square with a filled white brain,
 independent of theme or voice persona. The canonical vector is

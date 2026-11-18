@@ -28,6 +28,16 @@ try {
   await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Quick switcher' }).click(); await switcher.getByRole('combobox').fill('Search this conversation'); await page.keyboard.press('Enter');
   const search = page.getByRole('dialog', { name: 'Search this conversation', exact: true }); await search.getByRole('textbox').fill('UNIQUE NEEDLE'); await expect(search).toContainText('1 matches'); await search.getByRole('button', { name: /UNIQUE NEEDLE/ }).click();
   await expect(page.locator('[data-message-id="m2"]')).toBeFocused(); await expect(page.locator('[data-message-id="m2"]')).toBeInViewport(); assert.equal(await page.getByText('OTHER PRIVATE TRANSCRIPT').count(), 0);
+  // Repeated dialog-to-message handoff must retain focus after modal cleanup.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Quick switcher' }).click();
+    await switcher.getByRole('combobox').fill('Search this conversation'); await page.keyboard.press('Enter');
+    await search.getByRole('textbox').fill('UNIQUE NEEDLE'); await expect(search).toContainText('1 matches');
+    await search.getByRole('button', { name: /UNIQUE NEEDLE/ }).click(); await expect(search).toHaveCount(0);
+    await expect(page.locator('[data-message-id="m2"]')).toBeFocused();
+    await page.locator('[data-message-id="m2"]').press('Tab');
+    await expect(page.locator('[data-message-id="m3"]')).toBeFocused();
+  }
   const auth = { Authorization: `Bearer ${service.token}` };
   const forbidden = await fetch(`${service.origin}/api/threads/${b.id}/search?q=PRIVATE`, { headers: auth }); assert.equal(forbidden.status, 403);
   const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
