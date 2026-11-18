@@ -65,10 +65,14 @@ try {
   assert.equal(service.threads.get(b.id).messages.length, originalCount); await expect(userMessage).toBeFocused();
   await userMessage.press('Shift+F10'); await page.getByRole('menuitem', { name: 'Copy to another conversation' }).click(); await page.getByLabel('Destination').selectOption(b.id); await page.getByRole('button', { name: 'Copy message', exact: true }).click();
   await expect.poll(() => service.threads.get(b.id).messages.length).toBe(originalCount + 1);
+  await expect(page.getByRole('dialog', { name: 'Copy to another conversation', exact: true })).toHaveCount(0);
+  await expect(userMessage).toBeFocused();
   const copiedUser = service.threads.get(b.id).messages.at(-1); assert.match(copiedUser.text, /Please simplify the layout/); assert.match(copiedUser.text, /Reference explicitly shared from Simplify conversation layout/); assert.equal(copiedUser.images?.length || 0, 0);
-  await assistantMessage.focus(); await assistantMessage.press('ContextMenu'); await page.keyboard.press('Escape'); await expect(assistantMessage).toBeFocused(); await expect(page.getByRole('menu', { name: 'Message actions' })).toHaveCount(0);
+  await assistantMessage.focus(); await assistantMessage.press('ContextMenu'); await expect(page.getByRole('menu', { name: 'Message actions' })).toBeVisible(); await page.keyboard.press('Escape'); await expect(assistantMessage).toBeFocused(); await expect(page.getByRole('menu', { name: 'Message actions' })).toHaveCount(0);
   await assistantMessage.press('ContextMenu'); await page.getByRole('menuitem', { name: 'Copy to another conversation' }).click(); await page.getByLabel('Destination').selectOption(b.id); await page.getByRole('button', { name: 'Copy message', exact: true }).click();
   await expect.poll(() => service.threads.get(b.id).messages.length).toBe(originalCount + 2); assert.match(service.threads.get(b.id).messages.at(-1).text, /## A simpler place to write/); assert.equal(requests.length, 0);
+  await expect(page.getByRole('dialog', { name: 'Copy to another conversation', exact: true })).toHaveCount(0);
+  await expect(assistantMessage).toBeFocused();
   await assistantMessage.locator('h2').evaluate(node => { const range = document.createRange(); range.selectNodeContents(node); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); });
   await assistantMessage.evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 958, clientY: 998, button: 2 })));
   const contextMenu = page.getByRole('menu', { name: 'Message actions' }); await expect(contextMenu.getByRole('menuitem', { name: 'Copy selected text' })).toBeVisible();
