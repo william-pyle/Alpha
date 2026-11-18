@@ -82,7 +82,9 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 }); await tab(a.id).click(); const rawShot = path.join(repo, 'real-terminal.png'); await page.screenshot({ path: rawShot }); screenshots.push(rawShot);
   checks.push('14 tabs/long titles at 1440,768,390: scrolling, reachable fixed +, visible Workspace, bottom composer, keyboard splitter.');
 
-  await tab(b.id).click(); await mode(b.name).click(); await editor.focus();
+  await tab(b.id).click(); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
+  await mode(b.name).click(); await expect(mode(b.name)).toHaveAttribute('aria-pressed', 'false');
+  await expect(editor).toBeEnabled(); await editor.focus(); await expect(editor).toBeFocused();
   const event = { id: 'synthetic-failure', threadId: a.id, sessionId: w2.id, kind: 'error', text: 'Synthetic worker failure requires inspection.', source: 'Native provider error' };
   service.awareness.event(event); service.awareness.event(event); service.threads.message(a.id, { id: 'background', role: 'assistant', text: 'Background result, not verified.' });
   await expect(page.getByRole('button', { name: /^Attention for Architecture/ })).toBeVisible(); await expect(editor).toBeFocused(); assert.equal(service.threads.selectedId, b.id);
