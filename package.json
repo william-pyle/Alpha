@@ -13,7 +13,7 @@
     "desktop:prepare": "node desktop/prepare.mjs",
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
-    "desktop:test": "node --test desktop/service/test/*.test.mjs",
+    "desktop:test": "node --test --test-reporter=tap desktop/service/test/*.test.mjs",
     "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs && node desktop/service/test/settings-cleanup-ui.mjs && node desktop/service/test/workspace-tools-ui.mjs && node desktop/service/test/conversation-ui.mjs && node desktop/service/test/agent-center-ui.mjs && node desktop/service/test/voice-ui.mjs && node desktop/service/test/speech-face-ui.mjs && node desktop/service/test/simplified-layout-ui.mjs && node desktop/service/test/workspace-archive-ui.mjs && node desktop/service/test/window-chrome-ui.mjs && node desktop/service/test/expanded-layout-ui.mjs && node desktop/service/test/trust-pass-ui.mjs",
     "test": "npm run desktop:test",
     "package": "npm run desktop:build -- --bundles msi",
