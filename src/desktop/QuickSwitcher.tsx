@@ -9,7 +9,7 @@ export default function QuickSwitcher({ close, command }: { close: () => void; c
   const choices = [
     ...state.threads.map(t => ({ id: `thread:${t.id}`, label: t.name, detail: `Conversation · ${t.projectId || 'Unassigned'} · ${t.purpose || ''}`, run: async () => { await selectThread(t.id); command('conversation') } })),
     ...(workspace?.entities || []).map(p => ({ id: `project:${p.id}`, label: p.title, detail: `Project · ${p.category || ''}`, run: () => { location.hash = `#/${encodeURIComponent(p.id)}/0`; command('show-workspace') } })),
-    ...[['workspace', 'Workspace'], ['questions', 'Questions'], ['settings', 'Settings'], ['search-conversation', 'Search this conversation'], ['work-details', 'Work details'], ['health', 'Alpha health']].map(([id, label]) => ({ id, label, detail: 'Command', run: () => command(id) })),
+    ...[['conversation-history', 'Conversation history'], ['new-conversation', 'New conversation'], ['important-events', 'Important events'], ['learned-preferences', "What I've learned"], ['workspace', 'Workspace'], ['questions', 'Questions'], ['settings', 'Settings'], ['search-conversation', 'Search this conversation'], ['work-details', 'Work details'], ['health', 'Alpha health']].map(([id, label]) => ({ id, label, detail: 'Command', run: () => command(id) })),
   ].filter(item => `${item.label} ${item.detail}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   const selected = Math.min(index, Math.max(0, choices.length - 1))
   useEffect(() => { document.getElementById(`quick-${selected}`)?.scrollIntoView({ block: 'nearest' }) }, [selected, query])

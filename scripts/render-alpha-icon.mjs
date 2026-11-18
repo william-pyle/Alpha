@@ -1,4 +1,5 @@
-// Render the shipped GLB on transparency for Alpha's app and project icons.
+// Historical theme/presence artwork renderer. Never generates app identity.
+// Fixed app icons are generated with npm run icons:generate from public/identity/alpha.svg.
 import http from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';

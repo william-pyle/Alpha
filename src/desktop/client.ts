@@ -104,8 +104,8 @@ function connect() {
   socket.onmessage = ({ data }) => {
     const event = JSON.parse(data) as ServiceEvent
     if (event.type === 'threads' && event.threads) {
-      if (state.selectedThreadId && event.selectedThreadId && event.selectedThreadId !== state.selectedThreadId) window.dispatchEvent(new Event('alpha-thread-switch'))
-      update({ threads: event.threads, selectedThreadId: event.selectedThreadId ?? state.selectedThreadId })
+      if (state.selectedThreadId && event.selectedThreadId !== undefined && event.selectedThreadId !== state.selectedThreadId) window.dispatchEvent(new Event('alpha-thread-switch'))
+      update({ threads: event.threads, selectedThreadId: event.selectedThreadId === undefined ? state.selectedThreadId : event.selectedThreadId })
     }
     if (event.type === 'window-state' && event.nativeWindow) { update({ nativeWindow: event.nativeWindow }); if (event.nativeWindow.error) reportError(event.nativeWindow.error) }
     if (event.type === 'awareness' && event.awareness) update({ awareness: event.awareness })

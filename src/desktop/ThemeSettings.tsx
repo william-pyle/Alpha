@@ -40,7 +40,7 @@ export default function ThemeSettings() {
         <label>Background color<input aria-label="Background color" type="color" value={draft.background} onChange={event => field('background', event.target.value)} /></label>
         <label>Text color<input aria-label="Text color" type="color" value={draft.foreground} onChange={event => field('foreground', event.target.value)} /></label>
         <label>Accent color<input aria-label="Accent color" type="color" value={draft.accent} onChange={event => field('accent', event.target.value)} /></label>
-        <label>Icon artwork<select aria-label="Icon artwork" value={draft.icon} onChange={event => field('icon', event.target.value)}>{icons.map(item => <option key={item.path} value={item.path}>{item.label}</option>)}</select></label>
+        <label>Persona artwork<select aria-label="Persona artwork" value={draft.icon} onChange={event => field('icon', event.target.value)}>{icons.map(item => <option key={item.path} value={item.path}>{item.label}</option>)}</select></label>
         <label>Background artwork<select aria-label="Background artwork" value={draft.backdrop} onChange={event => field('backdrop', event.target.value)}>{backdrops.map(item => <option key={item.path} value={item.path}>{item.label}</option>)}</select></label>
       </div>
       <div className="theme-editor-preview" style={{ backgroundColor: draft.background, color: draft.foreground, borderColor: draft.accent }}><img src={draft.icon} alt="" /><span><strong>{draft.label || 'Theme preview'}</strong><small style={{ color: draft.accent }}>Accent and artwork preview</small></span></div>
@@ -48,7 +48,7 @@ export default function ThemeSettings() {
         {modifiedBuiltIn && <button className="desk-secondary" disabled={busy} onClick={() => void action('reset')}>Restore built-in</button>}
         {editing.startsWith('custom-') && <button className="desk-secondary" disabled={busy} onClick={() => void action('delete')}>Delete theme</button>}
       </div>
-      <p>Colors shape the dark palette and a matching light palette. Changes apply to Workspace, Chats, and the Alpha voice persona. Artwork can use the images bundled with Alpha.</p>
+      <p>Colors shape the dark palette and a matching light palette. Changes apply to Workspace, Chats, and the Alpha voice persona. Persona artwork uses the images bundled with Alpha. The blue-and-white Alpha app icon stays the same in every theme.</p>
       {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
     </section>
   </div>

@@ -36,7 +36,7 @@ try {
   clearInterval(timer); service.speech.stop(); await expect(face).toHaveAttribute('data-mouth-opening', '0.000');
   if (!native) {
     // An old or background speech event must not animate the selected thread.
-    await page.getByLabel('Conversation', { exact: true }).selectOption(b.id);
+    await page.locator(`#conversation-tab-${b.id}`).click();
     service.speech.changed({ speaking: true, error: null, threadId: a.id, level: 1, levelAt: Date.now() });
     await expect(face).toHaveAttribute('data-mouth-opening', '0.000');
     service.speech.changed({ speaking: false, error: 'Fixture audio device error' });

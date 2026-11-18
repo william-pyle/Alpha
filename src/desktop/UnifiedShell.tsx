@@ -35,7 +35,7 @@ export default function UnifiedShell() {
   const [switcher, setSwitcher] = useState(false)
   useEffect(() => { const key = (event: KeyboardEvent) => { if (event.ctrlKey && event.key.toLowerCase() === 'k') { event.preventDefault(); setSwitcher(value => !value) } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [])
   const [agentCenter, setAgentCenter] = useState<'Agents' | 'Health' | null>(null)
-  const [workspaceVisible, setWorkspaceVisible] = useState(false)
+  useEffect(() => { const health = () => setAgentCenter('Health'); window.addEventListener('alpha-open-health', health); return () => window.removeEventListener('alpha-open-health', health) }, [])
   const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 500)
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
@@ -44,7 +44,6 @@ export default function UnifiedShell() {
     const route = () => {
       const parsed = parseHash()
       if (!parsed.id) { setActive('workspace'); return }
-      setWorkspaceVisible(true)
       const id = `entity:${parsed.id}`
       setTabs(current => current.some(tab => tab.id === id) ? current.map(tab => tab.id === id ? { ...tab, route: location.hash } : tab) : [...current, { id, kind: 'entity', title: parsed.id || 'Document', route: location.hash }])
       setActive(id)
@@ -58,7 +57,6 @@ export default function UnifiedShell() {
     const changed = (event: Event) => {
       const preview = (event as CustomEvent<Preview | null>).detail
       if (!preview) return
-      setWorkspaceVisible(true)
       const id = `file:${preview.path}`
       setTabs(current => current.some(tab => tab.id === id) ? current.map(tab => tab.id === id ? { ...tab, title: preview.name, preview } : tab) : [...current, { id, kind: 'file', title: preview.name, preview }])
       setActive(id)
@@ -99,13 +97,14 @@ export default function UnifiedShell() {
   }
   const run = (action: string) => {
     setMenu(null)
+    if (['conversation-history', 'important-events', 'learned-preferences', 'new-conversation'].includes(action)) window.dispatchEvent(new Event(`alpha-${action}`))
     if (action === 'quick-switcher') setSwitcher(true)
-    if (action === 'conversation') setWorkspaceVisible(false)
-    if (action === 'show-workspace') setWorkspaceVisible(true)
-    if (action === 'search-conversation' || action === 'work-details') { setWorkspaceVisible(false); window.dispatchEvent(new Event(`alpha-${action}`)) }
+    if (action === 'conversation') document.querySelector<HTMLElement>('[role=tab][aria-selected=true]')?.focus()
+    if (action === 'show-workspace') choose(home)
+    if (action === 'search-conversation' || action === 'work-details') { window.dispatchEvent(new Event(`alpha-${action}`)) }
     if (action === 'new-card') window.dispatchEvent(new Event('alpha-new-card'))
     if (action === 'open-file') void openFile()
-    if (action === 'workspace') { choose(home); setWorkspaceVisible(true) }
+    if (action === 'workspace') choose(home)
     if (action === 'close-document') close(activeTab)
     if (action === 'questions') window.dispatchEvent(new Event('alpha-toggle-questions'))
     if (action === 'settings') setSettings(true)
@@ -114,9 +113,9 @@ export default function UnifiedShell() {
     if (action === 'help') void openHelp()
   }
   const menuItems: Record<string, Array<[string, string]>> = {
-    File: [['New card', 'new-card'], ['Open file…', 'open-file'], ['Close document', 'close-document']],
-    View: [['Quick switcher (Ctrl+K)', 'quick-switcher'], ['Workspace', 'workspace'], ['Questions', 'questions']],
-    Tools: [['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings…', 'settings']],
+    File: [['New conversation', 'new-conversation'], ['New card', 'new-card'], ['Open file…', 'open-file'], ['Close document', 'close-document']],
+    View: [['Quick switcher (Ctrl+K)', 'quick-switcher'], ['Workspace', 'workspace'], ['Conversation history', 'conversation-history'], ['Important events', 'important-events'], ['Questions', 'questions']],
+    Tools: [["What I've learned", 'learned-preferences'], ['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings…', 'settings']],
     Help: [['Open Help', 'help']],
   }
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -138,11 +137,11 @@ export default function UnifiedShell() {
   }
 
   return <div className="unified-shell" data-reduced-motion={state.settings.reducedMotion ?? matchMedia('(prefers-reduced-motion: reduce)').matches} style={{ '--reading-size': `${state.settings.readingSize || 16}px`, '--reading-spacing': state.settings.readingSpacing || 1.6 } as React.CSSProperties} onKeyDown={event => { if (event.key === 'Escape') setMenu(null) }}>
-    <div className="mdi-menu-bar"><div className="mdi-brand"><Nose size={21} /><strong>Alpha</strong></div>{Object.entries(menuItems).map(([label, items]) => <div className="mdi-menu-group" key={label}><button type="button" aria-expanded={menu === label} onClick={() => setMenu(current => current === label ? null : label)}>{label}</button>{menu === label && <div className="mdi-menu-popup" role="menu">{items.map(([text, action]) => <button role="menuitem" key={action} type="button" disabled={action === 'close-document' && active === 'workspace'} onClick={() => run(action)}>{text}</button>)}</div>}</div>)}<WindowControls /></div>
+    <div className="mdi-menu-bar"><div className="mdi-brand"><Nose size={20} /><strong>Alpha</strong></div>{Object.entries(menuItems).map(([label, items]) => <div className="mdi-menu-group" key={label}><button type="button" aria-expanded={menu === label} onClick={() => setMenu(current => current === label ? null : label)}>{label}</button>{menu === label && <div className="mdi-menu-popup" role="menu">{items.map(([text, action]) => <button role="menuitem" key={action} type="button" disabled={action === 'close-document' && active === 'workspace'} onClick={() => run(action)}>{text}</button>)}</div>}</div>)}<WindowControls /></div>
     <div className="mdi-body">
-      <aside className={`mdi-chats ${workspaceVisible ? '' : 'conversation-primary'}`} style={workspaceVisible ? { width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) } : undefined}><ThreadConversations /></aside>
-      {workspaceVisible && <div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} />}
-      <div className="mdi-center" hidden={!workspaceVisible}><button className="workspace-close" onClick={() => setWorkspaceVisible(false)}>Return to conversation</button><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button role="tab" type="button" aria-selected={active === tab.id} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span></button>{tab.kind !== 'workspace' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><App mdi />{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
+      <aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><ThreadConversations /></aside>
+      {<div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} />}
+      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button role="tab" type="button" aria-selected={active === tab.id} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span></button>{tab.kind !== 'workspace' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><App mdi />{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
     </div>
     <QuestionsPanel />
     <NewCard hideTrigger />

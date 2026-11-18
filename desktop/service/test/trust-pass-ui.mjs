@@ -28,9 +28,9 @@ try {
   page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(12000);
   await page.goto(service.urls.workspace);
   const pane = page.getByRole('region', { name: 'Alpha conversation', exact: true });
-  const picker = pane.getByLabel('Conversation', { exact: true });
+  const picker = pane.locator('[role=tab][aria-selected=true]');
   const editor = pane.getByRole('textbox', { name: 'Message Alpha' });
-  const menu = async name => { await pane.getByLabel('Conversation menu', { exact: true }).click(); await pane.getByRole('button', { name, exact: true }).click(); };
+  const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   await editor.fill('Measure the response'); await editor.press('Enter');
   await expect(page.locator('.status-runtime')).toContainText('waiting for provider');
@@ -50,13 +50,9 @@ try {
   checks.push('Streamed response, phase timings, completed versus verified wording and visible failure');
 
   const question = await service.questions.ask({ text: 'Which fixture result should be reviewed?', options: ['First result', 'Second result'], sourceId: 'fixture-question', threadId: b.id, chatName: b.name });
-  await pane.getByRole('button', { name: /^Notifications:/ }).click();
-  await expect(page.getByRole('dialog', { name: 'Notifications' })).toBeVisible();
   const attentionQuestion = page.locator('.thread-attention article').filter({ hasText: 'Question fixture' });
-  await expect(attentionQuestion).toContainText('Waiting for your answer');
-  await expect(attentionQuestion).not.toContainText(question.text);
-  await attentionQuestion.getByRole('button', { name: 'Open question', exact: true }).click();
-  await expect(picker).toHaveValue(b.id);
+  await pane.getByRole('button', { name: /^Attention for Question fixture:/ }).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   const questionCard = page.locator(`[data-question-id="${question.id}"]`);
   await expect(questionCard.getByRole('textbox')).toBeFocused();
   await questionCard.getByRole('button', { name: 'First result', exact: true }).click();
@@ -80,11 +76,11 @@ try {
   const worker = service.sessions.make({ id: 'legacy-native-fixture', nativeId: 'preserved-provider-fixture', name: 'Conversation 7', agent: 'codex', cwd: repo, open: true, status: 'stopped', projectId: 'fixture', projectPending: false });
   service.sessions.items.set(worker.id, worker); service.sessions.changed(worker);
   service.awareness.event({ id: 'native-attention-fixture', threadId: worker.id, sessionId: worker.id, kind: 'attention', text: 'A native worker needs your input. Open Work details to inspect its prompt.', source: 'Fixture prompt' });
-  await pane.getByRole('button', { name: /^Notifications:/ }).click();
-  await page.locator('.thread-attention article').filter({ hasText: 'Conversation 7' }).getByRole('button', { name: 'Open Work details' }).click();
-  await expect(picker).toHaveValue(worker.id);
+  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click();
+  await page.locator('.thread-attention article').filter({ hasText: 'Conversation 7' }).getByRole('button', { name: 'Open originating conversation' }).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${worker.id}`);
   await expect(page.getByRole('button', { name: 'Enable terminal controls', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close Work details' }).click(); await menu('History');
+  await menu('History');
   await page.getByRole('button', { name: 'Review conversation metadata', exact: true }).click();
   const review = page.locator('.desk-dialog').filter({ has: page.getByRole('heading', { name: 'Review conversation metadata' }) });
   await expect(review).toContainText('Choose a descriptive title');
@@ -100,13 +96,13 @@ try {
   await expect(dialog).toHaveCount(0);
   const created = service.threads.items.at(-1);
   assert.equal(created.name, 'Review startup performance evidence'); assert.equal(created.projectId, null);
-  await picker.selectOption(b.id);
-  await expect(picker).toHaveValue(b.id);
+  await page.locator(`#conversation-tab-${b.id}`).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   const ownership = page.locator('.question-card').filter({ hasText: `Which card or project should I track ${created.name} under?` });
   await ownership.getByLabel(`Project for ${created.name}`, { exact: true }).selectOption('fixture - Fixture project');
   await ownership.getByRole('button', { name: 'Send answer' }).click();
-  await expect.poll(() => service.threads.get(created.id).projectId).toBe('fixture'); await expect(picker).toHaveValue(b.id);
-  await picker.selectOption(created.id);
+  await expect.poll(() => service.threads.get(created.id).projectId).toBe('fixture'); await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
+  await page.locator(`#conversation-tab-${created.id}`).click();
   await menu('Conversation details');
   await page.getByLabel('Title', { exact: true }).fill('Startup evidence review');
   await page.getByLabel('Purpose', { exact: true }).fill('Compare startup checks with recorded evidence');
@@ -138,7 +134,7 @@ try {
   checks.push('Acceptance does not verify; evidence entry, version provenance and correction history render in product UI');
 
   await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
-  await page.goto(service.urls.workspace); await expect(picker).toHaveValue(created.id); await expect(editor).toHaveValue('Preserved draft');
+  await page.goto(service.urls.workspace); await expect(picker).toHaveAttribute('id', `conversation-tab-${created.id}`); await expect(editor).toHaveValue('Preserved draft');
   await expect.poll(() => service.threads.get(created.id).purpose).toBe('Compare startup checks with recorded evidence');
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });

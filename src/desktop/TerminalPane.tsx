@@ -1,6 +1,6 @@
 import { useApplicationTheme } from '../lib/application-theme'
 import { useWorkspaceTheme } from '../lib/workspace-theme'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -12,19 +12,23 @@ import { decorateTerminal, focusTheme, originalTheme, type TerminalAppearance } 
 import { fileManager, isMac, modKey, modLabel } from './platform'
 import { terminalClipboardGate } from './terminalClipboard'
 
-export default function TerminalPane({ id, agent, fontSize, appearance, onAttachmentStatus, readOnly = false }: { id: string; agent: AgentId; fontSize: number; appearance: TerminalAppearance; onAttachmentStatus: (id: string, text: string) => void; readOnly?: boolean }) {
+export default function TerminalPane({ id, agent, fontSize, appearance, onAttachmentStatus, readOnly = false, active = true, autoFocus = true }: { id: string; agent: AgentId; fontSize: number; appearance: TerminalAppearance; onAttachmentStatus: (id: string, text: string) => void; readOnly?: boolean; active?: boolean; autoFocus?: boolean }) {
+  const inputGate = useRef({ readOnly, active, autoFocus })
+  useLayoutEffect(() => { inputGate.current = { readOnly, active, autoFocus } }, [readOnly, active, autoFocus])
   const appTheme = useApplicationTheme()
   const { resolved } = useWorkspaceTheme()
   const host = useRef<HTMLDivElement>(null)
   const area = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const viewport = useRef<number | null>(null)
+  useLayoutEffect(() => () => { const buffer = terminalRef.current?.buffer.active; if (active && buffer) viewport.current = buffer.viewportY < buffer.baseY ? buffer.viewportY : null }, [active])
   const [dragging, setDragging] = useState(false)
   const statusTimer = useRef(0)
   const uploading = useRef(false)
   const choosing = useRef(false)
   async function pasteImages(files: File[]) {
-    if (readOnly || !files.length || uploading.current) return
+    if (readOnly || !active || !files.length || uploading.current) return
     clearTimeout(statusTimer.current)
     uploading.current = true; setDragging(false); onAttachmentStatus(id, 'Saving image to inbox…')
     try {
@@ -38,7 +42,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
     finally { uploading.current = false; clearTimeout(statusTimer.current); statusTimer.current = window.setTimeout(() => onAttachmentStatus(id, ''), 1600) }
   }
   async function attachPaths(paths: string[]) {
-    if (readOnly || !paths.length || uploading.current) return
+    if (readOnly || !active || !paths.length || uploading.current) return
     clearTimeout(statusTimer.current)
     uploading.current = true; setDragging(false)
     try {
@@ -63,7 +67,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       if (detail.phase === 'drop' && inside) void attachPathsRef.current(detail.paths || [])
     }
     const pick = async () => {
-      if (choosing.current) return
+      if (choosing.current || inputGate.current.readOnly || !inputGate.current.active) return
       choosing.current = true
       // Keep the initiating chat, even if another tab is selected during the picker.
       const attach = attachPathsRef.current
@@ -119,26 +123,26 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       return true
     })
     const resize = () => {
-      if (!host.current?.clientWidth || !host.current?.clientHeight) return
+      if (!inputGate.current.active || !host.current?.clientWidth || !host.current?.clientHeight) return
       fit.fit()
       sendEvent({ type: 'resize', id, cols: terminal.cols, rows: terminal.rows })
     }
-    const subscribe = () => { ready = false; queued = []; sendEvent({ type: 'subscribe', id }) }
+    const subscribe = () => { if (!inputGate.current.active) return; ready = false; queued = []; sendEvent({ type: 'subscribe', id }) }
     const off = onServiceEvent(event => {
       if (event.type === 'connected') subscribe()
       if (event.type === 'disconnected') ready = false
       if (event.type === 'screen-cleared' && event.id === id) subscribe()
-      if (event.type === 'snapshot' && event.session?.id === id) {
+      if (event.type === 'snapshot' && event.session?.id === id && inputGate.current.active) {
         sequence = event.sequence ?? 0
         terminal.reset()
         terminal.resize(event.session.cols, event.session.rows)
         terminal.write(event.data || '', () => {
           ready = true
           for (const chunk of queued) if (chunk.sequence > sequence) { terminal.write(chunk.data); sequence = chunk.sequence }
-          queued = []; resize(); terminal.focus()
+          queued = []; resize(); if (viewport.current !== null) terminal.scrollToLine(viewport.current); if (inputGate.current.active && inputGate.current.autoFocus) terminal.focus()
         })
       }
-      if (event.type === 'output' && event.id === id) {
+      if (event.type === 'output' && event.id === id && inputGate.current.active) {
         if (!ready) { queued.push({ data: event.data || '', sequence: event.sequence || 0 }); return }
         if ((event.sequence || 0) > sequence) { terminal.write(event.data || ''); sequence = event.sequence || 0 }
       }
@@ -147,7 +151,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       // Terminal protocol replies intentionally contain ASCII control characters.
       // eslint-disable-next-line no-control-regex
       const deviceReply = /^\x1b\[[?>0-9;]*[RcnIO]$/.test(data) || /^\x1b\][\s\S]*(?:\x07|\x1b\\)$/.test(data)
-      if (!readOnly && ready && !deviceReply) sendEvent({ type: 'input', id, data })
+      if (!inputGate.current.readOnly && inputGate.current.active && ready && !deviceReply) sendEvent({ type: 'input', id, data })
     })
     terminal.attachCustomKeyEventHandler(event => {
       // Windows/Linux: agent chats use Ctrl+C exclusively for copy. Even an empty
@@ -188,8 +192,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
     }
     element.addEventListener('paste', paste, true)
     const observer = new ResizeObserver(resize); observer.observe(host.current)
-    subscribe()
-    const focus = () => { if (!(document.activeElement as HTMLElement | null)?.closest('.chat-composer')) terminal.focus() }
+    const focus = () => { if (inputGate.current.active && inputGate.current.autoFocus && !(document.activeElement as HTMLElement | null)?.closest('.chat-composer')) terminal.focus() }
     window.addEventListener('focus', focus)
     return () => {
       off(); input.dispose(); clipboard.dispose(); observer.disconnect()
@@ -199,7 +202,7 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
       element.removeEventListener('paste', paste, true); window.removeEventListener('focus', focus); clearTimeout(statusTimer.current)
       onAttachmentStatus(id, ''); terminal.dispose(); terminalRef.current = null; fitRef.current = null
     }
-  }, [id, agent, onAttachmentStatus, readOnly])
+  }, [id, agent, onAttachmentStatus])
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
@@ -207,13 +210,16 @@ export default function TerminalPane({ id, agent, fontSize, appearance, onAttach
     if (appearance === 'focus') return decorateTerminal(terminal, agent)
   }, [id, agent, appearance, appTheme.background, appTheme.foreground, appTheme.accent, resolved])
   useEffect(() => {
-    if (terminalRef.current) { terminalRef.current.options.fontSize = fontSize; fitRef.current?.fit(); sendEvent({ type: 'resize', id, cols: terminalRef.current.cols, rows: terminalRef.current.rows }) }
-  }, [fontSize, id])
+    if (active && terminalRef.current) { terminalRef.current.options.fontSize = fontSize; fitRef.current?.fit(); sendEvent({ type: 'resize', id, cols: terminalRef.current.cols, rows: terminalRef.current.rows }) }
+  }, [fontSize, id, active])
   useEffect(() => {
-    const focus = (event: Event) => { if ((event as CustomEvent<{ id: string }>).detail.id === id) terminalRef.current?.focus() }
+    const focus = (event: Event) => { if (inputGate.current.active && !inputGate.current.readOnly && (event as CustomEvent<{ id: string }>).detail.id === id) terminalRef.current?.focus() }
     window.addEventListener('alpha-dictation-inserted', focus)
-    return () => window.removeEventListener('alpha-dictation-inserted', focus)
+    window.addEventListener('alpha-focus-terminal', focus)
+    return () => { window.removeEventListener('alpha-dictation-inserted', focus); window.removeEventListener('alpha-focus-terminal', focus) }
   }, [id])
+  useEffect(() => { if (active) sendEvent({ type: 'subscribe', id }) }, [active, id])
+  useEffect(() => { if (terminalRef.current) terminalRef.current.options.disableStdin = readOnly || !active }, [readOnly, active])
   return <div ref={area} className={`terminal-area ${appearance === 'focus' ? 'terminal-focus' : ''}`} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'none' }} onDrop={event => { event.preventDefault(); event.stopPropagation(); setDragging(false); reportError(`Drop original files or folders from ${fileManager} into Alpha Desktop. Paste clipboard images with ${modLabel}V.`) }}>
     <div ref={host} className="terminal-host" aria-label="Interactive agent terminal" />
     {dragging && <div className="terminal-drop"><Icon name="attach" size={30} /><strong>Drop to insert paths</strong><span>Files, folders and images</span></div>}

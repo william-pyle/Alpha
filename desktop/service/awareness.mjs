@@ -13,7 +13,7 @@ export class Awareness {
   event({ id, threadId = null, questionId = null, sessionId = null, kind, text, source, inference = false, at = this.clock() }) {
     const observedAt = typeof at === 'string' ? Date.parse(at) : at;
     if (!Number.isFinite(observedAt) || observedAt > this.clock() + 60000 || this.clock() - observedAt >= 30 * 86400000) return;
-    if (!this.settings.enabled || Object.hasOwn(this.receipts, id) || this.items.some(item => item.id === id)) return;
+    if ((!this.settings.enabled && !['error', 'health'].includes(kind)) || Object.hasOwn(this.receipts, id) || this.items.some(item => item.id === id)) return;
     const last = this.items.findLast(item => item.threadId === threadId && item.kind === kind);
     if (inference && last && this.clock() - last.at < 30 * 60 * 1000) return;
     this.receipts[id] = observedAt;

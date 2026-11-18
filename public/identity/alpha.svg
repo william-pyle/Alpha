@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <title>Alpha</title>
+  <!-- Fixed application identity. Theme artwork lives separately in /art. -->
+  <rect width="64" height="64" fill="#0f68f0"/>
+  <!-- Filled hemispheres, with a clear central fissure at small Windows sizes. -->
+  <g fill="#ffffff">
+    <path d="M30 16c0-4-3-6-6-6-4 0-7 3-7 7-5 0-8 4-8 8 0 2 .5 3.5 1.5 5C7.5 32 7 34 7 37c0 5 3 8 7 9 0 5 4 8 8 8 5 0 8-3 8-8V16Z"/>
+    <path d="M34 16c0-4 3-6 6-6 4 0 7 3 7 7 5 0 8 4 8 8 0 2-.5 3.5-1.5 5C56.5 32 57 34 57 37c0 5-3 8-7 9 0 5-4 8-8 8-5 0-8-3-8-8V16Z"/>
+  </g>
+  <!-- Short negative-space folds, not an outlined brain. -->
+  <g fill="none" stroke="#0f68f0" stroke-width="2.5" stroke-linecap="round">
+    <path d="M17 17c0 4 2 6 5 6M10.5 30c4-1 8 1 8 5M14 46c1-4 4-6 8-5"/>
+    <path d="M47 17c0 4-2 6-5 6M53.5 30c-4-1-8 1-8 5M50 46c-1-4-4-6-8-5"/>
+  </g>
+</svg>

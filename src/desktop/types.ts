@@ -1,6 +1,7 @@
 export type AgentId = 'codex' | 'claude' | 'shell' | 'gitbash'
 export interface AgentInfo { id: AgentId; label: string; color: string; available: boolean; subscription: boolean }
 export interface ChatSession {
+  submission?: { taskId: string; stage: string; acceptance: string; note: string; action?: string }
   workerEvidence?: { taskId: string; nativeTaskId?: string; deliveredAt?: number; acceptance: string; execution: string; verification: string; certainty: string; source: string; revision: number; observedAt: number }
   projectId?: string | null; projectPending?: boolean
   id: string; name: string; agent: AgentId; cwd: string; bypass: boolean
@@ -21,7 +22,7 @@ export interface AgentReply { id: string; sessionId: string; name: string; text:
 export interface SpeechState { speaking: boolean; error: string | null; threadId?: string | null; level?: number; levelAt?: number; durationMs?: number; source?: string; phase?: string }
 export interface PhaseTimings { queuedAt: number; dequeuedAt?: number; readyAt?: number; submittedAt?: number; acceptedAt?: number; firstTextAt?: number; completedAt?: number; toolMs?: number; toolCalls?: number }
 export interface ThreadMessage { completionSummary?: { changed: string[]; passed: { text: string; evidence: string }[]; remaining: string[]; lifecycle: Record<string, { status: string; evidence: string | null }>; source: string; verification: string; operationId: string; at: string }; id: string; role: 'user' | 'assistant'; text: string; at: string; status?: string; images?: string[]; error?: string; source?: string; timings?: PhaseTimings }
-export interface AlphaThread { allowUiInspection?: boolean; operation?: { id: string; phase: string; timings: PhaseTimings }; draft?: { text: string; paths: string[] }; id: string; kind: 'alpha' | 'native'; name: string; purpose: string; projectId: string | null; projectPending: boolean; sessionIds: string[]; messages: ThreadMessage[]; messageCount?: number; status: string; archived: boolean; unread: boolean; desktopContext?: boolean; nativeHistoryImported?: { count: number } }
+export interface AlphaThread { viewMode?: 'alpha' | 'terminal'; workerId?: string; allowUiInspection?: boolean; operation?: { id: string; phase: string; timings: PhaseTimings }; draft?: { text: string; paths: string[] }; id: string; kind: 'alpha' | 'native'; name: string; purpose: string; projectId: string | null; projectPending: boolean; sessionIds: string[]; messages: ThreadMessage[]; messageCount?: number; status: string; archived: boolean; unread: boolean; desktopContext?: boolean; nativeHistoryImported?: { count: number } }
 export interface AwarenessState { settings: { enabled: boolean; quiet: boolean; desktop: boolean }; desktop: { application: string; source: string; at: number } | null; items: { id: string; threadId: string | null; questionId?: string | null; sessionId?: string | null; kind: string; text: string; source: string; inference: boolean; at: number }[] }
 export interface VoiceOwner { clientId: string; surface: 'chats' | 'workspace' }
 export interface FileEntry { name: string; path: string; directory: boolean; size: number; modifiedAt: string | null }

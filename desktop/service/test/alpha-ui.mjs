@@ -57,9 +57,9 @@ try {
   const session = (await call('/bootstrap')).sessions[0];
   await call(`/sessions/${session.id}/input`, { text: "printf 'ALPHA_GITBASH_OK\\n'; pwd\r", paste: false });
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_GITBASH_OK');
-  await page.getByLabel('Conversation', { exact: true }).selectOption(session.id);
-  await page.getByLabel('Conversation menu', { exact: true }).click(); await page.getByRole('button', { name: 'Work details', exact: true }).click();
-  await expect(page.locator('.thread-terminal')).toBeVisible();
+  await page.locator(`#conversation-tab-${session.id}`).click();
+  await page.locator('.conversation-tabs [aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Work details', exact: true }).click();
+  await expect(page.locator('.worker-terminal:visible')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enable terminal controls' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Work details' }).click(); await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Workspace', exact: true }).click();
   const sideDivider = page.getByRole('separator', { name: 'Resize Chats sidebar' });
@@ -131,8 +131,8 @@ try {
   await page.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('REPLY:Yes');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
-  await page.getByLabel('Conversation menu', { exact: true }).click(); await page.getByRole('button', { name: 'History', exact: true }).click();
-  await expect(page.getByLabel('Conversation', { exact: true })).toContainText('Git Bash check');
+  await page.locator('.conversation-tabs [aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'History', exact: true }).click();
+  await expect(page.getByRole('tablist', { name: 'Conversations' })).toContainText('Git Bash check');
   await expect(page.getByRole('button', { name: 'Older mixed Alpha history' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Conversation history' }).click();
 

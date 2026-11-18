@@ -40,11 +40,11 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/unwanted\.example|example\.test/.test(request.url())) remote.push(request.url()); });
   await page.goto(service.urls.workspace);
-  const pane = page.getByRole('region', { name: 'Alpha conversation', exact: true }), editor = pane.getByRole('textbox', { name: 'Message Alpha' }), picker = pane.getByLabel('Conversation', { exact: true });
+  const pane = page.getByRole('region', { name: 'Alpha conversation', exact: true }), editor = pane.getByRole('textbox', { name: 'Message Alpha' }), picker = pane.locator('[role=tab][aria-selected=true]');
   const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   const closeSettings = () => page.getByRole('button', { name: 'Close settings' }).click();
-  const menu = async name => { await pane.getByLabel('Conversation menu', { exact: true }).click(); await pane.getByRole('button', { name, exact: true }).click(); };
-  const notification = () => pane.getByRole('button', { name: /^Notifications:/ }).click();
+  const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
+  const notification = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click(); };
   const snap = async name => { const file = path.join(repo, `${name}.png`); await page.screenshot({ path: file }); screenshots.push(file); };
   await expect(editor).toHaveCount(1); await expect(page.getByRole('tablist', { name: 'Sidebar' })).toHaveCount(0);
   await expect(page.locator('.alpha-presence')).toHaveCount(0); await expect(page.locator('.thread-activity')).toHaveCount(0);
@@ -53,7 +53,7 @@ try {
   assert.equal(await page.evaluate(() => !!window.unsafeMarkdown), false); assert.deepEqual(remote, []);
   await pane.getByRole('button', { name: 'Copy code' }).click(); assert.match(await page.evaluate(() => navigator.clipboard.readText()), /fn main/);
   await pane.getByRole('button', { name: 'Open local fixture' }).click(); await expect(page.locator('.mdi-center')).toContainText('Local fixture');
-  await page.getByRole('button', { name: 'Return to conversation' }).click();
+  await expect(page.locator('.mdi-center')).toBeVisible();
   checks.push('One conversation/composer; no competing tabs, persistent Activity, status header or preference toggles. Secure GFM tables/headings/list/code and deliberate local Workspace opening. No remote image loads.');
 
   await expect(pane.getByRole('button', { name: 'Share this message' })).toHaveCount(0);
@@ -80,7 +80,7 @@ try {
   await snap('message-context-menu-edge');
   await contextMenu.getByRole('menuitem', { name: 'Copy selected text' }).click(); assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'A simpler place to write');
   await assistantMessage.getByRole('link', { name: 'Documentation' }).dispatchEvent('contextmenu', { clientX: 400, clientY: 400, button: 2 }); await expect(contextMenu).toHaveCount(0);
-  await picker.selectOption(b.id); await expect(pane.getByText(/Reference explicitly shared from Simplify conversation layout/).first()).toBeVisible(); await picker.selectOption(a.id);
+  await page.locator(`#conversation-tab-${b.id}`).click(); await expect(pane.getByText(/Reference explicitly shared from Simplify conversation layout/).first()).toBeVisible(); await page.locator(`#conversation-tab-${a.id}`).click();
   checks.push('Message context menu: both roles; right-click, ContextMenu and Shift+F10; selected-message-only attributed transfer; cancellation does not copy; destination isolation and no agent work; Escape/focus return; ordinary selected text copy and link context preserved; menu clamped at bottom/right edge.');
 
   const resize = async (label, delta) => { const divider = page.getByRole('separator', { name: label }); const before = Number(await divider.getAttribute('aria-valuenow')); const box = await divider.boundingBox(); await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + delta, { steps: 8 }); await page.mouse.up(); const after = Number(await divider.getAttribute('aria-valuenow')); assert.notEqual(after, before); return { before, after }; };
@@ -90,7 +90,7 @@ try {
   await writing.focus(); await writing.press('ArrowUp'); const savedHeight = Number(await writing.getAttribute('aria-valuenow')); assert(savedHeight > pointer.after);
   const longDraft = Array.from({ length: 50 }, (_, i) => `Line ${i + 1}: editing a substantial message.`).join('\n');
   await editor.fill(longDraft); await editor.press('Control+End'); await editor.press('Shift+Enter'); await editor.press('End'); await editor.type('Final line');
-  await picker.selectOption(b.id); await expect(editor).toHaveValue(''); await editor.fill('Private second draft'); await picker.selectOption(a.id); await expect(editor).toHaveValue(`${longDraft}\nFinal line`);
+  await page.locator(`#conversation-tab-${b.id}`).click(); await expect(editor).toHaveValue(''); await editor.fill('Private second draft'); await page.locator(`#conversation-tab-${a.id}`).click(); await expect(editor).toHaveValue(`${longDraft}\nFinal line`);
   await page.reload(); await expect(editor).toHaveValue(`${longDraft}\nFinal line`); await expect(writing).toHaveAttribute('aria-valuenow', String(savedHeight));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/dZkAAAAASUVORK5CYII=', 'base64');
   await pane.getByLabel('Choose images for Alpha').setInputFiles({ name: 'layout-fixture.png', mimeType: 'image/png', buffer: png });
@@ -121,8 +121,8 @@ try {
   checks.push(`Viewer pointer ${viewerPointer.before}->${viewerPointer.after}px, keyboard/reload saved ${viewerHeight}px. Enable/disable persisted; canvas removed and zero pending animation frames. Synthetic camera required explicit start, footer Stop ended track, no capture on reload/re-enable.`);
 
   const q = await service.questions.ask({ text: 'Which design should be applied?', options: ['Compact', 'Roomy'], threadId: b.id, chatName: b.name, sourceId: 'layout-question' });
-  await notification(); const notices = page.getByRole('dialog', { name: 'Notifications' });
-  await expect(notices).not.toContainText(q.text); await notices.getByRole('button', { name: 'Open question' }).click(); await expect(picker).toHaveValue(b.id);
+  await pane.getByRole('button', { name: /^Attention for Review project decision:/ }).click();
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   const card = page.locator(`[data-question-id="${q.id}"]`); await expect(card.getByRole('textbox')).toBeFocused();
   await card.getByRole('button', { name: 'Roomy', exact: true }).click(); await card.getByRole('button', { name: 'Send answer' }).dblclick();
   await expect(card).toHaveCount(0); await expect(page.getByRole('region', { name: 'Questions', exact: true })).toHaveCount(0); await expect(editor).toBeFocused();
@@ -143,10 +143,10 @@ try {
   await service.questions.answer(two.id, 'Accepted by another client', service.sessions, async () => {}); await expect(second).toHaveCount(0);
   const third = page.locator(`[data-question-id="${three.id}"]`); await third.getByRole('textbox').fill('Final free text'); await third.getByRole('button', { name: 'Send answer' }).click();
   await expect(page.getByRole('region', { name: 'Questions', exact: true })).toHaveCount(0); await expect(editor).toBeFocused();
-  assert.equal(requests.at(-1).threadId, a.id); await expect(picker).toHaveValue(b.id);
+  assert.equal(requests.at(-1).threadId, a.id); await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   checks.push('Questions: options/free text, immediate last-question removal while continuation pending, persisted audit, duplicate prevention, retryable failure/draft reload, multiple pending, event-driven answer, concurrent arrival and cross-thread routing; focus returns to composer.');
 
-  await picker.selectOption(a.id);
+  await page.locator(`#conversation-tab-${a.id}`).click();
   const idle = service.sessions.get((await service.sessions.create({ agent: 'shell', name: 'Idle fixture', cwd: repo, projectId: 'fixture' })).id);
   // An isolated shell fixture only; no production worker is accessed.
   idle.status = 'running'; idle.activity = 'idle'; idle.nativeId = 'exact-native-fixture';
@@ -162,12 +162,12 @@ try {
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await closeSettings();
   const quiet = await service.questions.ask({ text: 'Which quiet decision should be kept?', threadId: a.id, sourceId: 'quiet' });
   await expect(page.locator('.questions-toggle')).toHaveAttribute('aria-expanded', 'false');
-  await notification(); await page.getByRole('dialog', { name: 'Notifications' }).getByRole('button', { name: 'Open question' }).click();
+  await pane.getByRole('button', { name: /^Attention for Simplify conversation layout:/ }).click();
   await expect(page.locator(`[data-question-id="${quiet.id}"]`)).toBeVisible(); await service.questions.dismiss(quiet.id);
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).not.toBeChecked(); await closeSettings();
   service.awareness.event({ id: 'review-layout', threadId: a.id, kind: 'review', text: 'Result ready for review; not verified.', source: 'Fixture' });
-  await notification(); await expect(page.getByRole('dialog', { name: 'Notifications' })).toContainText('not verified');
-  await page.getByRole('dialog', { name: 'Notifications' }).getByRole('button', { name: 'Snooze 30 minutes' }).last().click(); await page.getByRole('button', { name: 'Close Notifications' }).click();
+  await notification(); await expect(page.getByRole('dialog', { name: 'Important events' })).toContainText('not verified');
+  await page.getByRole('dialog', { name: 'Important events' }).getByRole('button', { name: 'Snooze 30 minutes' }).last().click(); await page.getByRole('button', { name: 'Close Important events' }).click();
   checks.push('Quiet mode in Settings does not auto-open new Questions; explicit notification origin still works. Review remains distinct from verified; snooze available.');
 
   // Long/streaming Markdown stays inside message scroll, including an incomplete fence.
@@ -188,7 +188,7 @@ try {
     for (const viewport of [{ width: 960, height: 1440 }, { width: 960, height: 520 }, { width: 768, height: 600 }, { width: 390, height: 600 }]) {
       await page.setViewportSize(viewport); await expect(editor).toBeVisible();
       const bounds = await page.evaluate(() => { const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom }; }; return { messages: rect('.alpha-conversation-scroll'), editor: rect('[aria-label="Message Alpha"]'), header: rect('.thread-picker'), status: rect('.mdi-statusbar'), overflow: document.documentElement.scrollWidth > innerWidth + 1 }; });
-      assert.equal(bounds.overflow, false); assert(bounds.header.height <= 55); assert(bounds.editor.height >= 76); assert(bounds.messages.height >= 120); assert(bounds.editor.bottom <= bounds.status.y + 1); assert(bounds.messages.bottom <= bounds.editor.y);
+      assert.equal(bounds.overflow, false); assert(bounds.header.height <= 85); assert(bounds.editor.height >= 76); assert(bounds.messages.height >= 120); assert(bounds.editor.bottom <= bounds.status.y + 1); assert(bounds.messages.bottom <= bounds.editor.y);
       metrics.push({ theme, ...viewport, ...bounds });
       await page.locator('.alpha-conversation-scroll').evaluate(node => { node.scrollTop = 0; }); await snap(`text-${theme}-${viewport.width}x${viewport.height}`);
     }
@@ -212,9 +212,9 @@ try {
     await expect(compactCard).toHaveCount(0); await expect(editor).toBeFocused();
     await settings(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).not.toBeChecked(); await closeSettings();
   }
-  const menuSummary = pane.getByLabel('Conversation menu', { exact: true });
-  await menuSummary.focus(); await menuSummary.press('Enter'); await page.keyboard.press('Tab'); await expect(pane.getByRole('button', { name: 'Search this conversation', exact: true })).toBeFocused(); await page.keyboard.press('Tab'); await expect(pane.getByRole('button', { name: 'History', exact: true })).toBeFocused();
-  await page.keyboard.press('Enter'); await expect(page.getByRole('dialog', { name: 'Conversation history' })).toBeVisible(); await page.keyboard.press('Escape'); await expect(menuSummary).toBeFocused();
+  const menuTab = pane.locator('[role=tab][aria-selected=true]');
+  await menuTab.focus(); await menuTab.press('Shift+F10'); await expect(page.getByRole('menuitem', { name: 'Search this conversation', exact: true })).toBeFocused();
+  await page.getByRole('menuitem', { name: 'History', exact: true }).click(); await expect(page.getByRole('dialog', { name: 'Conversation history' })).toBeVisible(); await page.keyboard.press('Escape'); await expect(menuTab).toBeFocused();
   checks.push('Streaming/incomplete and long Markdown; light/dark rendered at 960x1440, 960x520, 768x600, 390x600. Actual message/composer/header bounds and no viewport overflow asserted.');
   assert.deepEqual(errors, []); assert.deepEqual(remote, []);
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).viewerEnabled).toBe(false);

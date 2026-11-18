@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { api, reportError, useDesktop } from './client'
 import { liveVoice } from './live'
+import ImportantEvents from './ImportantEvents'
 import { captureState } from './captureState'
 
 export default function ConversationStatus() {
@@ -11,8 +12,10 @@ export default function ConversationStatus() {
   const basePhase = ({ queued: 'Working: queued', starting: 'Starting coordinator', provider: 'Working: waiting for provider', tool: 'Working: running tool', responding: 'Receiving response', 'waiting-for-user': 'Waiting for your answer', completed: 'Response completed; not verified', failed: 'Request failed', interrupted: 'Request interrupted' } as Record<string, string>)[op?.phase || ''] || thread?.status || 'Ready'
   const evidence = state.sessions.filter(item => thread?.sessionIds.includes(item.id) && item.workerEvidence).map(item => item.workerEvidence!).sort((a, b) => b.observedAt - a.observedAt)[0]
   const useWorker = evidence && (!op || ['completed', 'failed', 'interrupted'].includes(op.phase) && evidence.observedAt >= (t?.completedAt || 0))
-  const phase = useWorker ? ({ working: 'Worker working', 'needs-input': 'Waiting for input', finished: 'Worker finished; not verified', failed: 'Worker failed', interrupted: 'Worker interrupted', unknown: evidence.acceptance === 'unconfirmed' ? 'Delivered; acceptance unconfirmed' : 'Worker state unconfirmed' } as Record<string, string>)[evidence.execution] || basePhase : basePhase
+  const pendingInput = state.sessions.find(item => thread?.sessionIds.includes(item.id) && item.submission && item.submission.acceptance !== 'observed')?.submission
+  const phase = pendingInput ? `Worker input: ${pendingInput.stage}` : useWorker ? ({ working: 'Worker working', 'needs-input': 'Waiting for input', finished: 'Worker finished; not verified', failed: 'Worker failed', interrupted: 'Worker interrupted', unknown: evidence.acceptance === 'unconfirmed' ? 'Delivered; acceptance unconfirmed' : 'Worker state unconfirmed' } as Record<string, string>)[evidence.execution] || basePhase : basePhase
   return <footer className="mdi-statusbar" aria-label="Status bar">
+    <ImportantEvents />
     <span title={state.connected ? 'Connected' : 'Reconnecting'}><i className={state.connected ? 'connected-dot' : 'disconnected-dot'} /></span>
     <details className="status-runtime"><summary>{phase}{working > 0 ? ` · ${working} working` : ''}</summary><div className="status-detail"><strong>{phase}</strong><p>{working} active workers</p>{t && <><p>Queue {seconds(t.dequeuedAt)} · Startup {seconds(t.readyAt, t.dequeuedAt)} · First text {seconds(t.firstTextAt)} · Tools {((t.toolMs || 0) / 1000).toFixed(2)}s ({t.toolCalls || 0}) · Total {seconds(t.completedAt)}</p><p>Provider wait includes network and model processing. Completion does not verify the work. Speech onset is not measured.</p></>}<p>{state.connected ? 'Connected' : 'Reconnecting'} · {state.questions.length} pending Questions</p></div></details>
     {capture.camera && <button className="capture-stop" onClick={() => captureState.set({ camera: false })}>{capture.cameraStatus || 'Camera requested'} · Stop camera</button>}

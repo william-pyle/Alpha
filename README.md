@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. Version **0.2.17** brings one conversation surface, isolated threads, staged awareness and Windows speech-driven face animation.
+knowledge into one Windows desktop window. This source targets **0.2.19**, with conversation tabs, direct real-terminal access, close-to-History, persistent Workspace, quieter attention, verified Codex submission and a fixed app identity. See [release notes](release-notes/v0.2.19.md).
 
 ## What you can do
 
@@ -28,7 +28,7 @@ knowledge into one Windows desktop window. Version **0.2.17** brings one convers
 - Check for Windows updates from GitHub Releases. Download and installation
   require separate user choices.
 
-<img src="public/art/alpha.png" alt="Alpha application icon" width="120">
+<img src="public/identity/alpha.svg" alt="Alpha application icon" width="120">
 
 ## Install
 
@@ -213,6 +213,28 @@ render of this head is now the Alpha application and project icon, including
 its document tabs. Questions also recognizes asynchronous Codex prompts.
 Build and isolated UI checks passed. Actual laptop movement, working-state
 lights and live speech can be reviewed after updating the active installation.
+
+## Fixed application identity (0.2.19)
+
+Alpha's application mark is a solid blue square with a filled white brain,
+independent of theme or voice persona. The canonical vector is
+`public/identity/alpha.svg`. It uses MessageCraft's flat `#0F68F0` blue;
+Alpha uses square corners and a larger brain silhouette for small-size clarity.
+Theme artwork and the 3D head remain available separately.
+
+Run `npm run icons:generate` after editing the vector. The installed Tauri CLI
+renders the existing Windows PNG/ICO and bundle assets; the generator includes
+16, 20, 24, 32, 40, 48, 64, 128 and 256 px Windows ICO frames. In-app branding and
+the favicon use the same vector. Native window/taskbar, tray, shortcut and MSI
+references use the generated bundle icons. `scripts/render-alpha-icon.mjs` is
+retained only for historical head/presence artwork, not application identity.
+
+Verify with `node desktop/service/test/app-identity-ui.mjs` after `npm run build`.
+The fixture reviews small sizes and theme invariance without launching the
+installed application. After `cargo build --manifest-path src-tauri/Cargo.toml`,
+run `powershell -NoProfile -File scripts/verify-alpha-native-icon.ps1` to compare
+the Windows Shell-extracted executable icon with its generated ICO frame. Installed Shell/taskbar caches still need review after
+an authorized update; source assets are not evidence of installation.
 
 ## Build and release
 

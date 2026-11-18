@@ -22,7 +22,7 @@ try {
   const editor = page.getByRole('textbox', { name: 'Message Alpha' }); await editor.fill('Draft survives switching');
   await page.keyboard.press('Control+k'); const switcher = page.getByRole('dialog', { name: 'Quick switcher', exact: true });
   await switcher.getByRole('combobox').fill('Other isolated'); await page.keyboard.press('Enter');
-  await expect(page.getByLabel('Conversation', { exact: true })).toHaveValue(b.id); await expect(editor).toHaveValue('');
+  await expect(page.locator(`#conversation-tab-${b.id}`)).toHaveAttribute('aria-selected', 'true'); await expect(editor).toHaveValue('');
   await page.keyboard.press('Control+k'); await switcher.getByRole('combobox').fill('Search older'); await page.keyboard.press('Enter'); await expect(editor).toHaveValue('Draft survives switching');
   await editor.focus(); await page.keyboard.press('Control+k'); await page.keyboard.press('Escape'); await expect(editor).toBeFocused();
   await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Quick switcher' }).click(); await switcher.getByRole('combobox').fill('Search this conversation'); await page.keyboard.press('Enter');
@@ -57,9 +57,9 @@ try {
   await page.unroute('**/api/workspace/undo'); await page.locator('.organization-undo').getByRole('button', { name: 'Undo', exact: true }).click(); await expect(card).toBeVisible();
   await card.getByRole('button', { name: /^Edit Fixture Project:/ }).click(); await page.getByRole('dialog', { name: 'Card settings: Fixture Project' }).getByLabel('Card category').selectOption('dev');
   await page.locator('.organization-undo').getByRole('button', { name: 'Undo', exact: true }).click(); await expect.poll(async () => (await service.workspace.registry()).entities[0].category).toBe('design');
-  await page.getByRole('button', { name: 'Return to conversation' }).click(); await page.getByLabel('Conversation menu', { exact: true }).click(); await page.getByRole('button', { name: 'Conversation details', exact: true }).click();
-  await page.getByRole('button', { name: /Archive conversation/ }).click(); await expect(page.getByRole('button', { name: 'Resume conversation', exact: true })).toBeVisible();
-  await page.locator('.organization-undo').getByRole('button', { name: 'Undo', exact: true }).click(); await expect(editor).toBeEnabled(); await expect(editor).toHaveValue('Draft survives switching'); assert.equal(service.threads.get(a.id).archived, false);
+  await expect(page.locator('.mdi-center')).toBeVisible(); await page.locator('.conversation-tabs [aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Conversation details', exact: true }).click();
+  await page.getByRole('button', { name: 'Close conversation', exact: true }).click(); await page.getByRole('button', { name: 'Move to History' }).click(); await expect(page.locator(`#conversation-tab-${a.id}`)).toHaveCount(0);
+  await page.locator('.organization-undo').getByRole('button', { name: 'Undo', exact: true }).click(); await page.locator(`#conversation-tab-${a.id}`).click(); await expect(editor).toBeEnabled(); await expect(editor).toHaveValue('Draft survives switching'); assert.equal(service.threads.get(a.id).archived, false);
   const worker = service.sessions.make({ id: 'event-fixture', name: 'Structured fixture worker', agent: 'shell', cwd: repo, status: 'running', open: false, alphaThreadId: a.id, projectId: 'fixture' }); service.sessions.items.set(worker.id, worker); a.sessionIds.push(worker.id);
   const eventAt = Date.now();
   service.sessions.nativeEvent(worker, { kind: 'turn-started', nativeTaskId: 'fixture-turn', eventKey: 'fixture-start', source: 'provider-record', at: new Date(eventAt).toISOString() }); await expect(page.locator('.mdi-statusbar')).toContainText('Worker working');

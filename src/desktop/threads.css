@@ -36,7 +36,7 @@
 .status-runtime{min-width:0;flex:1}.status-runtime>summary{cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-detail{position:absolute;bottom:100%;left:8px;right:8px;z-index:70;max-width:620px;max-height:40vh;overflow:auto;padding:14px;background:var(--surface-solid);border:1px solid var(--hairline-strong);border-radius:8px;box-shadow:0 -8px 24px #0004;font-size:12px;line-height:1.5}.mdi-statusbar button{border:1px solid var(--hairline-strong);background:var(--bg);color:var(--text);border-radius:5px;font-size:11px;padding:4px 7px}.mdi-statusbar .capture-stop{border-color:var(--pink);color:var(--pink)}
 .conversation-settings label{display:flex;gap:8px;align-items:center;margin:16px 0}.conversation-settings p{font-size:12px;color:var(--text-dim);line-height:1.5}.conversation-settings button{margin:5px}.conversation-settings input[type=checkbox]{width:auto}.workspace-close{align-self:flex-end;background:var(--bg);color:var(--text);border:1px solid var(--hairline-strong);font-size:11px;padding:6px 10px}
 .unified-shell .questions-panel{max-height:34dvh}.unified-shell .questions-list{align-items:flex-start;scrollbar-gutter:stable;box-sizing:border-box;max-height:min(calc(34dvh - 37px),320px)}
-@media(max-width:900px){.unified-shell .mdi-center:not([hidden]){position:absolute;inset:37px 0 31px;z-index:42;background:var(--bg);min-width:0!important}.unified-shell .mdi-chats{flex:1 1 100%!important;width:100%!important}.unified-shell .mdi-side-splitter{display:none}}
+@media(max-width:900px){.unified-shell .mdi-body{flex-direction:column}.unified-shell .mdi-center{position:relative;flex:0 0 28%;min-height:120px;min-width:0!important;border-bottom:1px solid var(--hairline-strong);order:-1}.unified-shell .mdi-chats{flex:1 1 0!important;width:100%!important}.unified-shell .mdi-side-splitter{display:none}}
 @media(max-width:500px){.thread-picker{padding:6px 8px;gap:4px}.thread-conversation .alpha-conversation-scroll{padding:12px}.layout-composer .mak-composer{padding:0 8px}.mdi-settings-dialog{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.mdi-menu-bar{padding:0 4px;gap:0}.mdi-menu-group>button{padding:0 7px}.mdi-brand{margin:0;padding-right:6px}.question-card footer{flex-wrap:wrap}}
 
 .message-context-menu{position:fixed;z-index:200;display:grid;box-sizing:border-box;width:min(270px,calc(100vw - 16px));padding:5px;border:1px solid var(--hairline-strong);border-radius:8px;background:var(--surface-solid);color:var(--text);box-shadow:0 12px 36px #0006}.message-context-menu button{border:0;border-radius:4px;padding:10px 12px;text-align:left;background:transparent;color:inherit;font:12px var(--font-body)}.message-context-menu button:hover,.message-context-menu button:focus-visible{background:var(--pink-dim);outline:1px solid var(--pink)}.thread-conversation [data-message-id]:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
@@ -60,3 +60,32 @@
 .completion-summary small { display:block; font-size:.8em; overflow-wrap:anywhere; }
 .completion-summary details { margin-top:10px; }
 .release-monitor dd { margin:4px 0 12px; overflow-wrap:anywhere; }
+
+/* Single-row, horizontally scrollable conversation tabs; the composer never
+   participates in tab overflow. Mode buttons are siblings, not nested tabs. */
+.conversation-tabs{display:flex;flex:1;min-width:0;gap:4px;overflow-x:auto;scrollbar-width:thin;align-self:stretch}
+.conversation-tab{position:relative;flex:0 0 170px;min-width:0;border:1px solid var(--hairline-strong);border-radius:7px 7px 0 0;background:var(--bg-deep)}
+.conversation-tab.selected{border-color:var(--pink);box-shadow:inset 0 -3px var(--pink);background:var(--surface-solid)}
+.conversation-tab>button[role=tab]{display:flex;flex-direction:column;align-items:start;gap:4px;width:100%;height:100%;min-height:60px;padding:7px 38px 8px 10px;border:0;background:transparent;text-align:left}
+.conversation-tab-title{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-tab small{font-size:10px;color:var(--text-dim);max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.conversation-tab .conversation-tab-mode{position:absolute;right:2px;bottom:4px;display:grid;place-items:center;width:32px;height:32px;padding:0;background:transparent;border:0}
+.conversation-tab-mode[aria-pressed=true]{color:var(--pink);background:var(--pink-dim)}
+.conversation-tabs-empty{align-self:center;font-size:12px;color:var(--text-dim)}
+.conversation-tab button:focus-visible,.thread-picker summary:focus-visible{outline:2px solid var(--pink);outline-offset:-3px}
+.conversation-content{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}
+.conversation-content [hidden]{display:none!important}
+.conversation-worker{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}
+.worker-toolbar{display:flex;flex:none;align-items:end;gap:8px;padding:6px 10px;flex-wrap:wrap}
+.worker-toolbar label{display:flex;flex:1;min-width:0;gap:5px;align-items:center;font-size:12px}
+.worker-toolbar select{min-width:0;max-width:100%;flex:1}
+.worker-destination,.composer-destination{margin:0;padding:5px 10px;flex:none;font-size:11px;color:var(--text-dim);overflow-wrap:anywhere}
+.worker-terminal{flex:1;min-height:60px;overflow:hidden}
+.worker-terminal .terminal-area{height:100%}
+.worker-empty{padding:18px;overflow:auto}
+.worker-focus{align-self:start;margin:4px 10px}
+.conversation-dialog .conversation-worker{height:55vh}
+
+.conversation-worker[hidden],.worker-terminal[hidden]{display:none!important}
+
+.conversation-tab .conversation-tab-badge{position:absolute;right:4px;top:3px;min-width:26px;height:24px;padding:0 5px;border-radius:12px;color:var(--text);background:var(--pink-dim);font-size:11px;font-weight:700}

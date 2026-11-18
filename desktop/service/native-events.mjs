@@ -19,9 +19,16 @@ export function completedTurn(record, agent) {
 
 export function nativeActivity(record, agent) {
   const event = activity(record, agent);
-  return event ? { ...event, source: 'provider-record', at: record.timestamp || record.createdAt, nativeTaskId: record.payload?.turn_id || null, eventKey: createHash('sha256').update(JSON.stringify(record)).digest('hex') } : null;
+  return event ? { ...event, source: 'provider-record', at: record.timestamp || record.createdAt, nativeTaskId: record.payload?.turn_id || event.nativeTaskId || null, eventKey: createHash('sha256').update(JSON.stringify(record)).digest('hex') } : null;
 }
 function activity(record, agent) {
+  // Codex 0.169 writes submitted text as a user response item, with provenance
+  // distinguishing owner text from injected environment/AGENTS instructions.
+  if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'message' && record.payload.role === 'user') {
+    const meta = record.payload.internal_chat_message_metadata_passthrough;
+    const text = record.payload.content?.filter((item, index) => item.type === 'input_text' && meta?.content_item_kinds?.[index] === 'user.text' && meta?.content_item_metadata?.[index]?.provenance?.type === 'user').map(item => item.text).join('\n');
+    if (text) return { kind: 'task-input', text, nativeTaskId: meta.turn_id || null };
+  }
   const completed = completedTurn(record, agent);
   if (completed) return completed;
   if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'function_call' && ['request_user_input', 'request_user_input_async', 'ask_user_question'].includes(record.payload.name)) {

@@ -45,6 +45,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: Alpha-Windows-installer
@@ -57,7 +58,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $artifacts = @(Get-ChildItem -LiteralPath release -File | ForEach-Object { $_.FullName })
-          gh release create $env:RELEASE_TAG @artifacts --draft --verify-tag --title "Alpha $env:RELEASE_TAG" --generate-notes
+          gh release create $env:RELEASE_TAG @artifacts --draft --verify-tag --title "Alpha $env:RELEASE_TAG" --notes-file "release-notes/$env:RELEASE_TAG.md"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit $env:RELEASE_TAG --draft=false --latest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

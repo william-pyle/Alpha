@@ -1,3 +1,4 @@
+import { TerminalSubmissions } from './terminal-submission.mjs';
 import { deliveredTask, workerEvent } from './worker-evidence.mjs';
 import { EventEmitter } from 'node:events';
 import { startupPrompt } from './prompt-state.mjs';
@@ -20,7 +21,7 @@ import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId,
 const { Terminal } = headless;
 const publicSession = session => {
   const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending } = session;
-  return { workerEvidence: session.workerEvidence, id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending, alphaThreadId: session.alphaThreadId || null };
+  return { submissions: session.submissions, submission: session.submissions?.at(-1), workerEvidence: session.workerEvidence, id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, updatedAt, preview, hasConversation, restoreError, projectId, projectPending, alphaThreadId: session.alphaThreadId || null };
 };
 
 export class Sessions extends EventEmitter {
@@ -32,6 +33,24 @@ export class Sessions extends EventEmitter {
     this.saveChain = Promise.resolve();
     this.dirty = false;
     this.closed = false;
+    this.submission = new TerminalSubmissions({
+      view: async session => {
+        await this.hydrate(session); await new Promise(resolve => session.terminal.write('', resolve));
+        const terminal = session.terminal, buffer = terminal.buffer.active;
+        // Codex can render a provisional composer before its startup input
+        // handoff finishes. A short startup floor supplements positive mode,
+        // stable composer and blocking-prompt checks; it is not acceptance.
+        return { lines: Array.from({ length: terminal.rows }, (_, i) => buffer.getLine(buffer.baseY + i)?.translateToString(true) || ''), cursorX: buffer.cursorX, cursorY: buffer.cursorY, bracketedPaste: terminal.modes.bracketedPasteMode, activity: session.activity, startupSettled: Date.now() - session.startedAt >= 2500 };
+      },
+      persist: () => this.persist(), changed: session => {
+        this.changed(session);
+        const receipt = session.submissions?.at(-1);
+        if (receipt && ['unconfirmed', 'blocked', 'timeout', 'failed'].includes(receipt.stage)) this.emit('notice', { id: `submission:${session.id}:${receipt.taskId}`, sessionId: session.id, name: session.name, kind: 'submission', text: receipt.note, at: new Date().toISOString() });
+      },
+      accepted: (session, receipt) => {
+        session.workerEvidence = { ...deliveredTask(session.workerEvidence, { taskId: receipt.taskId, at: receipt.pastedAt }), acceptance: 'observed', acceptedAt: receipt.acceptedAt, source: 'Exact native input record', certainty: 'native-input-observed' };
+      },
+    });
   }
 
   async init() {
@@ -40,6 +59,7 @@ export class Sessions extends EventEmitter {
     for (const [index, metadata] of saved.entries()) {
       const item = this.make({ ...metadata, name: restoredTitle(metadata.name, index), open: metadata.open ?? metadata.agent !== 'kimi', pinned: !!metadata.pinned, updatedAt: metadata.updatedAt || metadata.lastInputAt || metadata.createdAt, hasConversation: metadata.hasConversation ?? (metadata.agent === 'codex' && !!metadata.nativeId), status: 'stopped', activity: 'idle', attention: !!metadata.unread });
       if (item.workerEvidence && ['working', 'needs-input'].includes(item.workerEvidence.execution)) item.workerEvidence = { ...item.workerEvidence, previousExecution: item.workerEvidence.execution, execution: 'unknown', certainty: 'stale-after-restart' };
+      for (const receipt of item.submissions || []) if (!['accepted', 'blocked', 'failed', 'timeout'].includes(receipt.stage)) { receipt.stage = 'unconfirmed'; receipt.note = 'Service restarted before acceptance was confirmed. Inspect the saved terminal; this request will not be replayed.'; }
       this.items.set(item.id, item);
       if (item.open) await this.hydrate(item);
     }
@@ -235,6 +255,7 @@ export class Sessions extends EventEmitter {
   }
 
   nativeEvent(session, event) {
+    this.submission.observe(session, event);
     const update = workerEvent(session.workerEvidence, event);
     if (!update.accepted) return;
     session.workerEvidence = update.value;
@@ -363,6 +384,13 @@ export class Sessions extends EventEmitter {
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
     if ((coordinator || composed) && !questionAnswer && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
+    if ((coordinator || composed) && submit && !questionAnswer && !['shell', 'gitbash'].includes(session.agent)) {
+      const clean = data.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').replaceAll('\r', '');
+      if (!clean.trim()) throw new Error('A nonempty message is required.');
+      this.beginDiscovery(session);
+      return this.submission.submit(session, clean, { taskId });
+    }
+    if (!coordinator && !composed) session.manualInputRevision = (session.manualInputRevision || 0) + 1;
     if (coordinator || composed) {
       // Agent CLIs accept bracketed paste as one prompt. Local shells execute
       // line breaks as commands; bracketed paste can leave the final line pending.

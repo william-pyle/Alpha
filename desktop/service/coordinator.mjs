@@ -169,7 +169,7 @@ export class Coordinator extends EventEmitter {
       else {
         const operation = this.operations.get(this.active.operationId), startedAt = Date.now();
         if (operation) this.phase(operation, 'tool');
-        const action = Promise.resolve().then(() => this.execute(name, args, this.active.operationId)).then(value => {
+        const action = Promise.resolve().then(() => this.execute(name, args, this.active.operationId, undefined, callId)).then(value => {
           if (name === 'ask_user_question' && operation) operation.waitingForUser = true;
           return { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify(value) }] };
         }).catch(error => ({ success: false, contentItems: [{ type: 'inputText', text: publicError(error) }] })).finally(() => {

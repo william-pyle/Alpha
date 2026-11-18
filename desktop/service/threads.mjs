@@ -54,13 +54,35 @@ export class Threads {
     }
     if (!item.sessionIds.includes(session.id)) item.sessionIds.push(session.id);
     const before = JSON.stringify([item.name, item.projectId, item.projectPending, item.status, item.archived, item.unread]);
-    if (item.kind === 'native') Object.assign(item, { name: session.name, projectId: session.projectId || null, projectPending: !!session.projectPending, archived: item.archived || !session.open });
+    if (item.kind === 'native') Object.assign(item, { name: session.name, projectId: session.projectId || null, projectPending: !!session.projectPending, archived: item.organizationRevision ? item.archived : item.archived || !session.open });
     item.status = session.status === 'running' ? session.activity : session.status;
     item.unread ||= !!session.unread;
     if (publish && (created || before !== JSON.stringify([item.name, item.projectId, item.projectPending, item.status, item.archived, item.unread]))) { item.updatedAt = now(); this.publish(); }
     return item;
   }
   select(id) { const item = this.get(id); this.selectedId = id; item.unread = false; this.publish(); return item; }
+  closeConversation(id) {
+    const item = this.get(id);
+    if (this.selectedId === id) {
+      const index = this.items.indexOf(item);
+      const next = this.items.slice(index + 1).find(other => !other.archived) || this.items.slice(0, index).reverse().find(other => !other.archived);
+      this.selectedId = next?.id || null;
+      if (next) next.unread = false;
+    }
+    // Archiving changes organization only. Workers, Questions, drafts and IDs
+    // retain their existing lifecycle and can continue in the background.
+    if (item.archived) { this.publish(); return item; }
+    return this.patch(id, { archived: true });
+  }
+  view(id, data) {
+    const item = this.get(id);
+    if (Object.hasOwn(data, 'viewMode') && !['alpha', 'terminal'].includes(data.viewMode)) throw invalid('Choose Alpha or terminal view.');
+    if (Object.hasOwn(data, 'workerId')) this.assertSession(id, data.workerId);
+    if (data.viewMode) item.viewMode = data.viewMode;
+    if (data.workerId) item.workerId = data.workerId;
+    // Presentation must not invalidate organization undo or change activity.
+    this.publish(); return item;
+  }
   message(id, message, publish = true) {
     const item = this.get(id);
     if (item.messages.some(existing => existing.id === message.id)) return false;

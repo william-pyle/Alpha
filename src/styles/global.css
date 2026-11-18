@@ -710,6 +710,8 @@ button:focus-visible {
 
 /* ─── Alpha logo container ─── */
 .mak-logo { flex-shrink: 0; }
+/* Keep the fixed brand above decorative theme aura/grain, without recoloring it. */
+.app-identity { position: relative; z-index: 1; filter: none; }
 
 /* ─── Scrollbars ─── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

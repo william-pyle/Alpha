@@ -1,9 +1,10 @@
 {
   "name": "alpha-desktop",
   "private": true,
-  "version": "0.2.18",
+  "version": "0.2.19",
   "type": "module",
   "scripts": {
+    "icons:generate": "node scripts/generate-alpha-icons.mjs",
     "postinstall": "node scripts/install-service.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -14,7 +15,7 @@
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
     "desktop:test": "node --test --test-reporter=tap desktop/service/test/*.test.mjs",
-    "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs && node desktop/service/test/settings-cleanup-ui.mjs && node desktop/service/test/workspace-tools-ui.mjs && node desktop/service/test/conversation-ui.mjs && node desktop/service/test/agent-center-ui.mjs && node desktop/service/test/voice-ui.mjs && node desktop/service/test/speech-face-ui.mjs && node desktop/service/test/simplified-layout-ui.mjs && node desktop/service/test/workspace-archive-ui.mjs && node desktop/service/test/window-chrome-ui.mjs && node desktop/service/test/expanded-layout-ui.mjs && node desktop/service/test/trust-pass-ui.mjs",
+    "desktop:test:ui": "node desktop/service/test/unified-ui.mjs && node desktop/service/test/alpha-ui.mjs && node desktop/service/test/cards-ui.mjs && node desktop/service/test/workspace-edit-ui.mjs && node desktop/service/test/workspace-location-ui.mjs && node desktop/service/test/settings-cleanup-ui.mjs && node desktop/service/test/app-identity-ui.mjs && node desktop/service/test/workspace-tools-ui.mjs && node desktop/service/test/conversation-ui.mjs && node desktop/service/test/conversation-tabs-ui.mjs && node desktop/service/test/agent-center-ui.mjs && node desktop/service/test/voice-ui.mjs && node desktop/service/test/speech-face-ui.mjs && node desktop/service/test/simplified-layout-ui.mjs && node desktop/service/test/workspace-archive-ui.mjs && node desktop/service/test/window-chrome-ui.mjs && node desktop/service/test/expanded-layout-ui.mjs && node desktop/service/test/trust-pass-ui.mjs",
     "test": "npm run desktop:test",
     "package": "npm run desktop:build -- --bundles msi",
     "library:build": "node scripts/package-library.mjs",
