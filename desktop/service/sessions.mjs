@@ -17,6 +17,7 @@ import { findCodexChat } from './codex-history.mjs';
 import { englishTitle, restoredTitle } from './titles.mjs';
 import { defaultWorkerEffort, workerEfforts } from './effort.mjs';
 import { ptyOptions } from './platform.mjs';
+import { guardWindowsPtyKill } from './windows-pty-lifecycle.mjs';
 import { opencodeVersion, opencodeEnvironment, readOpencodeState, watchOpencode } from './opencode.mjs';
 import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId, watchAntigravity } from './antigravity.mjs';
 
@@ -179,7 +180,7 @@ export class Sessions extends EventEmitter {
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;
     let proc;
-    try { proc = pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows })); }
+    try { proc = guardWindowsPtyKill(pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }))); }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     session.process = proc;
     session.deviceReplies?.dispose();
