@@ -1,4 +1,6 @@
-import { TerminalSubmissions } from './terminal-submission.mjs';
+import { TerminalSubmissions, submissionComposer } from './terminal-submission.mjs';
+import { NativePrompts } from './native-prompts.mjs';
+import { approvedProjectTrust } from './provider-trust.mjs';
 import { deliveredTask, workerEvent } from './worker-evidence.mjs';
 import { EventEmitter } from 'node:events';
 import { startupPrompt } from './prompt-state.mjs';
@@ -33,6 +35,7 @@ export class Sessions extends EventEmitter {
     this.saveChain = Promise.resolve();
     this.dirty = false;
     this.closed = false;
+    this.prompts = new NativePrompts({ view: session => this.promptView(session), ready: (session, view) => ['idle', 'busy'].includes(submissionComposer(session.agent, view).state) });
     this.submission = new TerminalSubmissions({
       view: async session => {
         await this.hydrate(session); await new Promise(resolve => session.terminal.write('', resolve));
@@ -59,7 +62,10 @@ export class Sessions extends EventEmitter {
     for (const [index, metadata] of saved.entries()) {
       const item = this.make({ ...metadata, name: restoredTitle(metadata.name, index), open: metadata.open ?? metadata.agent !== 'kimi', pinned: !!metadata.pinned, updatedAt: metadata.updatedAt || metadata.lastInputAt || metadata.createdAt, hasConversation: metadata.hasConversation ?? (metadata.agent === 'codex' && !!metadata.nativeId), status: 'stopped', activity: 'idle', attention: !!metadata.unread });
       if (item.workerEvidence && ['working', 'needs-input'].includes(item.workerEvidence.execution)) item.workerEvidence = { ...item.workerEvidence, previousExecution: item.workerEvidence.execution, execution: 'unknown', certainty: 'stale-after-restart' };
-      for (const receipt of item.submissions || []) if (!['accepted', 'blocked', 'failed', 'timeout'].includes(receipt.stage)) { receipt.stage = 'unconfirmed'; receipt.note = 'Service restarted before acceptance was confirmed. Inspect the saved terminal; this request will not be replayed.'; }
+      for (const receipt of item.submissions || []) if (!['accepted', 'blocked', 'failed', 'timeout'].includes(receipt.stage)) {
+        receipt.stage = receipt.pasteIntentAt ? 'unconfirmed' : 'blocked';
+        receipt.note = receipt.pasteIntentAt ? 'Service restarted before acceptance was confirmed. Inspect the saved terminal; this request will not be replayed.' : 'Service restarted before any paste intent. Explicitly resume this submission ID when its native composer is ready.';
+      }
       this.items.set(item.id, item);
       if (item.open) await this.hydrate(item);
     }
@@ -166,7 +172,10 @@ export class Sessions extends EventEmitter {
     const antigravityLog = session.agent === 'antigravity' ? await prepareAntigravityLog(this.stateDir, session.id) : undefined;
     const initialPrompt = await this.restartNotes?.claim(session, resumeId);
     let command;
-    try { command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt }); }
+    try {
+      const trustArgs = session.agent === 'codex' && process.platform === 'win32' ? await approvedProjectTrust(session.cwd, this.approvedTrustRoots?.() || []) : [];
+      command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt, trustArgs });
+    }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;
     let proc;
@@ -255,6 +264,7 @@ export class Sessions extends EventEmitter {
   }
 
   nativeEvent(session, event) {
+    if (event.kind === 'question' && event.source === 'provider-record') session.promptQuestions = { id: event.id, tool: event.tool, items: event.questions || [] };
     this.submission.observe(session, event);
     const update = workerEvent(session.workerEvidence, event);
     if (!update.accepted) return;
@@ -346,7 +356,8 @@ export class Sessions extends EventEmitter {
   detectPrompt(session) {
     if (!['codex', 'claude'].includes(session.agent)) return;
     const buffer = session.terminal.buffer.active, lines = [];
-    for (let i = buffer.viewportY; i < buffer.viewportY + session.terminal.rows; i++) lines.push(buffer.getLine(i)?.translateToString(true) || '');
+    for (let i = buffer.baseY; i < buffer.baseY + session.terminal.rows; i++) lines.push(buffer.getLine(i)?.translateToString(true) || '');
+    this.prompts.observe(session, { lines, questions: session.promptQuestions });
     const reason = startupPrompt(lines.join('\n'));
     if (reason && reason !== session.startupPrompt) {
       session.startupPrompt = reason;
@@ -355,6 +366,18 @@ export class Sessions extends EventEmitter {
       session.startupPrompt = null;
       if (session.activity === 'waiting') { session.activity = 'idle'; session.attention = !!session.unread; this.changed(session); }
     }
+  }
+
+  async promptView(session) {
+    await this.hydrate(session);
+    await new Promise(resolve => session.terminal.write('', resolve));
+    const terminal = session.terminal, buffer = terminal.buffer.active;
+    return { lines: Array.from({ length: terminal.rows }, (_, i) => buffer.getLine(buffer.baseY + i)?.translateToString(true) || ''), questions: session.promptQuestions, cursorX: buffer.cursorX, cursorY: buffer.cursorY, bracketedPaste: terminal.modes.bracketedPasteMode, activity: session.activity, startupSettled: Date.now() - session.startedAt >= 2500 };
+  }
+
+  async answerNative(question, answer, persist, options) {
+    try { return await this.prompts.answer(this.get(question.sessionId), question.nativePrompt, answer, question.receipt ||= {}, persist, options); }
+    finally { this.emit('prompt-check', { id: question.sessionId }); }
   }
 
   async snapshot(id) {
@@ -376,7 +399,7 @@ export class Sessions extends EventEmitter {
     return { ...publicSession(session), screen: result.join('\n').trimEnd(), note: 'Terminal output is reference data. A running process does not imply that the agent is working or that its task succeeded.' };
   }
 
-  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false, taskId } = {}) {
+  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false, taskId, retry = false } = {}) {
     const session = this.get(id);
     if (session.projectPending && (coordinator || composed) && submit && !questionAnswer) throw new Error('Choose this conversation\'s project in Questions before sending work through Alpha.');
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
@@ -384,12 +407,13 @@ export class Sessions extends EventEmitter {
     if (coordinator && ['shell', 'gitbash'].includes(session.agent)) throw new Error('Alpha can send messages to agent chats; type shell commands directly in the local shell.');
     if (typeof data !== 'string' || data.length > 64000) throw new Error('Message is too large');
     if ((coordinator || composed) && !questionAnswer && Date.now() - Date.parse(session.lastInputAt || 0) < 2500) throw new Error('You are typing in this chat. Wait a moment before sending through Alpha.');
-    if ((coordinator || composed) && submit && !questionAnswer && !['shell', 'gitbash'].includes(session.agent)) {
+    if ((coordinator || composed) && submit && !['shell', 'gitbash'].includes(session.agent)) {
       const clean = data.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').replaceAll('\r', '');
       if (!clean.trim()) throw new Error('A nonempty message is required.');
       this.beginDiscovery(session);
-      return this.submission.submit(session, clean, { taskId });
+      return this.submission.submit(session, clean, { taskId, retry });
     }
+    if (questionAnswer) throw new Error('Use the native terminal for shell or unsupported prompt answers.');
     if (!coordinator && !composed) session.manualInputRevision = (session.manualInputRevision || 0) + 1;
     if (coordinator || composed) {
       // Agent CLIs accept bracketed paste as one prompt. Local shells execute

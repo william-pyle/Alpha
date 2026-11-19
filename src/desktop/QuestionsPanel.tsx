@@ -6,6 +6,12 @@ import type { ChatQuestion } from './types'
 const draftKey = (id: string) => `alpha.questionDraft.${id}`
 
 function QuestionCard({ question, connected, accepted }: { question: ChatQuestion; connected: boolean; accepted: (id: string) => void }) {
+  const state = useDesktop()
+  const openTerminal = async () => {
+    const owner = state.threads.find(thread => thread.sessionIds.includes(question.sessionId))
+    if (owner) { await api(`/threads/${owner.id}/view`, { viewMode: 'terminal', workerId: question.sessionId }); await selectThread(owner.id) }
+    else await api(`/sessions/${question.sessionId}/focus`, {})
+  }
   const [draft, setDraft] = useState(() => localStorage.getItem(draftKey(question.id)) || '')
   const inFlight = useRef(false)
   const [busy, setBusy] = useState(false)
@@ -30,11 +36,12 @@ function QuestionCard({ question, connected, accepted }: { question: ChatQuestio
   return <article className="question-card" data-question-id={question.id}>
     <header><strong>{question.chatName}</strong><time>{new Date(question.createdAt).toLocaleString()}</time></header>
     <p>{question.text}</p>
+    {question.source === 'native' && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11 }}>{question.context}</pre>}
     {question.source === 'project' ? <label>Project<select aria-label={`Project for ${question.chatName}`} value={question.options.includes(draft) ? draft : ''} onChange={event => change(event.target.value)}><option value="">Choose a card or project</option>{question.options.map(option => <option key={option}>{option}</option>)}</select></label> : !!question.options.length && <div className="question-options" role="group" aria-label={`Suggested answers for ${question.chatName}`}>{question.options.map(option => <button key={option} type="button" aria-pressed={draft === option} onClick={() => change(option)}>{option}</button>)}</div>}
-    <label htmlFor={`question-answer-${question.id}`}>Your answer</label>
-    <textarea id={`question-answer-${question.id}`} aria-label={`Answer ${question.chatName}`} value={draft} onChange={event => change(event.target.value)} placeholder="Choose an answer or type your own…" rows={2} maxLength={64000} />
+    {question.source !== 'native' && <><label htmlFor={`question-answer-${question.id}`}>Your answer</label>
+    <textarea id={`question-answer-${question.id}`} aria-label={`Answer ${question.chatName}`} value={draft} onChange={event => change(event.target.value)} placeholder="Choose an answer or type your own…" rows={2} maxLength={64000} /></>}
     {error && <p className="question-error" role="alert">{error}</p>}
-    <footer>{question.threadId && <button type="button" onClick={() => void selectThread(question.threadId!).catch(reportError)}>Open originating conversation</button>}{!question.source && <button type="button" onClick={() => api(`/sessions/${question.sessionId}/focus`, {}).catch(reportError)}>Open chat</button>}{question.source !== 'project' && <button type="button" onClick={() => void dismiss()} disabled={busy || !connected}>Dismiss</button>}<button className="question-send" type="button" onClick={() => void send()} disabled={!draft.trim() || busy || !connected}>{busy ? 'Sending…' : 'Send answer'}</button></footer>
+    <footer>{question.threadId && question.source !== 'native' && <button type="button" onClick={() => void selectThread(question.threadId!).catch(reportError)}>Open originating conversation</button>}{(!question.source || question.source === 'native') && <button type="button" onClick={() => void openTerminal().catch(reportError)}>Open terminal</button>}{question.source !== 'project' && question.source !== 'native' && <button type="button" onClick={() => void dismiss()} disabled={busy || !connected}>Dismiss</button>}<button className="question-send" type="button" onClick={() => void send()} disabled={!draft.trim() || busy || !connected}>{busy ? 'Sending…' : 'Send answer'}</button></footer>
   </article>
 }
 
@@ -59,6 +66,6 @@ export default function QuestionsPanel() {
   if (pending.length === 0) return null
   return <section className={`questions-panel ${open ? 'is-open' : ''}`} aria-label="Questions">
     <button className="questions-toggle" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}><span><Icon name="help" size={15} />Questions {pending.length > 0 && <b>{pending.length}</b>}</span><Icon name={open ? 'down' : 'up'} size={15} /></button>
-    {open && <div className="questions-list">{pending.length ? pending.map(question => <QuestionCard key={question.id} question={question} connected={state.connected} accepted={id => setAcceptedIds(current => [...current, id])} />) : <p className="questions-empty">No questions waiting.</p>}</div>}
+    {open && <div className="questions-list">{pending.slice(focusedId && pending.some(q => q.id === focusedId) ? pending.findIndex(q => q.id === focusedId) : 0).slice(0, 1).map(question => <QuestionCard key={question.id} question={question} connected={state.connected} accepted={id => { setAcceptedIds(current => [...current, id]); setFocusedId('') }} />)}</div>}
   </section>
 }

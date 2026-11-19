@@ -126,9 +126,11 @@ try {
   await expect(editor).toHaveValue('');
 
   await call(`/sessions/${session.id}/input`, { text: "read -p 'Should Alpha continue? ' reply; printf 'REPLY:%s\\n' \"$reply\"\r", paste: false });
-  await expect(page.getByRole('region', { name: 'Questions' })).toContainText('Should Alpha continue?');
-  await page.getByRole('button', { name: 'Yes', exact: true }).click();
-  await page.getByRole('button', { name: 'Send answer' }).click();
+  await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen).toContain('Should Alpha continue?');
+  // Shell text is not a supported native provider menu. Never turn an inferred
+  // question into composed shell input; direct user terminal input is fallback.
+  await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
+  await call(`/sessions/${session.id}/input`, { text: 'Yes\r', paste: false });
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('REPLY:Yes');
   await expect(page.getByRole('region', { name: 'Questions' })).toHaveCount(0);
   await page.locator('.conversation-tabs [aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'History', exact: true }).click();

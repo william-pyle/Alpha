@@ -54,12 +54,12 @@ test('persists pending questions and clears one only after its answer reaches th
   const restored = await new Questions(root).init();
   assert.equal(restored.list().length, 1);
   const sent = [];
-  const sessions = { get: id => ({ id, status: 'running' }), input: (id, answer, options) => { sent.push({ id, answer, options }); } };
+  const sessions = { get: id => ({ id, status: 'running' }), input: (id, answer, options) => { sent.push({ id, answer, options }); return { accepted: true }; } };
   const id = restored.list()[0].id;
   await assert.rejects(restored.answer(id, '', sessions), /Enter an answer/);
   assert.equal(restored.list().length, 1);
   await restored.answer(id, 'Yes, proceed', sessions);
-  assert.deepEqual(sent, [{ id: 'chat-one', answer: 'Yes, proceed', options: { composed: true, submit: true, questionAnswer: true } }]);
+  assert.deepEqual(sent, [{ id: 'chat-one', answer: 'Yes, proceed', options: { composed: true, submit: true, questionAnswer: true, taskId: `question:${id}` } }]);
   assert.equal(restored.list().length, 0);
   await restored.close();
   assert.equal((await new Questions(root).init()).list().length, 0);

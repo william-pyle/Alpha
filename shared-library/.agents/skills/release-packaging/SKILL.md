@@ -12,3 +12,24 @@ When changing an installer, trace a full update from the currently published ver
 Build packages from the same version and source as the application. Verify that each artifact contains its expected binaries and resources, runs from an installed location, and can be upgraded and uninstalled without removing user data. Test the installer metadata or a disposable install when feasible; do not use an active application session as the test target. Record what was actually built and tested, including any platform or toolchain gap.
 
 A source edit, successful build or uploaded artifact is not a published release or an installed update. Follow the project's release process for versioning, checksums, signing, publication and post-release verification. Do not publish, sign, install over an active session, or change a remote unless that action is authorized by the task and project rules.
+
+## Timing and artifact promotion
+
+Audit actual CI job and step durations before optimizing. Trace nested build hooks:
+a package command may rebuild a frontend that an earlier step already built and
+tested. Prefer building once, then testing and packaging those same bytes. Retain
+all required security, quality, installer, signing and platform checks; measure
+the resulting run before claiming a speed improvement.
+
+Finish source, version, workflow and documentation changes before tagging. Where
+the project supports promotion, require a successful trusted main-branch run on
+the exact tag commit and reuse its immutable artifact. Verify workflow identity,
+source SHA, artifact identity/digest, installer and manifest integrity, required
+signing and public bytes. Tags must not rebuild or repeat a green full UI suite.
+Use the project's stricter signing policy when one exists.
+
+After publication, verify the release, download bytes, update manifest and project
+report. Do not add a source commit solely for release housekeeping or wait for a
+later commit's CI to declare an earlier release complete. Later changes are
+separate work. Preserve installed library overrides; ship revised defaults through
+the normal library merge rather than overwriting local files.

@@ -139,7 +139,7 @@ try {
   await first.getByRole('button', { name: 'Send answer' }).click(); await expect(first).toHaveCount(0);
   const three = await service.questions.ask({ text: 'Which concurrent result should be kept?', threadId: a.id, chatName: a.name, sourceId: 'third' });
   await expect.poll(() => !!finish).toBe(true); await finish();
-  await expect(second).toBeVisible(); await expect(page.locator(`[data-question-id="${three.id}"]`)).toBeVisible();
+  await expect(second).toBeVisible(); await expect(page.locator(`[data-question-id="${three.id}"]`)).toHaveCount(0);
   await service.questions.answer(two.id, 'Accepted by another client', service.sessions, async () => {}); await expect(second).toHaveCount(0);
   const third = page.locator(`[data-question-id="${three.id}"]`); await third.getByRole('textbox').fill('Final free text'); await third.getByRole('button', { name: 'Send answer' }).click();
   await expect(page.getByRole('region', { name: 'Questions', exact: true })).toHaveCount(0); await expect(editor).toBeFocused();

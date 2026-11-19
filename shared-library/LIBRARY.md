@@ -5,6 +5,12 @@ The installed path is also available to terminal sessions as `ALPHA_SHARED_LIBRA
 The coordinator discovers shared skills and passes relevant paths in task handoffs.
 Project skills of the same name take precedence over shared skills.
 
+Release and workflow optimization follows `.agents/skills/release-packaging/`:
+measure actual CI timing, test the same bytes that are packaged, and promote an
+exact-commit trusted immutable artifact when the project's policy supports it.
+Common-agent routing failures follow `.agents/skills/common-agent-maintenance/`;
+preserve the task and use project-local instructions rather than bypass exclusions.
+
 - `.agents/skills/`: maintained Codex skill folders, including scripts and references.
 - `.claude/skills/`: complete copies generated for Claude Code during packaging.
 - `knowledge/`: general reusable knowledge, including future additions.

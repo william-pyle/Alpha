@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { startupPrompt } from './prompt-state.mjs';
+import { nativePrompt } from './native-prompts.mjs';
 
 export const submissionHash = text => createHash('sha256').update(String(text).replaceAll('\r', '').trim()).digest('hex');
 const normalize = text => text.replace(/\s+/g, ' ').trim();
@@ -11,6 +12,8 @@ export function submissionComposer(agent, view) {
   if (!['codex', 'claude'].includes(agent)) return { state: 'unsupported', reason: 'Automatic submission is supported only for recognized Codex and Claude composers.' };
   if (view.startupSettled === false || view.bracketedPaste === false) return { state: 'unknown', reason: 'Waiting for provider bracketed-paste readiness.' };
   const lines = view.lines || [], screen = lines.join('\n');
+  if (nativePrompt(agent, view)) return { state: 'blocked', reason: 'A native choice is waiting in Questions. No task text was pasted.' };
+  if (/^\s*[›❯>]?\s*\d+[.)]\s+\S/m.test(screen) && /(?:enter|↵).*(?:confirm|continue|select)/i.test(screen)) return { state: 'blocked', reason: 'An interactive choice needs direct user input.' };
   if (/Starting MCP servers|reconnecting|connecting to|loading session/i.test(screen)) return { state: 'unknown', reason: 'Provider is still starting or reconnecting.' };
   const blocked = startupPrompt(screen);
   if (blocked) return { state: 'blocked', reason: blocked };
@@ -29,8 +32,9 @@ export function submissionComposer(agent, view) {
 }
 
 export class TerminalSubmissions {
-  constructor({ view, persist, changed, accepted, clock = Date.now, wait = sleep, timeout = 8000, settle = 350 }) {
+  constructor({ view, persist, changed, accepted, clock = Date.now, wait = sleep, timeout = 8000, settle = 350, concurrency = 4 }) {
     Object.assign(this, { view, persist, changed, accepted, clock, wait, timeout, settle }); this.active = new Map();
+    this.concurrency = concurrency; this.running = 0; this.queue = [];
   }
   observe(session, event) {
     const text = event.kind === 'task-input' ? event.text : event.taskText;
@@ -42,11 +46,12 @@ export class TerminalSubmissions {
     this.accepted(session, receipt); this.changed(session);
     void this.persist().catch(() => {});
   }
-  submit(session, text, { taskId = randomUUID() } = {}) {
+  submit(session, text, { taskId = randomUUID(), retry = false } = {}) {
     const hash = submissionHash(text), prior = session.submissions?.find(item => item.taskId === taskId);
     if (prior) {
       if (prior.hash !== hash) throw new Error('This submission ID already belongs to different text.');
-      return this.active.get(session.id)?.taskId === taskId ? this.active.get(session.id).promise : Promise.resolve(this.result(session, prior, true));
+      if (retry && !prior.pasteIntentAt && !this.active.has(session.id) && ['blocked', 'timeout', 'failed'].includes(prior.stage)) session.submissions = session.submissions.filter(item => item !== prior);
+      else return this.active.get(session.id)?.taskId === taskId ? this.active.get(session.id).promise : Promise.resolve(this.result(session, prior, true));
     }
     if (this.active.has(session.id)) throw new Error('A submission is already being checked for this worker. Wait for its result; no text was pasted.');
     if (session.submissions?.some(item => item.pasteIntentAt && !item.acceptedAt && item.stage !== 'queued')) throw new Error('An earlier pasted request is unconfirmed. Inspect this worker terminal before sending again; Alpha will not replay it.');
@@ -55,14 +60,29 @@ export class TerminalSubmissions {
     const duplicate = session.submissions?.findLast(item => item.hash === hash && item.pastedAt && !item.acceptedAt);
     if (duplicate) return Promise.resolve(this.result(session, duplicate, true));
     const receipt = { taskId, hash, stage: 'waiting-ready', acceptance: 'unconfirmed', createdAt: this.clock(), note: 'Waiting for a recognized empty composer.' };
-    session.submissions = [...(session.submissions || []), receipt].slice(-128);
-    const promise = this.run(session, text, receipt).finally(() => this.active.delete(session.id));
+    if (this.queue.length >= 80) throw new Error('Dispatch queue is full. Inspect existing submission receipts before resuming.');
+    // Stable task IDs remain durable; evicting accepted receipts would silently
+    // turn an old retry into new work.
+    session.submissions = [...(session.submissions || []), receipt];
+    const target = session.process, nativeId = session.nativeId, threadId = session.alphaThreadId;
+    const promise = this.bounded(async () => {
+      if (session.process !== target || session.nativeId !== nativeId || session.alphaThreadId !== threadId) {
+        receipt.stage = 'blocked'; receipt.note = 'The native session changed while dispatch was queued. Nothing was pasted.'; await this.persist(); return this.result(session, receipt);
+      }
+      return this.run(session, text, receipt);
+    }).finally(() => this.active.delete(session.id));
     this.active.set(session.id, { taskId, promise }); return promise;
+  }
+  async bounded(run) {
+    if (this.running >= this.concurrency) await new Promise(resolve => this.queue.push(resolve));
+    else this.running++;
+    try { return await run(); }
+    finally { const next = this.queue.shift(); if (next) next(); else this.running--; }
   }
   result(session, receipt, duplicate = false) { return { delivered: !!receipt.pastedAt, submitted: !!receipt.keyAt, queued: receipt.stage === 'queued', accepted: receipt.acceptance === 'observed', duplicate, sessionId: session.id, name: session.name, submission: { ...receipt }, note: receipt.note }; }
   async run(session, text, receipt) {
-    const target = session.process, manual = session.manualInputRevision || 0;
-    const unchanged = () => session.process === target && target && (session.manualInputRevision || 0) === manual;
+    const target = session.process, manual = session.manualInputRevision || 0, nativeId = session.nativeId, threadId = session.alphaThreadId;
+    const unchanged = () => session.process === target && target && session.nativeId === nativeId && session.alphaThreadId === threadId && (session.manualInputRevision || 0) === manual;
     const update = async (stage, note) => { receipt.stage = stage; receipt.note = note; this.changed(session); await this.persist(); };
     try {
       await this.persist();

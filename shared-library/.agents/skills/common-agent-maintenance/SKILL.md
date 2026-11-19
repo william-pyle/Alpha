@@ -28,3 +28,17 @@ judge the next real result and its feedback before claiming improvement.
 Route missing decisions through Questions. Report repeated failures or slowness
 with a concrete fix or redesign proposal. Do not retry external actions, publish,
 spend money or restart applications merely because a reusable role exists.
+
+An exclusion rejects common-agent routing, not an already authorized project
+task. Return the exclusion and route that task using the project's own AGENTS.md;
+do not label an undelivered handoff as completed or change the registry to bypass
+the exclusion. Project owners change their own files; one designated owner may
+maintain global workflow guidance when the task explicitly assigns that scope.
+
+For multi-terminal handoffs, use bounded dispatch with stable submission IDs.
+Read each exact native acceptance receipt before marking delivery accepted.
+Resume only entries known not to have been pasted; never repeat accepted or
+uncertain entries after a coordinator timeout. Send supported terminal choices
+through origin-bound Questions, leaving login and unsupported menus native.
+Only a recognized optional update Skip may be automated under an explicit user
+preference. Full Access is not folder trust or permission to approve a prompt.

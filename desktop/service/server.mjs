@@ -45,7 +45,7 @@ import { Updates, effectiveVersion } from './updates.mjs';
 import { CardDocuments } from './card-documents.mjs';
 import { installLibrary } from './shared-library.mjs';
 import { WorkspaceLocation } from './workspace-location.mjs';
-import { Questions, extractTerminalQuestion } from './questions.mjs';
+import { Questions } from './questions.mjs';
 import product from './package.json' with { type: 'json' };
 
 // The native host owns the installed app version. Package metadata remains a
@@ -77,6 +77,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const settingsPath = path.join(stateDir, 'settings.json');
   const savedSettings = await readJson(settingsPath, null);
   let settings = { defaultAgent: 'codex', defaultBypass: false, coordinatorModel: environment.ALPHA_COORDINATOR_MODEL?.trim() || null, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', appTheme: 'alpha', coordinatorEffort: 'medium', voiceName: 'cedar', voiceStyle: defaultVoiceStyle, conversationStyle: defaultConversationStyle, speakReplies: true, speechVoice: '', ...savedSettings };
+  sessions.approvedTrustRoots = () => settings.trustProjectsScope === true ? ['C:/Projects'] : [];
   if (!['codex', 'claude', 'shell', 'gitbash'].includes(settings.defaultAgent)) settings.defaultAgent = 'codex';
   settings.themeProfiles = validThemeProfiles(settings.themeProfiles);
   if (![...builtInThemeIds, ...settings.themeProfiles.map(item => item.id)].includes(settings.appTheme)) settings.appTheme = 'alpha';
@@ -194,8 +195,16 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           const agent = args.commonAgentId ? common.instructions(args.commonAgentId) : args.includeWorkLessons && common.allows(project, args.text) && common.match(args.text) ? common.instructions(common.match(args.text).id) : null;
           let text = args.includeWorkLessons === true && ['codex', 'claude'].includes(session.agent) ? learning.handoff(args.text) : args.text;
           if (agent) text = `Common agent ${agent.id}, version ${agent.version}:\n${agent.text}\n\n${args.includeWorkLessons ? text : `USER-AUTHORIZED TASK:\n${text}`}`;
-          const result = await sessions.input(args.id, text, { coordinator: true, submit: true, taskId: `${operationId}:${callId || submissionHash(text)}` });
-          if (result.delivered) common.input(session, args.text, project, agent?.id);
+          const taskId = args.submissionId ? `dispatch:${args.id}:${args.submissionId}` : `${operationId}:${args.id}:${submissionHash(text)}`;
+          const delivery = Promise.resolve(sessions.input(args.id, text, { coordinator: true, submit: true, taskId, retry: args.retry === true })).then(result => {
+            if (result.delivered && !result.duplicate) common.input(session, args.text, project, agent?.id);
+            return result;
+          });
+          let timer;
+          const result = await Promise.race([delivery, new Promise(resolve => { timer = setTimeout(() => {
+            const receipt = session.submissions?.find(item => item.taskId === taskId);
+            resolve({ pending: true, sessionId: session.id, submission: receipt && { ...receipt }, note: 'Dispatch continues in the bounded queue. Read this chat for the exact acceptance receipt; reuse submissionId when resuming, never resend under a new ID.' });
+          }, 1000); })]).finally(() => clearTimeout(timer));
           return { ...result, ...(agent ? { commonAgent: { id: agent.id, version: agent.version } } : {}) };
         }
         case 'attach_files': return attach(args.id, args.paths, true);
@@ -312,23 +321,37 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   });
   sessions.on('screen-cleared', ({ id }) => broadcast('screen-cleared', { id }));
   sessions.on('service-error', error => broadcast('service-error', { error: publicError(error) }));
-  sessions.on('output', output => {
-    for (const ws of clients) {
-      if (ws.sessionId !== output.id) continue;
-      if (ws.bufferedAmount > 2 * 1024 * 1024) { ws.close(1013, 'Reconnect to restore the terminal screen'); continue; }
-      send(ws, 'output', output);
-    }
+  const checkPrompt = output => {
     clearTimeout(questionTimers.get(output.id));
     questionTimers.set(output.id, setTimeout(async () => {
       questionTimers.delete(output.id);
       try {
         const session = sessions.get(output.id);
         if (session.status !== 'running') return;
-        const { screen } = await sessions.read(output.id, 16);
-        const text = extractTerminalQuestion(screen);
-        if (text) questions.capture(session, { id: `terminal-${output.sequence}`, message: text });
+        const state = await sessions.prompts.inspect(session);
+        if (!state.prompt && !sessions.prompts.active.has(session.id) && sessions.prompts.ready(session, await sessions.promptView(session))) await questions.nativeTransition(session.id);
+        if (state.prompt && !sessions.prompts.active.has(session.id)) {
+          const question = await questions.captureNative(session, state, sessions.prompts.binding(state));
+          // The owner's active-work preference permits only this known Skip.
+          // Never install, suppress future versions, or answer security prompts.
+          if (state.prompt.kind === 'update' && !question.receipt?.intentAt) {
+            try {
+              const result = await sessions.answerNative(question, 'Skip', () => questions.changed(), { automatic: true });
+              if (result.accepted) { question.status = 'answered'; question.answer = 'Skip'; question.delivery = 'observed'; question.answeredAt = new Date().toISOString(); await questions.changed(); }
+            } catch { /* Keep the question pending; an uncertain key is never replayed. */ }
+          }
+        }
       } catch { /* A chat may close while its output is being inspected. */ }
     }, 800));
+  };
+  sessions.on('prompt-check', checkPrompt);
+  sessions.on('output', output => {
+    for (const ws of clients) {
+      if (ws.sessionId !== output.id) continue;
+      if (ws.bufferedAmount > 2 * 1024 * 1024) { ws.close(1013, 'Reconnect to restore the terminal screen'); continue; }
+      send(ws, 'output', output);
+    }
+    checkPrompt(output);
   });
   sessions.on('notice', notice => {
     notices.push(notice); if (notices.length > 100) notices.shift(); broadcast('notice', { notice }); if (notice.kind === 'turn-completed' || notice.kind === 'exit') integrations.publish('completion', notice).catch(() => {}); });
@@ -694,6 +717,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         if (method === 'POST' && url.pathname === '/api/settings') {
           if (inventory().some(item => item.id === data.defaultAgent)) settings.defaultAgent = data.defaultAgent;
+          if (typeof data.trustProjectsScope === 'boolean') settings.trustProjectsScope = data.trustProjectsScope;
           if (typeof data.defaultBypass === 'boolean') settings.defaultBypass = data.defaultBypass;
           if (Number.isInteger(data.terminalFontSize) && data.terminalFontSize >= 10 && data.terminalFontSize <= 24) settings.terminalFontSize = data.terminalFontSize;
           if (['focus', 'original'].includes(data.terminalAppearance)) settings.terminalAppearance = data.terminalAppearance;

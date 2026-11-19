@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TerminalSubmissions, submissionComposer } from '../terminal-submission.mjs';
+
+test('twelve-terminal dispatch is bounded and resumable with exact acceptance and no duplicate payloads', async () => {
+  const sessions = Array.from({ length: 12 }, (_, index) => ({ id: `batch-${index}`, agent: 'codex', nativeId: `native-${index}`, alphaThreadId: 'batch', writes: [] }));
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  let views = 0, maxRunning = 0;
+  const dispatcher = new TerminalSubmissions({ concurrency: 4, timeout: 2000, settle: 0, persist: async () => {}, changed() {}, accepted() {}, wait: async () => new Promise(resolve => setTimeout(resolve, 1)), view: async session => {
+    views++; maxRunning = Math.max(maxRunning, dispatcher.running); await gate;
+    const draft = session.writes.some(value => value.startsWith('\x1b[200~')) && !session.writes.includes('\t') ? `[Pasted text]` : '';
+    return { lines: ['OpenAI Codex', `› ${draft}`, '? for shortcuts'], cursorY: 1, cursorX: draft.length + 2, bracketedPaste: true, startupSettled: true };
+  } });
+  for (const session of sessions) session.process = { write: value => { session.writes.push(value); if (value === '\t') dispatcher.observe(session, { kind: 'task-input', source: 'provider-record', text: `Work ${session.id}` }); } };
+  const results = sessions.map(session => dispatcher.submit(session, `Work ${session.id}`, { taskId: session.id }));
+  await new Promise(resolve => setTimeout(resolve, 10)); assert.equal(views, 4); assert.equal(dispatcher.queue.length, 8);
+  release(); assert.ok((await Promise.all(results)).every(result => result.accepted)); assert.equal(maxRunning, 4);
+  for (const session of sessions) {
+    assert.equal((await dispatcher.submit(session, `Work ${session.id}`, { taskId: session.id, retry: true })).duplicate, true);
+    assert.equal(session.writes.length, 2); assert.equal(session.submissions[0].acceptance, 'observed');
+  }
+});
 import { nativeActivity } from '../native-events.mjs';
 
 function fixture({ busy = false, readyAt = 0, accept = true, prompt = null, pasteDelay = 0, race = false, manual = false } = {}) {

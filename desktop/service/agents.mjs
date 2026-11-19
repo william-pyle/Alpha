@@ -68,7 +68,7 @@ export function nativeConversationId(value) {
   return value;
 }
 
-export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt } = {}) {
+export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt, trustArgs = [] } = {}) {
   if (!AGENTS.some(item => item.id === agent)) throw new Error('Unknown agent');
   resumeId = nativeConversationId(resumeId); nativeId = nativeConversationId(nativeId);
   if (initialPrompt !== undefined && (agent !== 'codex' || !resumeId || typeof initialPrompt !== 'string' || !initialPrompt.trim() || initialPrompt.length > 16000)) throw new Error('A restart prompt requires a saved Codex conversation and a bounded note.');
@@ -80,6 +80,7 @@ export function terminalCommand(agent, { bypass = false, resumeId, nativeId, eff
     if (resumeId) args.push('resume', resumeId);
     // Inline mode retains xterm scrollback for new and resumed conversations.
     args.push('--no-alt-screen');
+    args.push(...trustArgs);
     if (bypass) args.push('--dangerously-bypass-approvals-and-sandbox');
     if (effort) args.push('-c', `model_reasoning_effort="${effort}"`);
   } else if (agent === 'claude') {
