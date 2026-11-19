@@ -5,6 +5,13 @@ description: Maintain Alpha's reusable agents when repeated work spans projects 
 
 # Common agent maintenance
 
+First apply [repository ownership preflight](../../../processes/repository-ownership.md).
+Verify actual GitHub ownership before changes or handoffs requesting changes.
+Only `william-pyle` repositories are eligible. Other owners are research-only:
+no edits, issues, comments, PRs or pushes. Unknown ownership stops dependent writes.
+Recheck the actual destination before remote writes. Local folders, permissions
+and project agents cannot override this boundary.
+
 Use Alpha's Common agents records to identify work repeated across projects. Its
 coordinator exposes `list_task_patterns`, `list_common_agents`,
 `create_common_agent` and `revise_common_agent`. If these tools are not available
@@ -29,8 +36,9 @@ Route missing decisions through Questions. Report repeated failures or slowness
 with a concrete fix or redesign proposal. Do not retry external actions, publish,
 spend money or restart applications merely because a reusable role exists.
 
-An exclusion rejects common-agent routing, not an already authorized project
-task. Return the exclusion and route that task using the project's own AGENTS.md;
+A common-agent routing exclusion alone does not cancel an authorized task whose
+repository ownership is verified eligible. Use project-local instructions only
+within that ownership boundary; restrictions on other owners still prohibit writes;
 do not label an undelivered handoff as completed or change the registry to bypass
 the exclusion. Project owners change their own files; one designated owner may
 maintain global workflow guidance when the task explicitly assigns that scope.

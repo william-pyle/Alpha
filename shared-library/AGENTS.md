@@ -1,5 +1,10 @@
 # Alpha shared library
 
+Before changes or pushes, follow `processes/repository-ownership.md`. Verify the
+actual GitHub owner; only `william-pyle` repositories are eligible for changes.
+Other owners are research-only. Unknown ownership stops dependent writes. This
+boundary applies before common-agent routing or project-local fallback.
+
 This library supplies reusable skills, knowledge, workflows, scripts and report
 templates. Read LIBRARY.md and the relevant skill for the current task. Follow
 the active project's own instructions and keep project-specific information there.

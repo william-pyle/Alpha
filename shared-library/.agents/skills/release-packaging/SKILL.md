@@ -5,6 +5,13 @@ description: Prepare or change application installers, release packages, update 
 
 # Release packaging
 
+First apply [repository ownership preflight](../../../processes/repository-ownership.md).
+Verify actual GitHub ownership before changes or handoffs requesting changes.
+Only `william-pyle` repositories are eligible. Other owners are research-only:
+no edits, issues, comments, PRs or pushes. Unknown ownership stops dependent writes.
+Recheck the actual destination before remote writes. Local folders, permissions
+and project agents cannot override this boundary.
+
 Read the active project's instructions and release documentation before changing packaging. Identify the authoritative source, current installer, supported platforms, install scope, upgrade identity, asset names, signing state and update path. Keep product-specific commands and identifiers in that project.
 
 When changing an installer, trace a full update from the currently published version: how the old install is found or removed, where the new files go, what happens to shortcuts and pinned entries, and which user data or settings must survive. Check interactive and unattended paths separately. Preserve stable package identifiers and release asset names unless the migration explicitly changes them and all consumers are updated together.

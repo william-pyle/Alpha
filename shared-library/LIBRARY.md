@@ -1,5 +1,11 @@
 # Alpha shared library
 
+Repository work first follows `processes/repository-ownership.md`: verify actual
+GitHub ownership before changes and recheck the destination before remote writes.
+Only `william-pyle` repositories are eligible; other owners are research-only and
+unknown ownership stops dependent writes. Local folders and write access are not
+ownership evidence. Existing task authorization and project exclusions still apply.
+
 Open **Skills → Shared library** in Alpha to browse skills, knowledge and workflows.
 The installed path is also available to terminal sessions as `ALPHA_SHARED_LIBRARY`.
 The coordinator discovers shared skills and passes relevant paths in task handoffs.
