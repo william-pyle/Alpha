@@ -20,3 +20,8 @@ authorize restarting applications. Preserve the user's selected model and settin
 Store reusable additions in shared knowledge or workflows. Keep credentials,
 conversations, account configuration and project records out of the release package.
 Local changes survive updates; review incoming packaged versions when they conflict.
+
+For Computer Use pipe or capture failures, follow
+`processes/computer-use-recovery.md` and the installed integration's skill.
+Use bounded supported recovery and fresh observations; checkpoint and coordinate
+any affected-session restart without interrupting unrelated workers.

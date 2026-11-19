@@ -1,7 +1,8 @@
 # Native Questions and dispatch
 
-These are unreleased source changes. They do not change an already running Alpha
-service, install an update, or establish that an installed UI works.
+These changes target Alpha 0.2.21. Source and fixture checks do not change an
+already running service or establish that an installed UI works. Publication,
+installation and live provider observations are separate release evidence.
 
 Previously, task submission correctly rejected interactive menus, while Questions
 only inferred terminal prose. Answer delivery then treated a local terminal write
@@ -29,8 +30,13 @@ owner's active-work preference. It sends `2`, with no trailing Enter. Install,
 update, restart, permanent dismissal and security approval are never automatic.
 Passwords, login, unsupported providers, unknown/truncated menus, custom keymaps,
 freeform/Other and notes-focused question forms remain native interactions.
-Structured questions that lack a recognized menu cannot become composed task or
-shell input. Ordinary prose answers require exact native input-record acceptance.
+Other structured questions that lack a recognized menu stay native. Codex async
+questions have a separate supported reply protocol: only a completed native
+async-question record enables its question-ID/index-bound reply envelope. Delivery
+uses the recognized empty composer and verifies the exact native input record.
+One answer cannot resolve sibling questions. Late receipt observation clears the
+pending item without another submission, including after service restoration.
+Ordinary prose answers also require exact native input-record acceptance.
 
 ## Full Access and folder trust
 
@@ -70,5 +76,15 @@ silently evicted. The twelve-worker fixture verifies one payload per worker and
 exact native-record acceptance; it is not evidence of a live twelve-worker run.
 
 Tests: `native-prompts.test.mjs`, `terminal-submission.test.mjs`,
-`question-acceptance.test.mjs`, and isolated `native-questions-ui.mjs`. Live installed
-UI/provider verification requires a later authorized release and installation.
+`question-acceptance.test.mjs`, and isolated `native-questions-ui.mjs`.
+
+A live isolated Codex 0.170.0 check observed an async question, its exact reply
+envelope acceptance, pending-list removal and the expected final answer without
+manual keys or repeated submissions. The CLI's supported identity format and
+envelope are defined in its tagged
+[question state](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/tui/src/bottom_pane/async_questions/state.rs)
+and [reply parser](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/tui/src/async_question_reply.rs).
+This is separate from owner-installed UI verification. The default isolated
+startup reached a composer without a trust menu, so it did not verify live trust
+choice delivery. Optional update Skip remains covered by the isolated fixtures;
+no live update was manufactured or installed for that check.

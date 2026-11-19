@@ -22,6 +22,15 @@ export function nativeActivity(record, agent) {
   return event ? { ...event, source: 'provider-record', at: record.timestamp || record.createdAt, nativeTaskId: record.payload?.turn_id || event.nativeTaskId || null, eventKey: createHash('sha256').update(JSON.stringify(record)).digest('hex') } : null;
 }
 function activity(record, agent) {
+  // The completed async message proves that Codex accepted the question tool.
+  // A function-call intent alone cannot authorize an async reply envelope.
+  const asyncItem = record.payload?.item;
+  if (agent === 'codex' && record.type === 'event_msg' && record.payload?.type === 'item_completed'
+      && asyncItem?.type === 'AgentMessage' && asyncItem.delivery === 'async'
+      && typeof asyncItem.id === 'string' && Array.isArray(asyncItem.questions)) {
+    return { kind: 'question', id: asyncItem.id, tool: 'request_user_input_async', asyncDelivery: true,
+      questions: asyncItem.questions.map(item => ({ text: item.title, options: item.options || [] })) };
+  }
   // Codex 0.169 writes submitted text as a user response item, with provenance
   // distinguishing owner text from injected environment/AGENTS instructions.
   if (agent === 'codex' && record.type === 'response_item' && record.payload?.type === 'message' && record.payload.role === 'user') {

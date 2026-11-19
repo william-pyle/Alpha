@@ -57,5 +57,24 @@ try {
   await expect(panel).toHaveCount(0);
   assert.deepEqual(writes.slice(2), [['Second', '1'], ['Second', '\r']]);
   await page.screenshot({ path: path.join(root, 'questions-resolved.png') });
+  // A queued async reply must remain visible until a later exact acceptance,
+  // then disappear without a second click or payload.
+  const session = all[1];
+  const [asyncQuestion] = service.questions.capture(session, { id: 'async-ui', source: 'provider-record', tool: 'request_user_input_async', asyncDelivery: true, questions: [{ text: 'Which synthetic color should be used?', options: ['Blue', 'Green'] }] });
+  let replyPayload, replyTask, sends = 0;
+  const originalInput = service.sessions.input;
+  service.sessions.input = async (id, payload, options) => {
+    assert.equal(id, session.id); sends++; replyPayload = payload; replyTask = options.taskId;
+    return { accepted: false, note: 'Queued; waiting for native acceptance.' };
+  };
+  await panel.getByRole('button', { name: 'Blue', exact: true }).click();
+  await panel.getByRole('button', { name: 'Send answer', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('waiting for native acceptance');
+  assert.equal(service.questions.list().length, 1); assert.equal(sends, 1);
+  assert.ok(replyPayload.includes(asyncQuestion.asyncQuestion.id.replaceAll('"', '\\"')));
+  session.submissions = [{ taskId: replyTask, hash: asyncQuestion.answerIntent.hash, acceptedAt: Date.now(), acceptance: 'observed' }];
+  service.sessions.emit('task-input', { session, text: replyPayload });
+  await expect(panel).toHaveCount(0); assert.equal(sends, 1);
+  service.sessions.input = originalInput;
   console.log(JSON.stringify({ passed: true, root, checks: ['one at a time', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'autohide', 'wide/narrow'] }));
 } finally { for (const session of all) session.process = null; await browser.close(); await service.close(); }

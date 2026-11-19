@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { readJson, saveJson } from './util.mjs';
+import { submissionHash } from './terminal-submission.mjs';
 
 const cleanLine = line => String(line || '').replace(/^\s*(?:#{1,6}\s*|[-*>]\s*)/, '').replace(/\*\*|__/g, '').trim();
 const optionLine = line => /^\s*(?:[-*•]|\d+[.)]|[A-D][.)])\s+(.{1,200})$/.exec(line)?.[1]?.trim();
@@ -71,17 +72,29 @@ export class Questions extends EventEmitter {
     const structured = Array.isArray(source.questions);
     const questions = structured ? source.questions : extractQuestions(source.message);
     const added = [];
-    for (const candidate of questions) {
+    for (const [index, candidate] of questions.entries()) {
       const text = String(candidate.text || candidate.question || '').trim().slice(0, 500);
       // An explicit question tool may include context after its question mark.
       // Terminal/prose detection remains strict so queued-input status labels
       // never become inferred questions.
       if (structured ? text.length < 8 || /^https?:\/\//i.test(text) : !validQuestion(text)) continue;
-      if (source.id && this.items.some(item => item.sessionId === session.id && item.sourceId === source.id && item.text.toLowerCase() === text.toLowerCase())) continue;
-      if (this.items.some(item => item.status === 'pending' && item.sessionId === session.id && item.text.toLowerCase() === text.toLowerCase())) continue;
+      const asyncQuestion = session.agent === 'codex' && session.nativeId && source.source === 'provider-record'
+        && source.tool === 'request_user_input_async' && source.asyncDelivery === true
+        && typeof source.id === 'string' && source.id.length <= 400
+        ? { id: JSON.stringify(['request_user_input_async', source.id, index]), question: text } : null;
+      const existing = source.id && this.items.find(item => item.sessionId === session.id && item.sourceId === source.id
+        && (structured && item.questionIndex != null ? item.questionIndex === index : item.text.toLowerCase() === text.toLowerCase()));
+      if (existing) {
+        if (asyncQuestion && existing.status === 'pending' && !existing.asyncQuestion && existing.nativeId === session.nativeId && existing.threadId === (session.alphaThreadId || session.id)) {
+          existing.asyncQuestion = asyncQuestion; existing.requiresNative = false; added.push(existing);
+        }
+        continue;
+      }
+      if (!structured && this.items.some(item => item.status === 'pending' && item.sessionId === session.id && item.text.toLowerCase() === text.toLowerCase())) continue;
       const options = (candidate.options || []).map(option => typeof option === 'string' ? option : option?.label).filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, 6);
-      const item = { id: randomUUID(), sessionId: session.id, nativeId: session.nativeId || null, requiresNative: structured, chatName: session.name, text, options, status: 'pending', sourceId: source.id || null, createdAt: new Date().toISOString() };
+      const item = { id: randomUUID(), sessionId: session.id, nativeId: session.nativeId || null, requiresNative: structured && !asyncQuestion, ...(asyncQuestion ? { asyncQuestion } : {}), chatName: session.name, text, options, status: 'pending', sourceId: source.id || null, createdAt: new Date().toISOString() };
       item.threadId = session.alphaThreadId || session.id;
+      if (structured) item.questionIndex = index;
       this.items.push(item); added.push(item);
     }
     if (added.length) { this.items = this.items.slice(-500); this.changed().catch(error => this.emit('error', error)); }
@@ -105,6 +118,20 @@ export class Questions extends EventEmitter {
     let changed = false;
     for (const item of this.items) if (item.status === 'pending' && item.source === 'native' && item.sessionId === sessionId) {
       item.status = 'dismissed'; item.delivery = 'native-composer-observed'; item.resolvedAt = new Date().toISOString(); changed = true;
+    }
+    if (changed) await this.changed();
+  }
+  async observeSubmission(session) {
+    let changed = false;
+    for (const question of this.items) {
+      if (question.status !== 'pending' || !question.answerIntent || question.sessionId !== session.id
+          || (question.nativeId || null) !== (session.nativeId || null) || question.threadId !== (session.alphaThreadId || session.id)) continue;
+      const receipt = session.submissions?.find(item => item.taskId === `question:${question.id}`
+        && item.hash === question.answerIntent.hash && item.acceptance === 'observed' && item.acceptedAt);
+      if (!receipt) continue;
+      question.status = 'answered'; question.answer = question.answerIntent.text;
+      question.answeredAt = new Date(receipt.acceptedAt).toISOString(); question.delivery = 'observed';
+      this.emit('answer', { question, text: question.answer }); changed = true;
     }
     if (changed) await this.changed();
   }
@@ -155,8 +182,18 @@ export class Questions extends EventEmitter {
     }
     if ((question.nativeId || null) !== (session.nativeId || null) || question.threadId !== (session.alphaThreadId || session.id)) throw new Error('The originating native conversation changed. Use its terminal.');
     if (question.requiresNative) throw new Error('This provider question needs its native menu. Use the terminal fallback if no supported choice appears in Questions.');
-    const result = await sessions.input(session.id, text.trim(), { composed: true, submit: true, questionAnswer: true, taskId: `question:${question.id}` });
+    // Codex's supported async reply format identifies one question, even when
+    // its inline picker is collapsed. The normal dispatcher still requires a
+    // recognized empty composer and exact native acceptance; no blind keys.
+    const payload = question.asyncQuestion
+      ? '<send_user_message_question_reply>\n' + JSON.stringify([{ questionItemId: question.asyncQuestion.id, question: question.asyncQuestion.question, answer: text.trim() }]) + '\n</send_user_message_question_reply>'
+      : text.trim();
+    if (question.answerIntent && question.answerIntent.hash !== submissionHash(payload)) throw new Error('This question already has an attempted answer. Inspect its receipt before changing it.');
+    question.answerIntent ||= { text: text.trim(), hash: submissionHash(payload) };
+    await this.changed();
+    const result = await sessions.input(session.id, payload, { composed: true, submit: true, questionAnswer: true, taskId: `question:${question.id}` });
     if (!result?.accepted) throw new Error(result?.note || 'Answer acceptance is not verified. Inspect the terminal before retrying.');
+    if (question.status === 'answered') return { delivered: true, accepted: true, questionId: id, sessionId: session.id };
     question.status = 'answered'; question.answer = text.trim(); question.answeredAt = new Date().toISOString();
     question.delivery = 'observed';
     // The submission receipt is already durable; a failed audit write cannot

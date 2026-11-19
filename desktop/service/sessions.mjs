@@ -292,7 +292,7 @@ export class Sessions extends EventEmitter {
     } else return;
     session.hasConversation = true; session.updatedAt = new Date().toISOString();
     this.changed(session);
-    if (event.kind === 'question' || event.kind === 'turn-completed' && event.message) this.emit('question-source', { session: publicSession(session), source: { id: event.id, message: event.message, questions: event.questions } });
+    if (event.kind === 'question' || event.kind === 'turn-completed' && event.message) this.emit('question-source', { session: publicSession(session), source: { id: event.id, message: event.message, questions: event.questions, tool: event.tool, asyncDelivery: event.asyncDelivery, source: event.source } });
     if (event.kind === 'turn-completed' && event.message?.trim()) this.emit('reply', { id: `${session.id}:${event.id || session.completionVersion}`, sessionId: session.id, name: session.name, text: event.message });
     if (event.kind === 'turn-completed') this.emit('task-completed', { session: publicSession(session), event });
     if (event.text) this.emit('notice', { id: randomUUID(), sessionId: session.id, name: session.name, kind: event.kind, text: `${session.name}: ${event.text}`, at: new Date().toISOString() });

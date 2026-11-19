@@ -40,3 +40,12 @@ report. Do not add a source commit solely for release housekeeping or wait for a
 later commit's CI to declare an earlier release complete. Later changes are
 separate work. Preserve installed library overrides; ship revised defaults through
 the normal library merge rather than overwriting local files.
+
+Before an authorized host update, coordinate readiness through the host with all
+affected active workers. Save durable checkpoints and exact native conversation
+IDs, then prepare continuation notes through supported host controls. Verify
+publication, installation, the running version and actual continuation separately.
+Do not replay an uncertain install or submission. If native verification fails
+because of Computer Use transport, follow
+[bounded recovery](../../../processes/computer-use-recovery.md); a completed
+release or worker turn does not establish native acceptance.

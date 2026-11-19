@@ -6,7 +6,7 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.20**, with conversation tabs, direct real-terminal access, close-to-History, persistent Workspace, quieter attention, verified Codex submission and a fixed app identity. See [release notes](release-notes/v0.2.20.md).
+knowledge into one Windows desktop window. This source targets **0.2.21**, adding origin-bound native Questions, verified answer delivery, optional Codex update Skip, explicit project-trust opt-in and bounded dispatch recovery. Conversation tabs, persistent Workspace and the fixed app identity remain. See [release notes](release-notes/v0.2.21.md).
 
 ## What you can do
 

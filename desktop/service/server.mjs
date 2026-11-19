@@ -72,6 +72,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const sessions = await new Sessions(repo, stateDir).init();
   sessions.trackProjects = true;
   const questions = await new Questions(stateDir).init();
+  for (const session of sessions.list()) await questions.observeSubmission(session);
   sessions.sharedRoot = sharedLibrary?.root;
   const environment = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
   const settingsPath = path.join(stateDir, 'settings.json');
@@ -391,7 +392,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     const owner = threads.owner(question.sessionId);
     if (owner) threads.message(owner.id, { id: `answer:${question.id}`, role: 'user', text });
   });
-  sessions.on('task-input', ({ session, text }) => { if (!session.projectPending) common.input(session, text, session.projectId || session.cwd); });
+  sessions.on('task-input', ({ session, text }) => {
+    questions.observeSubmission(session).catch(error => broadcast('service-error', { error: publicError(error) }));
+    if (!session.projectPending) common.input(session, text, session.projectId || session.cwd);
+  });
   sessions.on('task-completed', ({ session, event }) => {
     void common.complete(session, event).then(record => {
       if (record && !record.family && common.tasks.filter(task => !task.family).length % 3 === 0 && new Set(common.tasks.map(task => task.project)).size >= 2) scheduleMaintenance('New completed tasks across projects may contain a repeated workflow.');
