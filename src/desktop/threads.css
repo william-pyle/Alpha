@@ -13,6 +13,13 @@
 .thread-conversation .alpha-conversation-scroll{padding:20px max(16px,calc((100% - 820px)/2));min-height:70px;scroll-padding:16px}
 .thread-conversation .alpha-conversation-user,.thread-conversation .alpha-conversation-reply{font-size:14px;white-space:normal;line-height:1.6}
 .thread-conversation .alpha-conversation-reply{margin-right:0;background:transparent;border:0;padding:8px 0 18px}
+.conversation-receipt {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 .thread-conversation .alpha-conversation-user{margin-left:12%;padding:10px 14px}
 .layout-region{display:flex;flex-direction:column;min-height:0;flex:none;box-sizing:border-box;overflow:hidden}
 .layout-region-content{flex:1;min-height:0;overflow:hidden}

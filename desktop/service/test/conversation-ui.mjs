@@ -16,10 +16,12 @@ let service = await createService({ repo, uiDir: path.resolve('dist'), mcpOption
 const a = service.threads.create({ name: 'Architecture', projectId: 'example' });
 const b = service.threads.create({ name: 'Research', projectId: 'example' }); service.threads.select(a.id);
 const requests = [], spoken = [];
+let finishFirstReply;
 for (const thread of [a, b]) {
   const coordinator = await service.getCoordinator(thread.id);
   coordinator.ask = async data => {
     requests.push(data);
+    if (data.text === 'Private A') await new Promise(resolve => { finishFirstReply = resolve; });
     const operation = { ...data, status: 'completed', result: `${thread.name}: ${data.text}`, at: new Date().toISOString() };
     coordinator.operations.set(data.id, operation); coordinator.emit('result', operation); return operation;
   };
@@ -41,18 +43,34 @@ try {
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   await expect(pane).toBeVisible(); await expect(editor).toHaveCount(1); await expect(page.locator('.chat-composer')).toHaveCount(0);
   const inputRoute = '**/api/threads/*/input';
-  let finishSend;
-  await page.route(inputRoute, async route => {
-    const response = await route.fetch();
-    finishSend = () => route.fulfill({ response });
+  let startSend, finishSend;
+  await page.route(inputRoute, route => {
+    startSend = async () => {
+      const response = await route.fetch();
+      finishSend = () => route.fulfill({ response });
+    };
   });
   await editor.fill('Private A'); await editor.press('Enter');
-  await expect(pane.getByText('Architecture: Private A', { exact: true })).toBeVisible();
+  const sendingReceipt = pane.getByText('Sending your request…', { exact: true });
+  const receivedReceipt = pane.getByText('Got it. Alpha received your request.', { exact: true });
+  await expect(sendingReceipt).toBeVisible({ timeout: 1000 });
+  await expect.poll(() => !!startSend).toBe(true);
+  await page.locator(`#conversation-tab-${b.id}`).click();
+  await expect(sendingReceipt).toHaveCount(0);
+  await page.locator(`#conversation-tab-${a.id}`).click();
+  await expect(sendingReceipt).toBeVisible();
+  await startSend();
+  await expect(receivedReceipt).toBeVisible();
+  await expect(sendingReceipt).toHaveCount(0);
+  await expect(pane.getByText('Architecture: Private A', { exact: true })).toHaveCount(0);
   await expect.poll(() => !!finishSend).toBe(true);
   await expect(editor).toHaveValue('', { timeout: 1000 });
   await finishSend();
   await expect(editor).toBeEnabled();
   await expect(editor).toHaveValue('');
+  finishFirstReply();
+  await expect(pane.getByText('Architecture: Private A', { exact: true })).toBeVisible();
+  await expect(receivedReceipt).toHaveCount(0);
   await page.unroute(inputRoute);
   await editor.fill('Draft A'); await page.locator(`#conversation-tab-${b.id}`).click(); await expect(editor).toHaveValue('');
   await expect(pane.getByText('Architecture: Private A', { exact: true })).toHaveCount(0);
@@ -73,10 +91,13 @@ try {
   await page.route(inputRoute, route => { rejectSend = () => route.fulfill({ status: 409, json: { error: 'Delivery rejected for this test.' } }); });
   await pane.getByRole('button', { name: 'Send to Alpha' }).click();
   await expect.poll(() => !!rejectSend).toBe(true);
+  await expect(sendingReceipt).toBeVisible();
   await expect(editor).toHaveValue('', { timeout: 1000 });
   await expect(pane.getByLabel('Attached images', { exact: true })).toHaveCount(0);
   await rejectSend();
   await expect(pane.getByRole('alert')).toHaveText('Delivery rejected for this test.');
+  await expect(sendingReceipt).toHaveCount(0);
+  await expect(receivedReceipt).toHaveCount(0);
   await expect(editor).toHaveValue('Draft A');
   await expect(pane.getByLabel('Attached images', { exact: true }).locator('img')).toHaveCount(1);
   await page.unroute(inputRoute);
@@ -110,6 +131,22 @@ try {
   await learning.getByLabel('Use this for').selectOption('work'); await learning.getByLabel('What should I do differently?').fill('Name anything unfinished.'); await learning.getByRole('button', { name: 'Remember this' }).click();
   await expect(learning.getByText('Name anything unfinished.', { exact: true })).toBeVisible();
   await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await page.getByRole('button', { name: "Close What I've learned", exact: true }).click();
+  const worker = service.sessions.make({ id: 'native-queue-fixture', agent: 'shell', name: 'Busy worker fixture', cwd: repo, projectId: 'example', status: 'running', activity: 'working', open: true });
+  service.sessions.items.set(worker.id, worker);
+  service.threads.observe(worker);
+  const originalInput = service.sessions.input;
+  service.sessions.input = async (id, text, options) => {
+    assert.equal(id, worker.id);
+    return { delivered: true, queued: true, submission: { taskId: options.taskId, stage: 'queued' } };
+  };
+  await page.locator(`#conversation-tab-${worker.id}`).click();
+  await editor.fill('A follow-up for the busy worker'); await editor.press('Enter');
+  const queuedReceipt = pane.getByText('Got it. Your request was queued for the worker.', { exact: true });
+  await expect(queuedReceipt).toBeVisible();
+  await expect(editor).toBeEnabled();
+  service.sessions.input = originalInput;
+  await page.locator(`#conversation-tab-${b.id}`).click();
+  await expect(queuedReceipt).toHaveCount(0);
   await page.screenshot({ path: path.join(repo, 'conversations-wide.png') });
   for (const width of [768, 390]) { await page.setViewportSize({ width, height: 1000 }); await expect(pane).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.screenshot({ path: path.join(repo, `conversations-${width}.png`) }); }
   await expect.poll(() => service.threads.get(b.id).draft?.text).toBe('Draft B');

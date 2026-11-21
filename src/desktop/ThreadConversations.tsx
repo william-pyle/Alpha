@@ -43,7 +43,8 @@ export default function ThreadConversations() {
   if (thread && raw && !visited.includes(thread.id)) setVisited([...visited, thread.id])
   const [context, setContext] = useState<ConversationMenuOrigin | null>(null)
   const [closing, setClosing] = useState<{ id: string; name: string } | null>(null), [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null), [closeBusy, setCloseBusy] = useState(false)
-  const [newThread, setNewThread] = useState(false), [sending, setSending] = useState<string[]>([])
+  const [newThread, setNewThread] = useState(false)
+  const [sending, setSending] = useState<Record<string, string>>({})
   const [workOpen, setWorkOpen] = useState(false), [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => { const search = () => setSearchOpen(true), work = () => setWorkOpen(true); window.addEventListener('alpha-search-conversation', search); window.addEventListener('alpha-work-details', work); return () => { window.removeEventListener('alpha-search-conversation', search); window.removeEventListener('alpha-work-details', work) } }, [])
   useEffect(() => {
@@ -61,6 +62,12 @@ export default function ThreadConversations() {
   const previousSelection = useRef(state.selectedThreadId)
   const [older, setOlder] = useState<Record<string, ThreadMessage[]>>({})
   const messages = thread ? [...(older[thread.id] || []).filter(item => !thread.messages.some(recent => recent.id === item.id)), ...thread.messages] : []
+  const pendingSend = thread ? sending[thread.id] : undefined
+  const showSendingReceipt = pendingSend && !messages.some(message => message.id === pendingSend)
+  const latestMessage = messages[messages.length - 1]
+  const receipt = latestMessage?.role === 'user' && ['dispatching', 'dispatched'].includes(latestMessage.status || '')
+    ? latestMessage.submission?.stage === 'queued' ? 'Got it. Your request was queued for the worker.' : 'Got it. Alpha received your request.'
+    : ''
   const active = ['live', 'connecting', 'closing'].includes(live.status)
   useEffect(() => onServiceEvent(event => {
     if (event.type === 'disconnected') liveVoice.disconnect()
@@ -86,7 +93,7 @@ export default function ThreadConversations() {
     }
     hydrated.current = true
   }, [state.threads, state.selectedThreadId, state.settings.speakReplies, state.voice.owner, state.awareness.settings.quiet, active])
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [thread?.id, thread?.messages.length, progress, live.captions])
+  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [thread?.id, thread?.messages.length, pendingSend, receipt, progress, live.captions])
   useEffect(() => {
     const create = () => setNewThread(true)
     window.addEventListener('alpha-new-conversation', create)
@@ -108,10 +115,17 @@ export default function ThreadConversations() {
   ]
   const send = async (text: string, images: string[]) => {
     if (!thread) return
-    const id = thread.id
-    setSending(current => [...current, id])
-    try { await api(`/threads/${thread.id}/input`, { id: crypto.randomUUID(), text, images }) }
-    finally { setSending(current => current.filter(item => item !== id)) }
+    const threadId = thread.id
+    const messageId = crypto.randomUUID()
+    setSending(current => ({ ...current, [threadId]: messageId }))
+    try { await api(`/threads/${threadId}/input`, { id: messageId, text, images }) }
+    finally {
+      setSending(current => {
+        const next = { ...current }
+        delete next[threadId]
+        return next
+      })
+    }
   }
   return <section className="alpha-conversation-pane thread-conversation" aria-label="Alpha conversation">
     <div className="thread-picker">
@@ -137,6 +151,8 @@ export default function ThreadConversations() {
         if ((event.target as HTMLElement).closest('a,button,input,textarea')) return
         event.preventDefault(); setMessageMenu({ x: event.clientX, y: event.clientY, origin: event.currentTarget, selectedText: window.getSelection()?.toString() || '', sourceId: thread.id, message })
       }} onKeyDown={event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMessageMenu({ x: Math.max(8, box.left + 16), y: Math.min(innerHeight - 8, box.top + 32), origin: event.currentTarget, selectedText: window.getSelection()?.toString() || '', sourceId: thread.id, message }) } }} role={message.status === 'failed' ? 'alert' : undefined} className={message.role === 'user' ? 'alpha-conversation-user' : 'alpha-conversation-reply'}><span>{message.role === 'user' ? 'You' : 'Alpha'}</span><CompletionSummary message={message} pending={state.questions.some(question => question.threadId === thread.id)} />{!!message.images?.length && <MakImages paths={message.images} />}{message.error && <p role="alert">{message.error}</p>}</div>)}
+      {showSendingReceipt ? <p className="conversation-receipt">Sending your request…</p>
+        : receipt && <p className="conversation-receipt">{receipt}</p>}
       {progress && <div className="alpha-conversation-reply"><ConversationMarkdown text={progress} /></div>}
       {active && live.captions.map((item, index) => <p key={index} className={item.role === 'user' ? 'alpha-conversation-user' : 'alpha-conversation-reply'}><span>{item.role === 'user' ? 'You Â· voice' : 'Alpha Â· voice'}</span>{item.text}</p>)}
       <div ref={bottom} />
@@ -144,7 +160,7 @@ export default function ThreadConversations() {
     {visited.map(id => { const item = state.threads.find(candidate => candidate.id === id); return item && <WorkerActivity key={id} thread={item} active={id === thread?.id && !!raw && !workOpen} /> })}
     </div>
     {raw && <div className="composer-destination">Alpha draft saved below. Switch to Alpha view to send it.</div>}
-    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={sending.includes(thread.id)} onSend={send} autoSendVoice />}
+    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={!!pendingSend} onSend={send} autoSendVoice />}
     {context && <ConversationContextMenu target={context} items={contextItems} close={() => setContext(null)} />}
     {searchOpen && thread && <ConversationSearch key={thread.id} threadId={thread.id} close={() => setSearchOpen(false)} jump={(found, id) => { setOlder(current => ({ ...current, [thread.id]: [...new Map([...(current[thread.id] || []), ...found].map(message => [message.id, message])).values()].sort((a, b) => a.at.localeCompare(b.at)) })); requestAnimationFrame(() => requestAnimationFrame(() => { const node = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]')).find(element => element.dataset.messageId === id); node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true }) })) }} />}
     {workOpen && <ConversationDialog title="Work details" close={() => setWorkOpen(false)}>{thread && <WorkerActivity key={thread.id} thread={thread} active />}</ConversationDialog>}
