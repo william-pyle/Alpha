@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile, access, readFile, realpath } from 'node:fs/p
 import { spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import path from 'node:path';
+import os from 'node:os';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -10,7 +11,9 @@ const product = JSON.parse(await readFile('package.json', 'utf8'));
 const serviceProduct = JSON.parse(await readFile(path.join(runtime, 'service/package.json'), 'utf8'));
 assert.equal(serviceProduct.version, product.version, 'Bundled service version must match the installed application');
 await mkdir('.test-output', { recursive: true });
-const fixture = await realpath(await mkdtemp(path.resolve('.test-output/packaged-runtime-')));
+// Private Workspace data must remain outside the application's Git checkout,
+// including when the test exercises the real bundled startup resolver.
+const fixture = await realpath(await mkdtemp(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'alpha-packaged-runtime-')));
 const repo = path.join(fixture,'Workspace'), configDir = path.join(fixture,'config'), nextRepo = path.join(fixture,'Selected Workspace');
 const resolve = () => {
   const result = spawnSync(path.join(runtime,'node.exe'),[path.join(runtime,'service/workspace-location.mjs'),'--config',configDir,'--default',repo,'--app-dir',runtime],{encoding:'utf8',windowsHide:true});
