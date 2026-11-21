@@ -166,7 +166,7 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
               offline={offline}
               searching={searching}
               filters={filters}
-              onFilters={setFilters}
+              onFilters={changes => setFilters(current => ({ ...current, ...changes }))}
             />
           )}
           </ReportBoundary>
