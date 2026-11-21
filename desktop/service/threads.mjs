@@ -29,7 +29,7 @@ export class Threads {
     for (const item of this.items) {
       if (item.kind === 'alpha' && ['working', 'connecting'].includes(item.status)) item.status = 'interrupted';
       if (item.kind === 'alpha' && item.operation && !['completed', 'failed', 'waiting-for-user', 'interrupted'].includes(item.operation.phase)) { item.operation.phase = 'interrupted'; item.status = 'interrupted'; }
-      for (const message of item.messages) if (message.status === 'dispatching' || item.kind === 'alpha' && message.status === 'dispatched' && !item.messages.some(reply => reply.operationId === message.id)) {
+      for (const message of item.messages) if (message.status === 'dispatching' || (item.kind === 'alpha' || message.target === 'reply') && message.status === 'dispatched' && !item.messages.some(reply => reply.operationId === message.id)) {
         message.status = 'interrupted'; message.error = 'The app restarted before this request was confirmed. Inspect Work details before deciding whether to resend.';
       }
     }
@@ -64,7 +64,7 @@ export class Threads {
     return () => { if (this.locks.get(id)?.token === token) this.locks.delete(id); };
   }
   pendingDeletions() { return this.deleted.filter(item => item.cleanupPending); }
-  snapshot() { return { threads: this.items.map(item => ({ ...item, draft: item.id === this.selectedId ? item.draft : undefined, messageCount: item.messages.length, messages: item.id === this.selectedId ? item.messages.slice(-100) : [] })), selectedThreadId: this.selectedId, pendingConversationDeletions: this.pendingDeletions().map(item => ({ id: item.threadId, name: item.name || `Conversation ${item.threadId.slice(0, 8)}`, deletedAt: item.deletedAt })) }; }
+  snapshot() { return { threads: this.items.map(item => ({ ...item, backgroundWorkActive: this.workIsBusy?.(item) || false, draft: item.id === this.selectedId ? item.draft : undefined, messageCount: item.messages.length, messages: item.id === this.selectedId ? item.messages.slice(-100) : [] })), selectedThreadId: this.selectedId, pendingConversationDeletions: this.pendingDeletions().map(item => ({ id: item.threadId, name: item.name || `Conversation ${item.threadId.slice(0, 8)}`, deletedAt: item.deletedAt })) }; }
   directory() { return this.items.map(({ id, name, purpose, projectId, status, updatedAt, unread, archived }) => ({ id, name, purpose, projectId, status, updatedAt, unread, archived })); }
   review() { return this.directory().map(item => { const reasons = []; try { taskTitle(item.name); } catch { reasons.push('Choose a descriptive title'); } if (!item.purpose) reasons.push('Add a purpose'); if (!item.projectId) reasons.push('Choose a project'); return { ...item, reasons }; }).filter(item => item.reasons.length); }
   create({ name, purpose = '', projectId = null } = {}) {

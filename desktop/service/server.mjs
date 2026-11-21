@@ -118,6 +118,19 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const awareness = await new Awareness(stateDir, value => broadcast('awareness', { awareness: value })).init();
   const coordinators = new Map();
   const coordinatorStarts = new Map();
+  const nativeDispatches = new Map();
+  const coordinatorKey = (threadId, replyOnly) => replyOnly ? `reply:${threadId}` : threadId;
+  const coordinatorBusy = key => {
+    if (coordinatorStarts.has(key)) return true;
+    const instance = coordinators.get(key);
+    return !!instance && [...instance.operationPromises.keys()].some(id => ['queued', 'running'].includes(instance.operations.get(id)?.status));
+  };
+  const workIsBusy = thread => nativeDispatches.has(thread.id) || coordinatorBusy(thread.id)
+    || thread.sessionIds.some(id => {
+      const session = sessions.items.get(id);
+      return session?.status === 'starting' || session?.status === 'running' && ['working', 'waiting'].includes(session.activity);
+    });
+  threads.workIsBusy = workIsBusy;
   const operationById = id => [...coordinators.values()].map(item => item.operations.get(id)).find(Boolean);
   const speech = new Speech(value => broadcast('speech', { speech: value }));
   const learning = await new Learning(stateDir, lessons => broadcast('learning', { lessons })).init();
@@ -186,7 +199,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const projectStorage = new ProjectStorage({ repo, projects: projectStore, repositories: projectRepositories,
     measure: directory => nativeStorage.measure(directory), sessions: () => sessions.list(), tools: id => workspaceTools.list(id),
     protectedRoots: [process.cwd(), stateDir, path.resolve(import.meta.dirname, '../..')],
-    active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || thread.status === 'working' || coordinatorStarts.has(thread.id) || coordinators.get(thread.id)?.operationPromises.size)),
+    active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || workIsBusy(thread) || coordinatorBusy(coordinatorKey(thread.id, true)))),
     changed: () => broadcast('project-storage-changed', {}) });
   await projectStorage.initialize();
   sessions.validateNativeBinding = session => {
@@ -338,30 +351,92 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   });
   const coordinator = await new Coordinator(coordinatorOptions(null)).init();
   coordinators.set('legacy', coordinator);
-  const completeThreadOperation = operation => {
+  const completeThreadOperation = (operation, replyOnly = false) => {
     if (!operation.threadId) return;
     const thread = threads.get(operation.threadId);
-    thread.status = operation.status === 'completed' ? operation.waitingForUser ? 'waiting-for-user' : 'completed' : 'failed';
+    if (!replyOnly) thread.status = operation.status === 'completed' ? operation.waitingForUser ? 'waiting-for-user' : 'completed' : 'failed';
     threads.message(thread.id, { id: `operation:${operation.id}`, role: 'assistant', text: operation.result || '', status: operation.status, operationId: operation.id, timings: operation.timings, completionSummary: operation.completionSummary });
-    if (operation.status === 'failed') void health.report({ id: 'coordinator-failed', area: 'Alpha conversation', symptom: operation.result, proposal: 'Inspect the failed request and phase timings before retrying; preserve any work already delivered.' }).catch(() => {});
+    if (replyOnly && operation.status === 'completed') return;
+    if (!replyOnly && operation.status === 'failed') void health.report({ id: 'coordinator-failed', area: 'Alpha conversation', symptom: operation.result, proposal: 'Inspect the failed request and phase timings before retrying; preserve any work already delivered.' }).catch(() => {});
     if (operation.status !== 'completed') awareness.event({ id: `operation:${operation.id}`, threadId: thread.id, kind: 'error', text: 'This request needs attention. Open its conversation to review the error.', source: 'Coordinator turn event' });
   };
-  const getCoordinator = async threadId => {
+  const replyContext = threadId => {
+    const thread = threads.get(threadId);
+    return {
+      thread: { name: thread.name, purpose: thread.purpose, projectId: thread.projectId },
+      recentConversation: thread.messages.slice(-24).map(({ id, role, text, status }) => ({ id, role, text: text.slice(0, 1600), status })),
+      work: {
+        nativeDispatches: nativeDispatches.get(threadId)?.size || 0,
+        operationPhase: thread.operation?.phase || null,
+        workers: thread.sessionIds.flatMap(id => {
+          const session = sessions.items.get(id);
+          if (!session) return [];
+          return [{ name: session.name, status: session.status, activity: session.activity, submission: session.submissions?.at(-1)?.stage, execution: session.workerEvidence?.execution, observedAt: session.workerEvidence?.observedAt }];
+        }),
+      },
+    };
+  };
+  const getCoordinator = async (threadId, { replyOnly = false } = {}) => {
     if (!threadId) return coordinator;
     const thread = threads.get(threadId); await projectStorage.assertUsable(thread.projectId);
-    if (coordinators.has(threadId)) return coordinators.get(threadId);
-    if (!coordinatorStarts.has(threadId)) coordinatorStarts.set(threadId, (async () => {
-      const item = await new Coordinator(coordinatorOptions(threadId)).init(); coordinators.set(threadId, item);
-      item.on('state', state => { threads.get(threadId).status = state; threads.publish(); });
-      item.on('operation', operation => { const thread = threads.get(threadId); thread.operation = operation; if (operation.phase === 'waiting-for-user') thread.status = 'waiting-for-user'; threads.publish(); });
-      item.on('progress', progress => broadcast('thread-progress', { threadId, ...progress }));
-      item.on('result', operation => { broadcast('coordinator-result', { operation }); completeThreadOperation(operation); if (operation.status === 'completed') void questions.captureAlpha(operation).catch(() => {}); });
+    const key = coordinatorKey(threadId, replyOnly);
+    if (coordinators.has(key)) return coordinators.get(key);
+    if (!coordinatorStarts.has(key)) coordinatorStarts.set(key, (async () => {
+      const options = replyOnly ? {
+        repo, replyOnly, stateDir: path.join(stateDir, 'thread-coordinators', threadId, 'foreground'),
+        settings: () => settings, context: () => replyContext(threadId),
+      } : coordinatorOptions(threadId);
+      const item = await new Coordinator(options).init(); coordinators.set(key, item);
+      if (!replyOnly) {
+        item.on('state', state => { threads.get(threadId).status = state; threads.publish(); });
+        item.on('operation', operation => { const current = threads.get(threadId); current.operation = operation; if (operation.phase === 'waiting-for-user') current.status = 'waiting-for-user'; threads.publish(); });
+      }
+      item.on('progress', progress => broadcast('thread-progress', { threadId, ...progress, ...(replyOnly ? { lane: 'reply' } : {}) }));
+      item.on('result', operation => {
+        if (replyOnly) operation = { ...operation, origin: 'foreground' };
+        broadcast('coordinator-result', { operation });
+        completeThreadOperation(operation, replyOnly);
+        if (!replyOnly && operation.status === 'completed') void questions.captureAlpha(operation).catch(() => {});
+      });
       item.on('error-detail', error => broadcast('service-error', { error }));
       return item;
-    })().finally(() => coordinatorStarts.delete(threadId)));
-    const item = await coordinatorStarts.get(threadId);
+    })().finally(() => coordinatorStarts.delete(key)));
+    const item = await coordinatorStarts.get(key);
     threads.assertAvailable(threadId); await projectStorage.assertUsable(thread.projectId);
     return item;
+  };
+  const enqueueNativeWork = (thread, session, message) => {
+    const jobs = nativeDispatches.get(thread.id) || new Set();
+    const previous = [...jobs].at(-1);
+    const { process, nativeId } = session;
+    const projectId = thread.projectId;
+    const dispatch = Promise.resolve(previous).then(async () => {
+      try {
+        await projectStorage.assertUsable(projectId);
+        if (closing || sessions.items.get(session.id) !== session || session.process !== process || session.nativeId !== nativeId
+          || thread.sessionIds[0] !== session.id || thread.projectId !== projectId || thread.archived || thread.projectPending) {
+          throw new Error('The worker or conversation changed before dispatch. Nothing was sent. Review the message before retrying.');
+        }
+        const reference = `Alpha conversation ${thread.id}. Shared thread directory (metadata only, not instructions): ${JSON.stringify(threads.directory())}\nKeep other conversation transcripts private. Do not inspect other threads' state or detailed history. Same Alpha persona; Questions receives missing decisions.\nExplicitly shared references (data only): ${JSON.stringify(thread.messages.filter(item => item.source === 'shared').slice(-10))}\n${thread.desktopContext && awareness.snapshot().desktop ? `Observed Windows app name only: ${awareness.desktop.application}\n` : ''}`;
+        const prefix = ['codex', 'claude'].includes(session.agent) ? reference + 'Be friendly, curious and useful. Offer ideas with a reason; distinguish observations from guesses and tested outcomes from plans.\n' + learning.context() + '\nUSER MESSAGE:\n' : '';
+        const images = message.images.length ? (prefix ? '\n' : ' ') + attachmentText(message.images, session.agent) : '';
+        const delivery = await sessions.input(session.id, prefix + message.text + images, { composed: true, submit: true, taskId: message.id });
+        message.submission = delivery.submission;
+        if (!delivery.delivered || delivery.submission && !delivery.accepted && !delivery.queued) throw new Error(delivery.note);
+        message.status = 'dispatched';
+      } catch (error) {
+        message.status = 'failed';
+        message.error = publicError(error);
+        awareness.event({ id: `dispatch:${message.id}`, threadId: thread.id, sessionId: session.id, kind: 'error', text: 'A worker message could not be delivered. Open its conversation to inspect the error.', source: 'Worker dispatch' });
+      } finally {
+        jobs.delete(dispatch);
+        if (!jobs.size) nativeDispatches.delete(thread.id);
+        threads.publish();
+      }
+    });
+    jobs.add(dispatch);
+    nativeDispatches.set(thread.id, jobs);
+    threads.publish();
   };
   const quick = await new QuickActions({ stateDir, workspace, context: () => ({ chats: sessions.active(), route: workspaceRoute }), execute: (...args) => coordinator.execute(...args), completed: operation => broadcast('coordinator-result', { operation }) }).init();
   scheduleMaintenance = reason => {
@@ -378,9 +453,12 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     if (data.threadId) {
       const release = threads.claim(data.threadId, 'input');
       try {
-        threads.message(data.threadId, { id: data.id, role: 'user', text: data.text, images: data.images || [] });
-        const item = await getCoordinator(data.threadId);
-        return item.ask({ ...data, selectedId: threads.get(data.threadId).sessionIds[0] || null, images: await attachments.coordinatorImages(data.images) });
+        const thread = threads.get(data.threadId);
+        const replyOnly = workIsBusy(thread);
+        const images = await attachments.coordinatorImages(data.images);
+        threads.message(data.threadId, { id: data.id, role: 'user', text: data.text, images, ...(replyOnly ? { target: 'reply' } : {}) });
+        const item = await getCoordinator(data.threadId, { replyOnly });
+        return item.ask({ ...data, selectedId: replyOnly ? null : thread.sessionIds[0] || null, images, ...(replyOnly ? { origin: 'foreground' } : {}) });
       } finally { release(); }
     }
     if (coordinator.operationPromises.has(data.id) || coordinator.operations.has(data.id)) return coordinator.ask(data);
@@ -496,9 +574,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
 
   const assertConversationDeletionIdle = record => {
     const sessionIds = new Set(record.sessionIds || []), boundSessions = [...sessionIds].map(id => sessions.items.get(id)).filter(Boolean);
-    const threadCoordinator = coordinators.get(record.threadId);
-    const activeCoordinator = coordinatorStarts.has(record.threadId) || threadCoordinator?.active || threadCoordinator?.operationPromises.size
-      || [...(threadCoordinator?.operations.values() || [])].some(item => ['queued', 'running'].includes(item.status));
+    const activeCoordinator = nativeDispatches.has(record.threadId) || [record.threadId, coordinatorKey(record.threadId, true)].some(key => {
+      const instance = coordinators.get(key);
+      return coordinatorBusy(key) || instance?.active || [...(instance?.operations.values() || [])].some(item => ['queued', 'running'].includes(item.status));
+    });
     const activeQuestions = questions.items.filter(item => (item.threadId === record.threadId || sessionIds.has(item.sessionId)) && (item.status === 'pending' || item.continuation === 'queued' || questions.answers.has(item.id)));
     const activeWorkers = boundSessions.filter(item => item.process || item.launching || item.stopping || ['starting', 'running'].includes(item.status) || ['working', 'waiting'].includes(item.activity));
     if (activeCoordinator) throw Object.assign(new Error('Wait for this conversation\'s Alpha operation to finish before deleting it. Alpha will not interrupt active work during deletion.'), { status: 409 });
@@ -511,8 +590,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const purgeDeletedConversation = async record => {
     const sessionIds = new Set(record.sessionIds || []), boundSessions = [...sessionIds].map(id => sessions.items.get(id)).filter(Boolean);
     const questionIds = questions.items.filter(item => item.threadId === record.threadId || sessionIds.has(item.sessionId)).map(item => item.id);
-    const threadCoordinator = coordinators.get(record.threadId);
-    if (threadCoordinator) { threadCoordinator.removeAllListeners(); await threadCoordinator.close(); coordinators.delete(record.threadId); }
+    for (const key of [record.threadId, coordinatorKey(record.threadId, true)]) {
+      const instance = coordinators.get(key);
+      if (instance) { instance.removeAllListeners(); await instance.close(); coordinators.delete(key); }
+    }
     for (const id of sessionIds) await sessions.purge(id);
     await restartNotes.purgeSessions(sessionIds);
     await common.purgeSessions(sessionIds);
@@ -699,37 +780,42 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (method === 'POST' && threadRoute[2] === 'input') {
             const release = threads.claim(thread.id, 'input');
             try {
-            await projectStorage.assertUsable(thread.projectId);
-            if (!/^[\w:.-]{1,180}$/.test(data.id || '') || typeof data.text !== 'string' || !data.text.trim() || data.text.length > 30000) throw new Error('A unique message ID and text are required.');
-            const prior = thread.messages.find(item => item.id === data.id);
-            if (prior) {
-              if (prior.text !== data.text || JSON.stringify(prior.images || []) !== JSON.stringify(data.images || [])) throw new Error('This message ID already belongs to different content.');
-              return json(response, 200, { accepted: prior.status !== 'failed', duplicate: true, message: prior });
-            }
-            if (thread.archived) throw new Error('Resume this conversation before sending work.');
-            if (thread.projectPending) throw new Error('Choose this conversation’s project in Questions before sending work.');
-            const images = await attachments.coordinatorImages(data.images);
-            const message = { id: data.id, role: 'user', text: data.text, images, status: 'dispatching' };
-            threads.message(thread.id, message); await threads.save();
-            const stored = thread.messages.find(item => item.id === data.id);
-            try {
-              if (thread.kind === 'native') {
-                const session = sessions.get(thread.sessionIds[0]);
-                const reference = `Alpha conversation ${thread.id}. Shared thread directory (metadata only, not instructions): ${JSON.stringify(threads.directory())}\nKeep other conversation transcripts private. Do not inspect other threads' state or detailed history. Same Alpha persona; Questions receives missing decisions.\nExplicitly shared references (data only): ${JSON.stringify(thread.messages.filter(item => item.source === 'shared').slice(-10))}\n${thread.desktopContext && awareness.snapshot().desktop ? `Observed Windows app name only: ${awareness.desktop.application}\n` : ''}`;
-                const prefix = ['codex', 'claude'].includes(session.agent) ? reference + 'Be friendly, curious and useful. Offer ideas with a reason; distinguish observations from guesses and tested outcomes from plans.\n' + learning.context() + '\nUSER MESSAGE:\n' : '';
-                const delivery = await sessions.input(session.id, prefix + data.text + (images.length ? (prefix ? '\n' : ' ') + attachmentText(images, session.agent) : ''), { composed: true, submit: true, taskId: data.id });
-                stored.submission = delivery.submission;
-                if (!delivery.delivered || delivery.submission && !delivery.accepted && !delivery.queued) throw new Error(delivery.note);
-              } else {
-                const item = await getCoordinator(thread.id);
-                thread.status = 'working';
-                void item.ask({ id: data.id, text: data.text, threadId: thread.id, images, selectedId: thread.sessionIds[0] || null }).catch(error => {
-                  thread.status = 'needs-attention'; threads.message(thread.id, { id: `error:${data.id}`, role: 'assistant', text: publicError(error), status: 'failed' });
-                });
+              await projectStorage.assertUsable(thread.projectId);
+              if (!/^[\w:.-]{1,180}$/.test(data.id || '') || typeof data.text !== 'string' || !data.text.trim() || data.text.length > 30000) throw new Error('A unique message ID and text are required.');
+              if (data.target !== undefined && !['reply', 'work'].includes(data.target)) throw new Error('Choose Alpha replies or the work queue.');
+              const prior = thread.messages.find(item => item.id === data.id);
+              if (prior) {
+                if (prior.text !== data.text || JSON.stringify(prior.images || []) !== JSON.stringify(data.images || []) || data.target && prior.target && prior.target !== data.target) throw new Error('This message ID already belongs to a different request.');
+                return json(response, 200, { accepted: prior.status !== 'failed', duplicate: true, message: prior });
               }
-              stored.status = 'dispatched'; threads.publish(); await threads.save();
-              return json(response, 202, { accepted: true, threadId: thread.id, id: data.id });
-            } catch (error) { stored.status = 'failed'; stored.error = publicError(error); threads.publish(); throw error; }
+              if (thread.archived) throw new Error('Reopen this conversation before sending a message.');
+              if (thread.projectPending) throw new Error('Choose this conversation’s project in Questions before sending a message.');
+              const replyOnly = data.target === 'reply' || (data.target !== 'work' && workIsBusy(thread));
+              const session = !replyOnly && thread.kind === 'native' ? sessions.get(thread.sessionIds[0]) : null;
+              if (session && nativeDispatches.get(thread.id)?.size >= 4) throw Object.assign(new Error('The work queue is full. Wait for a worker message to be delivered before adding another.'), { status: 409 });
+              if (replyOnly && coordinators.get(coordinatorKey(thread.id, true))?.operationPromises.size >= 4) throw Object.assign(new Error('Alpha has several replies pending. Try again after one arrives.'), { status: 409 });
+              const images = await attachments.coordinatorImages(data.images);
+              const target = replyOnly ? 'reply' : 'work';
+              threads.message(thread.id, { id: data.id, role: 'user', text: data.text, images, status: 'dispatching', target });
+              await threads.save();
+              const stored = thread.messages.find(item => item.id === data.id);
+              try {
+                if (session) enqueueNativeWork(thread, session, stored);
+                else {
+                  const item = await getCoordinator(thread.id, { replyOnly });
+                  if (!replyOnly) thread.status = 'working';
+                  void item.ask({ id: data.id, text: data.text, threadId: thread.id, images, selectedId: replyOnly ? null : thread.sessionIds[0] || null, ...(replyOnly ? { origin: 'foreground' } : {}) }).catch(error => {
+                    stored.status = 'failed';
+                    stored.error = publicError(error);
+                    if (!replyOnly) thread.status = 'needs-attention';
+                    threads.publish();
+                  });
+                  stored.status = 'dispatched';
+                  threads.publish();
+                  await threads.save();
+                }
+                return json(response, 202, { accepted: true, threadId: thread.id, id: data.id, target });
+              } catch (error) { stored.status = 'failed'; stored.error = publicError(error); threads.publish(); throw error; }
             } finally { release(); }
           }
         }
@@ -1071,6 +1157,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
       async close() {
         if (closing) return; closing = true; clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); workspaceLocation.close(); await files.writes.catch(() => {});
+      await Promise.allSettled([...nativeDispatches.values()].flatMap(jobs => [...jobs]));
       watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       await Promise.all([...coordinators.values()].map(item => item.close()));
       await threads.close(); await awareness.close();

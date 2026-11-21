@@ -16,12 +16,14 @@ function saveDraft(id: string, draft: Draft) {
   return write
 }
 
-export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft }: {
+export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft, backgroundWorkActive = false, workActionLabel = 'Queue for work' }: {
   draftId?: string
   initialDraft?: Draft
   connected: boolean
   sending: boolean
-  onSend: (text: string, images: string[]) => Promise<void>
+  onSend: (text: string, images: string[], target?: 'reply' | 'work') => Promise<void>
+  backgroundWorkActive?: boolean
+  workActionLabel?: string
   autoSendVoice?: boolean
 }) {
   const [error, setError] = useState('')
@@ -116,14 +118,13 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
     finally { busy.current = false; setUploading(false) }
   }
 
-  async function send(event: React.FormEvent) {
-    event.preventDefault()
+  async function send(target?: 'reply' | 'work') {
     if (disabled || busy.current || (!draft.trim() && !images.length)) return
     busy.current = true; setError('')
     // Keep the saved draft recoverable until delivery succeeds.
     setSubmitting(true)
     try {
-      await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path))
+      await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path), target)
       if (!alive.current) {
         localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify({ text: '', paths: [] }))
         void saveDraft(draftId, { text: '', paths: [] }).catch(() => {})
@@ -140,7 +141,8 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
       <ZoomImage src={image.url} alt={image.name} />
       <button className="desk-icon" title={`Remove ${image.name}`} aria-label={`Remove ${image.name}`} disabled={disabled} onClick={() => setImages(previous => previous.filter(item => item.path !== image.path))}><Icon name="close" size={12} /></button>
     </div>)}</div>}
-    <form className="voice-compose" onSubmit={send}>
+    {backgroundWorkActive && <div className="composer-busy-choice" role="status"><span>Work is already running. Send asks Alpha for a separate reply.</span><button type="button" disabled={disabled || (!draft.trim() && !images.length)} onClick={() => void send('work')}>{workActionLabel}</button></div>}
+    <form className="voice-compose" onSubmit={event => { event.preventDefault(); void send(backgroundWorkActive ? 'reply' : undefined) }}>
       <input ref={picker} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Choose images for Alpha" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void attach(files) }} />
       <button type="button" title="Attach images" aria-label="Attach images" disabled={disabled} onClick={() => picker.current?.click()}><Icon name="attach" size={17} /></button>
       <textarea ref={area} value={sendPending ? '' : draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter sends; Shift+Enter adds a line" disabled={disabled}

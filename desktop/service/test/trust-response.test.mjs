@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { Coordinator } from '../coordinator.mjs';
+import { Coordinator, coordinatorTools } from '../coordinator.mjs';
 import { Sessions } from '../sessions.mjs';
 import { startupPrompt } from '../prompt-state.mjs';
 
@@ -49,6 +49,43 @@ test('phase timing, failures, waiting and incremental context remain isolated', 
   const failed = await coordinator.ask({ id: 'three', text: 'Try', threadId: 'a' });
   assert.equal(failed.phase, 'failed'); assert.equal(failed.status, 'failed'); assert.ok(failed.timings.completedAt);
   assert.equal(inputs.length, 3); coordinator.close();
+});
+
+test('reply-only coordinator is scoped, tool-free, read-only and uses low-effort foreground turns', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-reply-only-'));
+  let executed = false;
+  const coordinator = await new Coordinator({
+    repo, stateDir: repo, replyOnly: true, execute: async () => { executed = true; },
+    settings: () => ({ appTheme: 'alpha', conversationStyle: 'Friendly and brief.' }),
+    orientation: async () => 'ORIENTATION MUST NOT ENTER REPLY MODE', learning: () => 'LEARNING MUST NOT ENTER REPLY MODE',
+    context: () => ({
+      repo: 'PRIVATE REPO PATH', localDate: '2026-11-21', thread: { id: 'current', name: 'Current work', projectId: 'alpha', purpose: 'Answer status' },
+      recentConversation: [{ id: 'recent', role: 'user', text: 'Is the current worker still running?', at: 'now' }],
+      work: { nativeDispatches: 1, operationPhase: 'provider', workers: [{ id: 'worker', name: 'Current worker', agent: 'codex', status: 'running', activity: 'working', submission: 'accepted', execution: 'observed-running', observedAt: 'now', cwd: 'PRIVATE WORKER PATH', nativeId: 'PRIVATE NATIVE ID' }] },
+      otherThreads: [{ id: 'other', name: 'OTHER THREAD SECRET', messages: ['PRIVATE OTHER HISTORY'] }],
+    }),
+  }).init();
+  const start = await coordinator.threadStartParams();
+  assert.equal(start.sandbox, 'read-only'); assert.equal(start.approvalPolicy, 'never'); assert.equal(Object.hasOwn(start, 'dynamicTools'), false);
+  assert.equal(start.config['features.shell_tool'], false); assert.equal(start.config['features.multi_agent'], false);
+  assert.match(start.baseInstructions, /reply-only mode/i); assert.match(start.baseInstructions, /Never call tools/i); assert.doesNotMatch(start.baseInstructions, /ORIENTATION MUST NOT/);
+  const turns = [];
+  coordinator.start = async () => { coordinator.threadId = 'reply-thread'; };
+  coordinator.rpc = async (method, params) => {
+    assert.equal(method, 'turn/start'); turns.push(params); coordinator.active.resolve('The worker is observed working; completion is not yet known.'); return { turn: { id: 'reply-turn' } };
+  };
+  const result = await coordinator.ask({ id: 'foreground-one', origin: 'foreground', threadId: 'current', text: 'Quick status?', images: ['C:/private/image.png'], selectedId: 'other-worker', conversation: 'OTHER VOICE HISTORY' });
+  assert.equal(result.status, 'completed'); assert.equal(result.origin, 'foreground'); assert.equal(turns[0].effort, 'low');
+  assert.deepEqual(turns[0].input.slice(1), [{ type: 'localImage', path: 'C:/private/image.png' }]);
+  const prompt = turns[0].input[0].text;
+  assert.match(prompt, /Current worker/); assert.match(prompt, /"workers"/); assert.match(prompt, /"nativeDispatches":1/); assert.doesNotMatch(prompt, /OTHER THREAD SECRET|PRIVATE OTHER HISTORY|PRIVATE REPO PATH|PRIVATE WORKER PATH|PRIVATE NATIVE ID|OTHER VOICE HISTORY|LEARNING MUST NOT|C:\/private\/image/);
+  const sent = []; coordinator.send = value => sent.push(value);
+  await coordinator.message({ id: 91, method: 'item/tool/call', params: { tool: 'read_chat', arguments: { id: 'worker' }, callId: 'attempted-tool' } });
+  assert.equal(executed, false); assert.equal(sent[0].result.success, false); assert.match(sent[0].result.contentItems[0].text, /cannot call tools/i);
+  await coordinator.close();
+
+  const standard = await new Coordinator({ repo, stateDir: path.join(repo, 'standard'), context: () => ({}), orientation: async () => 'STANDARD ORIENTATION' }).init();
+  const standardStart = await standard.threadStartParams(); assert.equal(standardStart.dynamicTools, coordinatorTools); assert.match(standardStart.baseInstructions, /STANDARD ORIENTATION/); await standard.close();
 });
 
 test('folder trust is waiting, blocks composed tasks, and clears only when prompt disappears', async () => {
