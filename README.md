@@ -6,9 +6,9 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.22**, with
-project workspaces, repository settings, focused menus and persistent Workspace
-utilities. See [release notes](release-notes/v0.2.22.md).
+knowledge into one Windows desktop window. This source targets **0.2.23**, with
+project disk usage, build cleanup and explicit local deletion controls.
+See [release notes](release-notes/v0.2.23.md).
 
 ## What you can do
 
@@ -16,7 +16,8 @@ Version 0.2.22 source adds a canonical workspace for each project, a protected
 Conversations default and a + create flow. Project settings keep working and
 read-only source repositories independent, support asynchronous cloning and
 coordinator association, and offer guarded repository creation for blank working
-repository settings. Delete project keeps local files and never deletes a remote
+repository settings. Delete project offers keeping local files or permanently
+deleting its canonical local project folder. It never deletes a remote
 repository. New layouts use `projects/<stable-id>/workspace` with an optional
 `github` sibling; existing pinned checkouts and active sessions remain in place.
 
@@ -25,6 +26,39 @@ activity and Needs attention help track conversations. Six singleton Workspace
 utility tabs persist across sessions. The File menu no longer offers Open/Close,
 and the QuickSwitcher and Ctrl+K shortcut have been removed. Publication,
 installation and native acceptance remain separate verification steps.
+
+### Disk space and deletion
+
+Each project card shows its canonical project folder's size on disk. Windows
+measures allocated bytes, accounts for compression and counts each hardlinked
+file once within that project. Measurements run in the background and are cached
+for 15 minutes; right-click **Refresh size on disk** for a fresh measurement.
+Linked folders are skipped. A failed scan displays **Unavailable**, never zero.
+
+Right-click **Clear build folders** to review generated output before removing
+it. Cleanup recognizes supported Rust, JavaScript and Gradle output backed by
+manifests and Git ignore rules, plus Alpha and Agent Watch disposable test output.
+Tracked source, dependencies, application data and Git history remain. Preview
+sizes are logical bytes; actual disk savings depend on compression and shared
+links. Stop project workers/tools first and close external builds. Changed
+previews are rejected. Nested Git repositories are preserved and listed under
+**Preserved folders**; safe sibling test output can still be cleared. The next
+build recreates its output.
+
+**Delete project → Delete local project files** permanently removes
+`projects/<stable-id>` after exact-ID confirmation. GitHub repositories and
+existing conversation histories remain. Built-in Conversations, running Alpha,
+active workers, shared project paths, foreign repositories and linked Git
+worktrees are protected. A locked deletion remains visible for retry and records
+its remaining files in a local recovery journal.
+
+Use **Delete conversation** from a conversation's context menu or
+**Conversation history** to remove its Alpha history, draft and local worker
+records. Running work and pending Questions must be resolved first. Provider
+history held by Codex, Claude or another CLI is retained separately.
+Saved attachments and copies explicitly shared into other conversations remain.
+If local cleanup is interrupted, Alpha still opens and Conversation history
+offers **Retry cleanup** for the remaining files.
 
 - Open Codex, Claude Code, PowerShell or Git Bash chats in the resizable sidebar.
   Each chat has a terminal, message editor, saved drafts and history.

@@ -27,8 +27,10 @@
 .utility-actions{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
 .utility-actions button[aria-pressed=true]{border-color:var(--pink);background:var(--pink-dim)}
 .conversation-history-panel .conversation-history{display:grid;gap:8px}
-.conversation-history-panel .conversation-history>button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:3px}
-.conversation-history-panel .conversation-history>button>span,.conversation-history-panel .conversation-history>button>small{color:var(--text-dim)}
+.conversation-history-panel .conversation-history>article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
+.conversation-history-panel .conversation-history>article>span{display:flex;flex-direction:column;gap:3px;min-width:0;padding:8px}.conversation-history-panel .conversation-history>article>span>small{color:var(--text-dim);overflow-wrap:anywhere}
+.conversation-history-panel .conversation-history>article>button:first-child{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;min-width:0}
+.conversation-history-panel .conversation-history>article>button:first-child>span,.conversation-history-panel .conversation-history>article>button:first-child>small{color:var(--text-dim)}
 .mdi-menu-popup button:focus-visible,.mdi-menu-group>button:focus-visible{outline:2px solid var(--pink);outline-offset:-2px;background:var(--pink-dim)}
 .mdi-statusbar .important-events-trigger{white-space:nowrap}
 .mdi-document-tab{flex:0 0 auto;min-width:140px}

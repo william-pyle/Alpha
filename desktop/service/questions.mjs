@@ -211,6 +211,12 @@ export class Questions extends EventEmitter {
     await this.changed();
     return { dismissed: true, questionId: id };
   }
+  async purgeConversation(threadId, sessionIds = []) {
+    const sessions = new Set(sessionIds), removed = this.items.filter(item => item.threadId === threadId || sessions.has(item.sessionId));
+    this.items = this.items.filter(item => item.threadId !== threadId && !sessions.has(item.sessionId));
+    await this.changed();
+    return removed.map(item => item.id);
+  }
   close() { return this.writes; }
   async closeSession(id) {
     for (const question of this.items.filter(item => item.sessionId === id && item.source === 'project' && item.status === 'pending')) question.status = 'dismissed';

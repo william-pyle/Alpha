@@ -3,6 +3,7 @@ import { entityHash } from '../lib/route'
 import { categoryIcon } from '../lib/categories'
 import { contentUrl } from '../desktop/client'
 import { EntityStatusButton } from './EntityControls'
+import { ProjectStorageSize } from './ProjectStorage'
 
 /**
  * The design-system card: glass surface over the aura, gradient edge
@@ -39,7 +40,7 @@ export default function MakCard({ entity, categories }: { entity: WorkspaceEntit
           {steps} step{steps === 1 ? '' : 's'}
         </span>
         <span>·</span>
-        <span>{entity.updated ?? entity.created}</span>
+        <ProjectStorageSize id={entity.id} />
         <span className="card-open" aria-hidden="true">
           open →
         </span>

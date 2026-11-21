@@ -12,5 +12,15 @@ export class Replies {
     this.changed(item);
     return item;
   }
+  async purgeSessions(sessionIds = []) {
+    const ids = new Set(sessionIds), before = this.items.length;
+    this.items = this.items.filter(item => !ids.has(item.sessionId));
+    if (this.items.length !== before) {
+      const snapshot = this.items;
+      this.saves = this.saves.catch(() => {}).then(() => saveJson(this.file, snapshot));
+      await this.saves;
+    }
+    return before - this.items.length;
+  }
   async close() { await this.saves; }
 }

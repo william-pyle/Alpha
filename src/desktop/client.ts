@@ -105,7 +105,7 @@ function connect() {
     const event = JSON.parse(data) as ServiceEvent
     if (event.type === 'threads' && event.threads) {
       if (state.selectedThreadId && event.selectedThreadId !== undefined && event.selectedThreadId !== state.selectedThreadId) window.dispatchEvent(new Event('alpha-thread-switch'))
-      update({ threads: event.threads, selectedThreadId: event.selectedThreadId === undefined ? state.selectedThreadId : event.selectedThreadId })
+      update({ threads: event.threads, selectedThreadId: event.selectedThreadId === undefined ? state.selectedThreadId : event.selectedThreadId, pendingConversationDeletions: event.pendingConversationDeletions ?? state.pendingConversationDeletions })
     }
     if (event.type === 'window-state' && event.nativeWindow) { update({ nativeWindow: event.nativeWindow }); if (event.nativeWindow.error) reportError(event.nativeWindow.error) }
     if (event.type === 'awareness' && event.awareness) update({ awareness: event.awareness })
@@ -118,6 +118,19 @@ function connect() {
     if (event.type === 'removed') {
       const sessions = state.sessions.filter(item => item.id !== event.id)
       update({ sessions, selectedId: state.selectedId === event.id ? sessions[0]?.id || null : state.selectedId })
+    }
+    if (event.type === 'conversation-deleted' && event.threadId) {
+      const sessionIds = new Set(event.sessionIds || [])
+      const sessions = state.sessions.filter(item => !sessionIds.has(item.id))
+      update({
+        sessions,
+        selectedId: state.selectedId && sessionIds.has(state.selectedId) ? sessions[0]?.id || null : state.selectedId,
+        notices: state.notices.filter(item => !sessionIds.has(item.sessionId)),
+        questions: state.questions.filter(item => item.threadId !== event.threadId && !sessionIds.has(item.sessionId)),
+        replies: state.replies.filter(item => !sessionIds.has(item.sessionId)),
+        operations: state.operations.filter(item => item.threadId !== event.threadId),
+        voiceHistory: state.voiceHistory.filter(item => item.threadId !== event.threadId),
+      })
     }
     if (event.type === 'service-error') reportError(event.error || 'Connection error')
     if (event.type === 'coordinator-state') update({ coordinator: event.state || 'idle' })

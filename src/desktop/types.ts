@@ -31,18 +31,18 @@ export interface Preview { path: string; name: string; size: number; kind: 'docu
 export interface NativeWindowState { available: boolean; focused?: boolean; maximized: boolean; minimized: boolean; error?: string | null }
 export interface DesktopState {
   nativeWindow?: NativeWindowState
-  threads: AlphaThread[]; selectedThreadId: string | null; awareness: AwarenessState
+  threads: AlphaThread[]; selectedThreadId: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness: AwarenessState
   sharedLibrary?: { root: string; version: string; skills: string[]; files: number; conflicts: { path: string; reason: string; incoming: string }[] } | null
   ready: boolean; connected: boolean; error: string | null; repo: string; contentBase: string
   agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]; questions: ChatQuestion[]
   settings: Settings; coordinator: string; voice: { configured: boolean; owner: VoiceOwner | null }
   operations: Operation[]; preview: Preview | null
   replies: AgentReply[]; speech: SpeechState
-  voiceHistory: { id: string; at: string; captions: { role: 'user' | 'assistant'; text: string; start: number; end: number }[] }[]
+  voiceHistory: { id: string; threadId?: string | null; at: string; captions: { role: 'user' | 'assistant'; text: string; start: number; end: number }[] }[]
 }
 export interface ServiceEvent { inspectionId?: string;
   nativeWindow?: NativeWindowState
-  threads?: AlphaThread[]; selectedThreadId?: string | null; awareness?: AwarenessState; threadId?: string; text?: string
+  threads?: AlphaThread[]; selectedThreadId?: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness?: AwarenessState; threadId?: string; sessionIds?: string[]; text?: string
   type: string; id?: string; cardId?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
   operation?: Operation; settings?: Settings; owner?: VoiceOwner | null; window?: string; route?: string; preview?: Preview; questions?: ChatQuestion[]

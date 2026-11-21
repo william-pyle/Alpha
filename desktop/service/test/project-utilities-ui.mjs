@@ -169,7 +169,7 @@ try {
   else {
     const contents = await readFile(path.join(repo, created.workspacePath, 'content.card.json'), 'utf8');
     const retained = service.threads.create({ name: 'Retained project history', projectId: created.id, purpose: 'Preserve references after list removal.' });
-    await expect(remove.getByRole('radio')).toBeChecked();
+    await expect(remove.getByRole('radio', { name: /Keep all local files/ })).toBeChecked();
     await expect(remove.getByRole('button', { name: 'Remove project, keep files', exact: true })).toBeDisabled();
     await remove.getByRole('textbox', { name: 'Confirm project ID', exact: true }).fill('wrong-id');
     await expect(remove.getByRole('button', { name: 'Remove project, keep files', exact: true })).toBeDisabled();

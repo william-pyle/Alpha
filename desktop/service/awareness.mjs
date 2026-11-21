@@ -40,6 +40,13 @@ export class Awareness {
     for (const item of this.items) if (!item.dismissed && predicate(item)) { item.dismissed = true; changed = true; }
     if (changed) this.publish();
   }
+  async purgeConversation(threadId, sessionIds = [], questionIds = []) {
+    const sessions = new Set(sessionIds), questions = new Set(questionIds), removed = this.items.filter(item => item.threadId === threadId || sessions.has(item.sessionId) || questions.has(item.questionId));
+    this.items = this.items.filter(item => item.threadId !== threadId && !sessions.has(item.sessionId) && !questions.has(item.questionId));
+    for (const item of removed) delete this.receipts[item.id];
+    this.changed(this.snapshot()); await this.save();
+    return removed.length;
+  }
   sample(application) {
     if (!this.settings.enabled || !this.settings.desktop) { this.desktop = null; return; }
     // The native host returns only an executable basename, never a title/path.

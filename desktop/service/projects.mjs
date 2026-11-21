@@ -16,6 +16,7 @@ export class Projects {
   async get(id, { allowRemoved = true } = {}) {
     const item = (await this.workspace.registry()).entities.find(item => item.id === id);
     if (!item || (!allowRemoved && item.removedAt)) fail('Project was not found or has been removed.', 404);
+    if (!allowRemoved && item.deletionPending) fail('Project deletion is incomplete. Choose Delete project again to finish removing its local files.', 409);
     return item;
   }
   transaction(change) {
@@ -84,6 +85,7 @@ export class Projects {
       const item = registry.entities.find(item => item.id === id);
       if (!item) fail('Project was not found.', 404);
       if (item.builtin) fail('Built-in projects cannot be deleted.', 403);
+      if (item.deletionPending) fail('Finish the pending local-file deletion before removing this project from the list.', 409);
       item.removedAt ||= new Date().toISOString(); item.removalScope = 'keep-files';
       return { id, removedAt: item.removedAt, scope, retained: ['all local files', 'Git checkout and history', 'remote repository', 'conversation histories', 'active workers', 'stable project reference'], references: this.threads().filter(thread => thread.projectId === id).length };
     });

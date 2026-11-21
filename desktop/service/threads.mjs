@@ -1,21 +1,30 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
 import { readJson, saveJson } from './util.mjs';
 import { taskTitle } from './titles.mjs';
+import { assertSafePath } from './project-layout.mjs';
 
 const invalid = message => Object.assign(new Error(message), { status: 400 });
 const now = () => new Date().toISOString();
+const bindingHash = value => createHash('sha256').update(String(value)).digest('hex');
+const threadUuid = value => { if (typeof value !== 'string' || !/^[a-f\d]{8}-[a-f\d]{4}-[1-8][a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(value)) throw invalid('Conversation ID is invalid.'); return value; };
 
 // Alpha identity is separate from provider identity. Existing provider records
 // and transcripts remain authoritative and are never rewritten by migration.
 export class Threads {
   constructor(stateDir, changed = () => {}, failed = () => {}) {
-    this.file = path.join(stateDir, 'threads.json'); this.changed = changed; this.failed = failed;
-    this.items = []; this.selectedId = null; this.writes = Promise.resolve();
+    this.stateDir = stateDir; this.file = path.join(stateDir, 'threads.json'); this.changed = changed; this.failed = failed;
+    this.items = []; this.deleted = []; this.selectedId = null; this.writes = Promise.resolve(); this.locks = new Map();
   }
   async init(sessions = [], replies = [], selectedId = null) {
     const saved = await readJson(this.file, null);
-    this.items = saved?.threads || []; this.selectedId = saved?.selectedId || null;
+    this.deleted = Array.isArray(saved?.deleted) ? saved.deleted.filter(item => item && typeof item.threadId === 'string') : [];
+    const deletedThreadIds = new Set(this.deleted.map(item => item.threadId));
+    const deletedSessionIds = new Set(this.deleted.flatMap(item => item.sessionIds || []));
+    const deletedBindings = new Set(this.deleted.flatMap(item => item.nativeBindings || []));
+    const sessionBindings = new Map(sessions.map(item => [item.id, item.nativeId ? bindingHash(item.nativeId) : null]));
+    this.items = (saved?.threads || []).filter(item => !deletedThreadIds.has(item.id) && !item.sessionIds?.some(id => deletedSessionIds.has(id) || deletedBindings.has(sessionBindings.get(id)))); this.selectedId = this.items.some(item => item.id === saved?.selectedId) ? saved.selectedId : null;
     this.migration = saved?.migration || { at: now(), bindings: sessions.map(({ id, nativeId }) => ({ sessionId: id, nativeId: nativeId || null })), originalsPreserved: true };
     for (const item of this.items) {
       if (item.kind === 'alpha' && ['working', 'connecting'].includes(item.status)) item.status = 'interrupted';
@@ -34,7 +43,28 @@ export class Threads {
   }
   get(id) { const item = this.items.find(item => item.id === id); if (!item) throw Object.assign(new Error('Conversation was not found.'), { status: 404 }); return item; }
   owner(sessionId) { return this.items.find(item => item.sessionIds.includes(sessionId)); }
-  snapshot() { return { threads: this.items.map(item => ({ ...item, draft: item.id === this.selectedId ? item.draft : undefined, messageCount: item.messages.length, messages: item.id === this.selectedId ? item.messages.slice(-100) : [] })), selectedThreadId: this.selectedId }; }
+  deletedBinding(session) { return this.deleted.some(item => item.threadId === session.alphaThreadId || item.sessionIds?.includes(session.id) || session.nativeId && item.nativeBindings?.includes(bindingHash(session.nativeId))); }
+  assertAvailable(id) {
+    if (!id) return;
+    if (this.deleted.some(item => item.threadId === id) || this.locks.get(id)?.action === 'delete') throw Object.assign(new Error('This conversation is being deleted and cannot start or resume work.'), { status: 409 });
+    this.get(id);
+  }
+  claim(id, action) {
+    this.assertAvailable(id);
+    if (this.locks.has(id)) throw Object.assign(new Error('This conversation is busy with another lifecycle change. Wait for it to finish and try again.'), { status: 409 });
+    const token = Symbol(action); this.locks.set(id, { action, token });
+    return () => { if (this.locks.get(id)?.token === token) this.locks.delete(id); };
+  }
+  pendingDeletion(id) { return this.deleted.find(item => item.threadId === id && item.cleanupPending) || null; }
+  claimPendingDeletion(id) {
+    threadUuid(id);
+    if (!this.pendingDeletion(id)) throw Object.assign(new Error('Pending conversation cleanup was not found.'), { status: 404 });
+    if (this.locks.has(id)) throw Object.assign(new Error('This conversation cleanup is already running. Wait for it to finish.'), { status: 409 });
+    const token = Symbol('delete-retry'); this.locks.set(id, { action: 'delete-retry', token });
+    return () => { if (this.locks.get(id)?.token === token) this.locks.delete(id); };
+  }
+  pendingDeletions() { return this.deleted.filter(item => item.cleanupPending); }
+  snapshot() { return { threads: this.items.map(item => ({ ...item, draft: item.id === this.selectedId ? item.draft : undefined, messageCount: item.messages.length, messages: item.id === this.selectedId ? item.messages.slice(-100) : [] })), selectedThreadId: this.selectedId, pendingConversationDeletions: this.pendingDeletions().map(item => ({ id: item.threadId, name: item.name || `Conversation ${item.threadId.slice(0, 8)}`, deletedAt: item.deletedAt })) }; }
   directory() { return this.items.map(({ id, name, purpose, projectId, status, updatedAt, unread, archived }) => ({ id, name, purpose, projectId, status, updatedAt, unread, archived })); }
   review() { return this.directory().map(item => { const reasons = []; try { taskTitle(item.name); } catch { reasons.push('Choose a descriptive title'); } if (!item.purpose) reasons.push('Add a purpose'); if (!item.projectId) reasons.push('Choose a project'); return { ...item, reasons }; }).filter(item => item.reasons.length); }
   create({ name, purpose = '', projectId = null } = {}) {
@@ -44,6 +74,7 @@ export class Threads {
     this.items.push(item); this.publish(); return item;
   }
   observe(session, publish = true) {
+    if (this.deletedBinding(session)) return null;
     let created = false;
     let item = this.owner(session.id);
     if (!item && session.alphaThreadId) item = this.items.find(item => item.id === session.alphaThreadId);
@@ -73,6 +104,39 @@ export class Threads {
     // retain their existing lifecycle and can continue in the background.
     if (item.archived) { this.publish(); return item; }
     return this.patch(id, { archived: true });
+  }
+  async beginDeletion(id, sessions = []) {
+    threadUuid(id);
+    const item = this.get(id), index = this.items.indexOf(item);
+    const next = this.selectedId === id ? this.items.slice(index + 1).find(other => !other.archived) || this.items.slice(0, index).reverse().find(other => !other.archived) || null : null;
+    const nativeBindings = sessions.map(session => session.nativeId).filter(Boolean).map(bindingHash);
+    const record = { threadId: id, name: item.name, sessionIds: [...new Set(item.sessionIds)], nativeBindings: [...new Set(nativeBindings)], deletedAt: now(), cleanupPending: true };
+    const previous = { items: this.items, deleted: this.deleted, selectedId: this.selectedId, migration: this.migration };
+    this.deleted = [...this.deleted.filter(existing => existing.threadId !== id), record];
+    // Other conversations own their accepted history. Explicitly shared copies
+    // remain there even after their source conversation is deleted.
+    this.items = this.items.filter(existing => existing.id !== id);
+    if (this.selectedId === id) { this.selectedId = next?.id || null; if (next) this.items.find(other => other.id === next.id).unread = false; }
+    if (Array.isArray(this.migration?.bindings)) this.migration = { ...this.migration, bindings: this.migration.bindings.filter(binding => !record.sessionIds.includes(binding.sessionId)) };
+    try { await this.save(); }
+    catch (error) { Object.assign(this, previous); throw error; }
+    this.changed(this.snapshot());
+    return { record, result: { deleted: true, id, selectedThreadId: this.selectedId, providerHistoryPreserved: true } };
+  }
+  async completeDeletion(id) {
+    threadUuid(id);
+    const record = this.deleted.find(item => item.threadId === id);
+    if (!record) return;
+    const target = path.join(this.stateDir, 'thread-coordinators', id);
+    await assertSafePath(this.stateDir, target, { allowMissing: true });
+    await rm(target, { recursive: true, force: true });
+    if (!record.cleanupPending) return;
+    const name = record.name; record.cleanupPending = false; delete record.name;
+    try { await this.save(); } catch (error) { record.cleanupPending = true; if (name) record.name = name; throw error; }
+    this.changed(this.snapshot());
+  }
+  async deleteConversation(id, sessions = []) {
+    const { result } = await this.beginDeletion(id, sessions); await this.completeDeletion(id); return result;
   }
   view(id, data) {
     const item = this.get(id);
@@ -144,6 +208,6 @@ export class Threads {
     item.updatedAt = now(); this.publish(); return item;
   }
   publish() { this.changed(this.snapshot()); void this.save().catch(this.failed); }
-  save() { this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, { schemaVersion: 1, migration: this.migration, selectedId: this.selectedId, threads: this.items })); return this.writes; }
+  save() { this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, { schemaVersion: 2, migration: this.migration, selectedId: this.selectedId, threads: this.items, deleted: this.deleted })); return this.writes; }
   close() { return this.save(); }
 }

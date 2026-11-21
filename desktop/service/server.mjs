@@ -20,6 +20,7 @@ import { taskEffort } from './effort.mjs';
 import { Workspace, localDay, metadataPatch } from './workspace.mjs';
 import { Projects } from './projects.mjs';
 import { ProjectRepositories } from './project-repositories.mjs';
+import { NativeStorage, ProjectStorage } from './project-storage.mjs';
 import { safeProjectPaths } from './project-layout.mjs';
 import { WorkspaceTools } from './workspace-tools.mjs';
 import { Replies } from './replies.mjs';
@@ -151,7 +152,16 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     getProject: async (id, options = {}) => { const item = await projectStore.get(id, { allowRemoved: !!options.allowRemoved }); const record = await readJson(path.join(safeProjectPaths(repo, id).root, 'project.json'), {}); return { ...item, checkoutPath: item.checkoutPath || record.applicationRoot || record.source?.checkout || record.development?.sourceFolder || null }; },
     patchProject: (id, patch) => projectStore.patch(id, patch),
     changed: job => broadcast('project-repository', { job }), activeSessions: () => sessions.list(), ...repositoryOptions });
+  const nativeStorage = new NativeStorage(native);
+  const projectStorage = new ProjectStorage({ repo, projects: projectStore, repositories: projectRepositories,
+    measure: directory => nativeStorage.measure(directory), sessions: () => sessions.list(), tools: id => workspaceTools.list(id),
+    protectedRoots: [process.cwd(), stateDir, path.resolve(import.meta.dirname, '../..')],
+    active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || thread.status === 'working' || coordinatorStarts.has(thread.id) || coordinators.get(thread.id)?.operationPromises.size)),
+    changed: () => broadcast('project-storage-changed', {}) });
+  await projectStorage.initialize();
+  sessions.validateStart = session => { projectStorage.assertAvailable(session.projectId); threads.assertAvailable(session.alphaThreadId); };
   sessions.validateResume = async session => {
+    await projectStorage.assertUsable(session.projectId);
     const project = session.projectId ? await projectStore.get(session.projectId) : null;
     if (project?.projectRepositoryUrl || project?.sourceRepositoryUrl) await projectRepositories.validateWorkingDirectory(project.id, session.cwd);
   };
@@ -164,7 +174,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   };
   const attach = async (id, paths, coordinator = false) => {
     const session = sessions.get(id);
+    await projectStorage.assertUsable(session.projectId);
     const verified = await attachments.paths(paths);
+    projectStorage.assertAvailable(session.projectId);
     sessions.input(id, attachmentText(verified, session.agent), { coordinator, submit: false });
     return { attached: verified, submitted: false };
   };
@@ -206,6 +218,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (threadId && args.projectId && args.projectId !== selectedProject) throw new Error('The conversation project selected by the user is authoritative. Change it in Conversation details before starting work elsewhere.');
           const assignedProject = await projectStore.select(selectedProject);
           const session = await projectStore.exclusive(assignedProject.id, async () => {
+            await projectStorage.assertUsable(assignedProject.id);
             const cwd = await projectStore.workingDirectory(assignedProject.id, args.cwd);
             await projectRepositories.validateWorkingDirectory(assignedProject.id, cwd);
             return sessions.create({ agent: args.agent, cwd, projectId: assignedProject.id, alphaThreadId: threadId, name: taskTitle(args.name), effort: taskEffort(latestRequest, args.effort), bypass: args.bypass === false ? false : settings.defaultBypass === true });
@@ -215,6 +228,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         case 'read_chat': return sessions.read(args.id);
         case 'send_to_chat': {
           const session = sessions.get(args.id);
+          await projectStorage.assertUsable(session.projectId);
           const project = session.projectId || session.cwd;
           if (args.commonAgentId && !common.allows(project, args.text)) throw new Error('This project is excluded from Alpha common-agent automation. Use its own project agents.');
           const agent = args.commonAgentId ? common.instructions(args.commonAgentId) : args.includeWorkLessons && common.allows(project, args.text) && common.match(args.text) ? common.instructions(common.match(args.text).id) : null;
@@ -266,7 +280,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         case 'list_workspace_tools': return workspaceTools.list(args.cardId);
         case 'control_workspace_tool': {
           if (!['start', 'stop', 'launch'].includes(args.action)) throw new Error('Choose start, stop or launch.');
-          return args.action === 'launch' ? workspaceTools.launch(args.cardId, args.toolId, args.launchId) : workspaceTools[args.action](args.cardId, args.toolId);
+          return projectStore.exclusive(args.cardId, async () => {
+            if (args.action !== 'stop') { await projectStore.get(args.cardId, { allowRemoved: false }); projectStorage.assertAvailable(args.cardId); }
+            return args.action === 'launch' ? workspaceTools.launch(args.cardId, args.toolId, args.launchId) : workspaceTools[args.action](args.cardId, args.toolId);
+          });
         }
         case 'ask_user_question': return questions.ask({ ...args, sourceId: operationId, operationId, context: latestRequest, threadId, chatName: threadId ? threads.get(threadId).name : 'Alpha' });
         case 'remember_learning': return { saved: true, lessons: await learning.remember(args, operation) };
@@ -294,7 +311,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   };
   const getCoordinator = async threadId => {
     if (!threadId) return coordinator;
-    threads.get(threadId);
+    const thread = threads.get(threadId); await projectStorage.assertUsable(thread.projectId);
     if (coordinators.has(threadId)) return coordinators.get(threadId);
     if (!coordinatorStarts.has(threadId)) coordinatorStarts.set(threadId, (async () => {
       const item = await new Coordinator(coordinatorOptions(threadId)).init(); coordinators.set(threadId, item);
@@ -305,7 +322,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       item.on('error-detail', error => broadcast('service-error', { error }));
       return item;
     })().finally(() => coordinatorStarts.delete(threadId)));
-    return coordinatorStarts.get(threadId);
+    const item = await coordinatorStarts.get(threadId);
+    threads.assertAvailable(threadId); await projectStorage.assertUsable(thread.projectId);
+    return item;
   };
   const quick = await new QuickActions({ stateDir, workspace, context: () => ({ chats: sessions.active(), route: workspaceRoute }), execute: (...args) => coordinator.execute(...args), completed: operation => broadcast('coordinator-result', { operation }) }).init();
   scheduleMaintenance = reason => {
@@ -320,9 +339,12 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   };
   const askMak = async data => {
     if (data.threadId) {
-      threads.message(data.threadId, { id: data.id, role: 'user', text: data.text, images: data.images || [] });
-      const item = await getCoordinator(data.threadId);
-      return item.ask({ ...data, selectedId: threads.get(data.threadId).sessionIds[0] || null, images: await attachments.coordinatorImages(data.images) });
+      const release = threads.claim(data.threadId, 'input');
+      try {
+        threads.message(data.threadId, { id: data.id, role: 'user', text: data.text, images: data.images || [] });
+        const item = await getCoordinator(data.threadId);
+        return item.ask({ ...data, selectedId: threads.get(data.threadId).sessionIds[0] || null, images: await attachments.coordinatorImages(data.images) });
+      } finally { release(); }
     }
     if (coordinator.operationPromises.has(data.id) || coordinator.operations.has(data.id)) return coordinator.ask(data);
     const images = await attachments.coordinatorImages(data.images);
@@ -435,6 +457,54 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   });
   questions.on('error', error => broadcast('service-error', { error: publicError(error) }));
 
+  const assertConversationDeletionIdle = record => {
+    const sessionIds = new Set(record.sessionIds || []), boundSessions = [...sessionIds].map(id => sessions.items.get(id)).filter(Boolean);
+    const threadCoordinator = coordinators.get(record.threadId);
+    const activeCoordinator = coordinatorStarts.has(record.threadId) || threadCoordinator?.active || threadCoordinator?.operationPromises.size
+      || [...(threadCoordinator?.operations.values() || [])].some(item => ['queued', 'running'].includes(item.status));
+    const activeQuestions = questions.items.filter(item => (item.threadId === record.threadId || sessionIds.has(item.sessionId)) && (item.status === 'pending' || item.continuation === 'queued' || questions.answers.has(item.id)));
+    const activeWorkers = boundSessions.filter(item => item.process || item.launching || item.stopping || ['starting', 'running'].includes(item.status) || ['working', 'waiting'].includes(item.activity));
+    if (activeCoordinator) throw Object.assign(new Error('Wait for this conversation\'s Alpha operation to finish before deleting it. Alpha will not interrupt active work during deletion.'), { status: 409 });
+    if (activeWorkers.length) throw Object.assign(new Error('Stop this conversation\'s workers and wait for them to become idle before deleting it. Alpha will not stop active work during deletion.'), { status: 409 });
+    if (activeQuestions.length) throw Object.assign(new Error('Resolve or dismiss this conversation\'s pending Questions before deleting it. Alpha will not discard an active decision or answer delivery.'), { status: 409 });
+    if (voiceOwner && threads.selectedId === record.threadId) throw Object.assign(new Error('End the active voice conversation before deleting this conversation.'), { status: 409 });
+    return boundSessions;
+  };
+
+  const purgeDeletedConversation = async record => {
+    const sessionIds = new Set(record.sessionIds || []), boundSessions = [...sessionIds].map(id => sessions.items.get(id)).filter(Boolean);
+    const questionIds = questions.items.filter(item => item.threadId === record.threadId || sessionIds.has(item.sessionId)).map(item => item.id);
+    const threadCoordinator = coordinators.get(record.threadId);
+    if (threadCoordinator) { threadCoordinator.removeAllListeners(); await threadCoordinator.close(); coordinators.delete(record.threadId); }
+    for (const session of boundSessions) await sessions.purge(session.id);
+    for (const id of sessionIds) { clearTimeout(questionTimers.get(id)); questionTimers.delete(id); }
+    const removedReplies = await replies.purgeSessions([...sessionIds]);
+    const removedQuestions = await questions.purgeConversation(record.threadId, [...sessionIds]);
+    const removedAwareness = await awareness.purgeConversation(record.threadId, [...sessionIds], questionIds);
+    for (let index = notices.length - 1; index >= 0; index--) if (sessionIds.has(notices[index].sessionId)) notices.splice(index, 1);
+    const retainedVoice = voiceHistory.filter(item => item.threadId !== record.threadId);
+    if (retainedVoice.length !== voiceHistory.length) { voiceHistory = retainedVoice; const snapshot = voiceHistory; transcriptSave = transcriptSave.catch(() => {}).then(() => saveJson(transcriptPath, snapshot)); await transcriptSave; }
+    let operationStateChanged = false;
+    for (const [id, operation] of coordinator.operations) if (operation.threadId === record.threadId) { coordinator.operations.delete(id); operationStateChanged = true; }
+    if (operationStateChanged) await coordinator.save();
+    let quickStateChanged = false;
+    for (const [id, operation] of quick.operations) if (operation.threadId === record.threadId) { quick.operations.delete(id); quickStateChanged = true; }
+    if (quickStateChanged) await quick.save();
+    await threads.completeDeletion(record.threadId);
+    if (settings.chatEditorHeights) for (const id of sessionIds) delete settings.chatEditorHeights[id];
+    if (sessionIds.has(selectedId)) {
+      selectedId = threads.selectedId ? threads.get(threads.selectedId).sessionIds[0] || null : sessions.active()[0]?.id || null;
+      settings.selectedId = selectedId; scheduleSettings(); broadcast('selection', { selectedId });
+    }
+    for (const id of sessionIds) broadcast('removed', { id });
+    broadcast('conversation-deleted', { threadId: record.threadId, sessionIds: [...sessionIds] });
+    return { sessions: boundSessions.length, replies: removedReplies, questions: removedQuestions.length, awareness: removedAwareness };
+  };
+  for (const record of threads.pendingDeletions()) {
+    try { assertConversationDeletionIdle(record); await purgeDeletedConversation(record); }
+    catch { awareness.event({ id: `conversation-deletion:${record.threadId}`, kind: 'error', text: 'A deleted conversation still has local cleanup pending. Open Conversation history to retry without restoring its messages.', source: 'Conversation deletion recovery' }); }
+  }
+
   const contentServer = http.createServer(async (request, response) => {
     try {
       if (request.headers.host !== new URL(files.origin).host || !['GET', 'HEAD'].includes(request.method)) throw Object.assign(new Error('Not allowed'), { status: 403 });
@@ -489,10 +559,30 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         if (method === 'GET' && url.pathname === '/api/release-monitor') return json(response, 200, url.searchParams.get('refresh') === '1' ? await releaseMonitor.refresh() : releaseMonitor.snapshot());
         if (method === 'POST' && url.pathname === '/api/ui-inspection/result') return json(response, 200, uiInspection.accept(data));
-        const threadRoute = /^\/api\/threads\/([\w-]+)(?:\/(select|input|resume|share|messages|search|message-context|native-history|draft|undo|close|view|reopen))?$/.exec(url.pathname);
+        const threadRoute = /^\/api\/threads\/([\w-]+)(?:\/(select|input|resume|share|messages|search|message-context|native-history|draft|undo|close|view|reopen|delete))?$/.exec(url.pathname);
         if (threadRoute) {
+          const pendingDeletion = threads.pendingDeletion(threadRoute[1]);
+          if (method === 'DELETE' && threadRoute[2] === 'delete' && pendingDeletion) {
+            const release = threads.claimPendingDeletion(pendingDeletion.threadId);
+            try {
+              assertConversationDeletionIdle(pendingDeletion);
+              const cleaned = await purgeDeletedConversation(pendingDeletion);
+              awareness.resolve(item => item.id === `conversation-deletion:${pendingDeletion.threadId}`);
+              return json(response, 200, { deleted: true, id: pendingDeletion.threadId, cleanupRetried: true, cleaned, providerHistory: 'Native provider transcripts were not changed.' });
+            } finally { release(); }
+          }
           const thread = threads.get(threadRoute[1]);
           if (method === 'POST' && threadRoute[2] === 'view') { const result = threads.view(thread.id, data); await threads.save(); return json(response, 200, result); }
+          if (method === 'DELETE' && threadRoute[2] === 'delete') {
+            const release = threads.claim(thread.id, 'delete');
+            try {
+              const boundSessions = assertConversationDeletionIdle({ threadId: thread.id, sessionIds: thread.sessionIds });
+              if (threads.selectedId === thread.id) speech.stop();
+              const { record, result } = await threads.beginDeletion(thread.id, boundSessions);
+              const cleaned = await purgeDeletedConversation(record);
+              return json(response, 200, { ...result, cleaned, providerHistory: 'Native provider transcripts were not changed.' });
+            } finally { release(); }
+          }
           if (method === 'POST' && threadRoute[2] === 'close') {
             const wasSelected = threads.selectedId === thread.id;
             const result = threads.closeConversation(thread.id);
@@ -534,6 +624,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (method === 'POST' && threadRoute[2] === 'share') { const result = threads.share(thread.id, data.destinationId, data.messageId, data.transferId); await threads.save(); return json(response, 200, result); }
           if (method === 'POST' && threadRoute[2] === 'undo') { const result = threads.undoArchive(thread.id, data.id); await threads.save(); return json(response, 200, { restored: true, id: result.id }); }
           if (method === 'PATCH') {
+            const release = threads.claim(thread.id, 'metadata');
+            try {
             if (data.projectId) await projectStore.select(data.projectId);
             if (typeof data.name === 'string') taskTitle(data.name);
             if (thread.kind === 'native') {
@@ -548,6 +640,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
               if (updated.projectPending) await questions.ask({ source: 'project', sourceId: `thread-project:${thread.id}`, threadId: thread.id, sessionId: thread.id, chatName: thread.name, text: `Which project should I track ${thread.name} under?`, options: (await registry()).entities.filter(card => !card.removedAt).map(card => `${card.id} - ${card.title}`) });
             }
             await threads.save(); return json(response, 200, updated);
+            } finally { release(); }
           }
           if (method === 'POST' && threadRoute[2] === 'select') {
             speech.stop(); threads.select(thread.id);
@@ -556,10 +649,17 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
             return json(response, 200, thread);
           }
           if (method === 'POST' && threadRoute[2] === 'resume') {
-            if (thread.kind === 'native') await sessions.resume(thread.sessionIds[0]);
-            return json(response, 200, threads.patch(thread.id, { archived: false }));
+            const release = threads.claim(thread.id, 'resume');
+            try {
+              await projectStorage.assertUsable(thread.projectId);
+              if (thread.kind === 'native') await sessions.resume(thread.sessionIds[0]);
+              return json(response, 200, threads.patch(thread.id, { archived: false }));
+            } finally { release(); }
           }
           if (method === 'POST' && threadRoute[2] === 'input') {
+            const release = threads.claim(thread.id, 'input');
+            try {
+            await projectStorage.assertUsable(thread.projectId);
             if (!/^[\w:.-]{1,180}$/.test(data.id || '') || typeof data.text !== 'string' || !data.text.trim() || data.text.length > 30000) throw new Error('A unique message ID and text are required.');
             const prior = thread.messages.find(item => item.id === data.id);
             if (prior) {
@@ -590,6 +690,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
               stored.status = 'dispatched'; threads.publish(); await threads.save();
               return json(response, 202, { accepted: true, threadId: thread.id, id: data.id });
             } catch (error) { stored.status = 'failed'; stored.error = publicError(error); threads.publish(); throw error; }
+            } finally { release(); }
           }
         }
         if (method === 'GET' && url.pathname === '/api/awareness') return json(response, 200, awareness.snapshot());
@@ -623,6 +724,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
             const registryData = await registry(), choice = answer.trim().toLowerCase();
             const card = registryData.entities.find(card => [card.id, card.title, `${card.id} - ${card.title}`].some(value => value.toLowerCase() === choice));
             if (!card) throw new Error('Choose an existing project by its name or project ID.');
+            await projectStorage.assertUsable(card.id);
             const thread = question.threadId && threads.get(question.threadId);
             if (thread) threads.patch(thread.id, { projectId: card.id });
             const session = sessions.items.get(question.sessionId);
@@ -682,9 +784,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           const cardId = decodeURIComponent(toolsRoute[1]);
           const toolId = toolsRoute[2] && decodeURIComponent(toolsRoute[2]);
           if (method === 'GET' && !toolId) return json(response, 200, await workspaceTools.list(cardId));
-          if (method === 'POST' && toolId && toolsRoute[3] === 'start') return json(response, 200, await workspaceTools.start(cardId, toolId));
+          if (method === 'POST' && toolId && toolsRoute[3] === 'start') return json(response, 200, await projectStore.exclusive(cardId, async () => { await projectStore.get(cardId, { allowRemoved: false }); projectStorage.assertAvailable(cardId); return workspaceTools.start(cardId, toolId); }));
           if (method === 'POST' && toolId && toolsRoute[3] === 'stop') return json(response, 200, await workspaceTools.stop(cardId, toolId));
-          if (method === 'POST' && toolId && toolsRoute[3] === 'launch') return json(response, 200, await workspaceTools.launch(cardId, toolId, data.actionId));
+          if (method === 'POST' && toolId && toolsRoute[3] === 'launch') return json(response, 200, await projectStore.exclusive(cardId, async () => { await projectStore.get(cardId, { allowRemoved: false }); projectStorage.assertAvailable(cardId); return workspaceTools.launch(cardId, toolId, data.actionId); }));
         }
         const categoryRoute = url.pathname.match(/^\/api\/workspace\/categories(?:\/([^/]+))?$/);
         if (categoryRoute && method === 'POST' && !categoryRoute[1]) return json(response, 201, await workspace.changeCategory('create', data.id, data));
@@ -694,9 +796,14 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/workspace/undo') return json(response, 200, await workspace.undo(data.id));
         if (method === 'PATCH' && cardMetadata) return json(response, 200, await workspace.update(decodeURIComponent(cardMetadata[1]), metadataPatch(data)));
         if (method === 'GET' && url.pathname === '/api/project-repositories/account') return json(response, 200, await projectRepositories.account());
-        const projectRoute = /^\/api\/workspace\/projects\/([a-z0-9-]+)(?:\/(repositories|repository-state|repository-create|repository-retry|migration|checkout-migration|remove))?$/.exec(url.pathname);
+        if (method === 'GET' && url.pathname === '/api/workspace/storage') return json(response, 200, await projectStorage.list());
+        const projectRoute = /^\/api\/workspace\/projects\/([a-z0-9-]+)(?:\/(repositories|repository-state|repository-create|repository-retry|migration|checkout-migration|remove|storage|build-cleanup|deletion))?$/.exec(url.pathname);
         if (projectRoute) {
           const [, id, action] = projectRoute;
+          if (method === 'POST' && action === 'storage') return json(response, 202, await projectStorage.size(id, true));
+          if (method === 'GET' && action === 'build-cleanup') return json(response, 200, await projectStorage.cleanupPlan(id));
+          if (method === 'POST' && action === 'build-cleanup') return json(response, 200, await projectStore.exclusive(id, () => projectRepositories.lock(id, () => projectStorage.clean(id, data))));
+          if (method === 'GET' && action === 'deletion') return json(response, 200, await projectStorage.deletionPlan(id));
           if (method === 'GET' && !action) return json(response, 200, { project: await projectStore.get(id), repository: await projectRepositories.state(id), migration: await projectStore.migrationPlan(id), paths: safeProjectPaths(repo, id) });
           if (method === 'GET' && action === 'repository-state') return json(response, 200, { project: await projectStore.get(id), repository: await projectRepositories.state(id) });
           if (method === 'POST' && action === 'repositories') return json(response, 202, await projectRepositories.associate(id, data));
@@ -709,7 +816,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (method === 'POST' && action === 'remove') return json(response, 200, await projectStore.exclusive(id, () => projectRepositories.lock(id, async () => {
             const job = await projectRepositories.state(id);
             if (['queued', 'running'].includes(job?.status)) throw Object.assign(new Error('Repository setup is still running. Wait for its result before removing this project.'), { status: 409 });
-            return projectStore.remove(id, data);
+            return data.scope === 'delete-files' ? projectStorage.deleteProject(id, data) : projectStore.remove(id, data);
           })));
         }
         if (method === 'GET' && url.pathname === '/api/projects') {
@@ -801,6 +908,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (boundThread && (boundThread.id !== threads.selectedId || data.projectId && data.projectId !== boundThread.projectId)) throw Object.assign(new Error('Select the originating conversation and keep its chosen project when adding a worker.'), { status: 409 });
           const project = await projectStore.select(boundThread ? boundThread.projectId : data.projectId);
           const session = await projectStore.exclusive(project.id, async () => {
+            await projectStorage.assertUsable(project.id);
             const cwd = await projectStore.workingDirectory(project.id, data.cwd);
             await projectRepositories.validateWorkingDirectory(project.id, cwd);
             return sessions.create({ ...data, projectId: project.id, cwd, name: taskTitle(data.name), bypass: data.bypass ?? settings.defaultBypass });
@@ -918,11 +1026,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   if (checkUpdates) updates.start();
   return {
-    origin, contentOrigin: files.origin, token, sessions, questions, coordinator, getCoordinator, threads, awareness, quick, workspace, workspaceTools, replies, speech, learning, common, health, restartNotes, cards, files, projects, knowledge, integrations,
+    origin, contentOrigin: files.origin, token, sessions, questions, coordinator, getCoordinator, threads, awareness, quick, workspace, workspaceTools, replies, speech, learning, common, health, restartNotes, cards, files, projects, knowledge, integrations, projectStorage,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
-      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
+      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
       async close() {
-        if (closing) return; closing = true; clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); workspaceLocation.close(); await files.writes.catch(() => {});
+        if (closing) return; closing = true; clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); workspaceLocation.close(); await files.writes.catch(() => {});
       watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       await Promise.all([...coordinators.values()].map(item => item.close()));
       await threads.close(); await awareness.close();

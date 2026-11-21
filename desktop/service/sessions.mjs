@@ -5,7 +5,7 @@ import { deliveredTask, workerEvent } from './worker-evidence.mjs';
 import { EventEmitter } from 'node:events';
 import { startupPrompt } from './prompt-state.mjs';
 import { randomUUID } from 'node:crypto';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import pty from 'node-pty';
 import headless from '@xterm/headless';
@@ -20,6 +20,7 @@ import { ptyOptions } from './platform.mjs';
 import { guardWindowsPtyKill } from './windows-pty-lifecycle.mjs';
 import { opencodeVersion, opencodeEnvironment, readOpencodeState, watchOpencode } from './opencode.mjs';
 import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId, watchAntigravity } from './antigravity.mjs';
+import { assertSafePath } from './project-layout.mjs';
 
 const { Terminal } = headless;
 const publicSession = session => {
@@ -179,6 +180,10 @@ export class Sessions extends EventEmitter {
     }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;
+    // Creation and resume both cross this synchronous final boundary. The
+    // caller can reject a start if the owning project/conversation became busy
+    // or was removed while the asynchronous launch preparation ran.
+    this.validateStart?.(session);
     let proc;
     try { proc = guardWindowsPtyKill(pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }))); }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
@@ -571,6 +576,19 @@ export class Sessions extends EventEmitter {
     if (session.stopping) await session.stopping;
     await this.persist();
     return publicSession(session);
+  }
+  async purge(id) {
+    if (typeof id !== 'string' || !/^[a-f\d]{8}-[a-f\d]{4}-[1-8][a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id)) throw Object.assign(new Error('Conversation worker ID is invalid.'), { status: 400 });
+    const session = this.get(id);
+    if (session.process || session.launching || session.stopping || ['starting', 'running'].includes(session.status) || ['working', 'waiting'].includes(session.activity)) {
+      throw Object.assign(new Error('Stop this conversation\'s worker and wait for it to become idle before deleting the conversation. Alpha will not stop active work during deletion.'), { status: 409 });
+    }
+    const screen = path.join(this.stateDir, `screen-${id}.json`); await assertSafePath(this.stateDir, screen, { allowMissing: true });
+    session.stopNativeWatch?.(); clearTimeout(session.outputTimer);
+    session.terminal?.dispose(); this.items.delete(id);
+    await rm(screen, { force: true });
+    await this.persist();
+    return { deleted: true, id, nativeHistoryPreserved: true };
   }
   async persist() {
     this.dirty = false;

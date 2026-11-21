@@ -4,6 +4,7 @@ use std::{fs, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, C
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
 use tauri_plugin_window_state::StateFlags;
 mod external_links;
+mod project_storage;
 mod window_chrome;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -362,6 +363,27 @@ fn main() {
                             if let Some(child) = app_handle.state::<Service>().0.lock().unwrap().as_mut() {
                                 if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
                             }
+                        },
+                        "project-storage-capabilities" => {
+                            let reply = serde_json::json!({
+                                "type": "project-storage-capabilities",
+                                "requestId": event.get("requestId").cloned().unwrap_or(serde_json::Value::Null),
+                                "available": project_storage::available(),
+                            });
+                            if let Some(child) = app_handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                            }
+                        },
+                        "project-storage" => {
+                            let handle = app_handle.clone();
+                            let request_id = event.get("requestId").cloned().unwrap_or(serde_json::Value::Null);
+                            let path = event.get("path").and_then(serde_json::Value::as_str).map(str::to_owned);
+                            std::thread::spawn(move || {
+                                let reply = project_storage::response(request_id, path.as_deref());
+                                if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                    if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                                }
+                            });
                         },
                         "ready" => {
                             let handle = app_handle.clone();
