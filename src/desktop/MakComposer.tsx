@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, copyImagePath, uploadImage } from './client'
+import { api, copyImagePath, desktopState, uploadImage } from './client'
 import { Icon } from './Icons'
 import { ZoomImage } from '../components/ImagePreview'
 import type { Preview } from './types'
@@ -70,6 +70,7 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
   }, [draftId])
 
   function addPreview(preview: Preview) {
+    if (draftId !== 'legacy' && !desktopState().threads.some(thread => thread.id === draftId)) return
     if (alive.current) setImages(previous => [...previous, preview])
     else {
       const stored = JSON.parse(localStorage.getItem(`alpha.threadDraft.${draftId}`) || '{"text":"","paths":[]}') as { text: string; paths: string[] }

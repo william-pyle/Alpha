@@ -5,7 +5,52 @@ import { access, mkdtemp, mkdir, readFile, rename, symlink, unlink, writeFile } 
 import os from 'node:os';
 import path from 'node:path';
 import { Threads } from '../threads.mjs';
+import { Questions } from '../questions.mjs';
 import { createService } from '../server.mjs';
+
+test('startup assigns old unassigned conversations and native workers to Conversations once, preserving drafts and other projects', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-conversation-assign-'));
+  const stateDir = path.join(repo, '.alpha');
+  await mkdir(path.join(repo, 'workspace'));
+  await mkdir(stateDir);
+  await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Existing project', folder: 'fixture', steps: [] }] }));
+  const saved = await new Threads(stateDir).init();
+  const workerId = randomUUID();
+  const worker = { id: workerId, name: 'Legacy native conversation', nativeId: randomUUID(), agent: 'codex', open: false, projectPending: true, cwd: repo };
+  const native = saved.observe(worker);
+  const standalone = saved.create({ name: 'Legacy standalone conversation' });
+  const assigned = saved.create({ name: 'Already assigned conversation', projectId: 'fixture' });
+  native.draft = { text: 'Draft to preserve', paths: [] };
+  saved.message(native.id, { id: 'legacy-fixture', role: 'user', text: 'History to preserve' });
+  await saved.close();
+  await writeFile(path.join(stateDir, 'sessions.json'), JSON.stringify([worker]));
+  const questions = await new Questions(stateDir).init();
+  await questions.ask({ source: 'project', sourceId: 'old-project', threadId: native.id, sessionId: workerId, text: 'Which project should track this history?' });
+  const importantQuestion = await questions.ask({ sourceId: 'keep-decision', threadId: native.id, text: 'Should the fixture remain?' });
+  await questions.close();
+  const options = { repo, uiDir: repo, mcpOptions: { home: repo, env: {} } };
+  let service = await createService(options);
+  try {
+    const migrated = service.threads.get(native.id);
+    assert.equal(migrated.projectId, 'conversations');
+    assert.equal(migrated.projectPending, false);
+    assert.equal(migrated.archived, true);
+    assert.deepEqual(migrated.draft, native.draft);
+    assert.deepEqual(migrated.messages, native.messages);
+    assert.equal(service.threads.get(standalone.id).projectId, 'conversations');
+    assert.equal(service.threads.get(assigned.id).projectId, 'fixture');
+    assert.equal(service.sessions.get(workerId).projectId, 'conversations');
+    assert.equal(service.sessions.get(workerId).nativeId, worker.nativeId);
+    assert.equal(service.sessions.get(workerId).cwd, repo);
+    assert.deepEqual(service.questions.list().map(item => item.id), [importantQuestion.id]);
+  } finally { await service.close(); }
+  service = await createService(options);
+  try {
+    assert.equal(service.threads.get(native.id).projectId, 'conversations');
+    assert.equal(service.sessions.get(workerId).projectId, 'conversations');
+    assert.equal(service.threads.get(standalone.id).projectId, 'conversations');
+  } finally { await service.close(); }
+});
 
 test('close chooses a neighbor or null, keeps identity/draft/messages, and view choices survive restart', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'alpha-close-'));
@@ -115,7 +160,7 @@ test('delete endpoint refuses active work and pending decisions, then purges Alp
   const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-delete-api-')); await mkdir(path.join(repo, 'workspace'));
   await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
   const service = await createService({ repo, uiDir: repo, mcpOptions: { home: repo, env: {} } });
-  const request = async (route, data = {}, method = 'POST') => { const response = await fetch(`${service.origin}/api${route}`, { method, headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); return { status: response.status, body: await response.json() }; };
+  const request = async (route, data = {}, method = 'POST') => { const response = await fetch(`${service.origin}/api${route}`, { method, headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, ...(method !== 'GET' ? { body: JSON.stringify(data) } : {}) }); return { status: response.status, body: await response.json() }; };
   try {
     const thread = service.threads.create({ name: 'Disposable old conversation' }), retained = service.threads.create({ name: 'Unrelated retained conversation' });
     const worker = service.sessions.make({ id: randomUUID(), name: 'Stopped fixture worker', agent: 'codex', nativeId: 'provider-history-stays', alphaThreadId: thread.id, open: false, status: 'running', activity: 'working', cwd: repo });
@@ -124,6 +169,8 @@ test('delete endpoint refuses active work and pending decisions, then purges Alp
     let response = await request(`/threads/${thread.id}/delete`, {}, 'DELETE');
     assert.equal(response.status, 409); assert.match(response.body.error, /will not stop active work/i); assert.equal(service.threads.get(thread.id).id, thread.id);
     worker.status = 'stopped'; worker.activity = 'idle'; service.threads.observe(worker);
+    assert.equal((await request('/restart-notes', { sessionId: worker.id, note: 'Private restart hint for the disposable fixture.' })).status, 200);
+    service.common.input(worker, 'Private task activity for the disposable fixture.');
     const pending = await service.questions.ask({ source: 'coordinator', sourceId: 'delete-question', threadId: thread.id, chatName: thread.name, text: 'Keep this pending fixture decision?' });
     response = await request(`/threads/${thread.id}/delete`, {}, 'DELETE');
     assert.equal(response.status, 409); assert.match(response.body.error, /pending Questions/i);
@@ -141,6 +188,13 @@ test('delete endpoint refuses active work and pending decisions, then purges Alp
     assert.equal(service.replies.items.some(item => item.sessionId === worker.id), false); assert.equal(service.questions.items.some(item => item.threadId === thread.id), false);
     assert.equal(service.awareness.items.some(item => item.threadId === thread.id || item.sessionId === worker.id), false); assert.equal(service.threads.get(retained.id).messages.length, 1);
     assert.equal(service.threads.snapshot().threads.some(item => item.id === thread.id), false); assert.equal(service.threads.directory().some(item => item.id === thread.id), false);
+    assert.doesNotMatch(await readFile(path.join(repo, '.alpha/restart-notes.json'), 'utf8'), /Private restart hint/);
+    assert.doesNotMatch(await readFile(path.join(repo, '.alpha/common-agent-activity.json'), 'utf8'), /Private task activity/);
+    const imported = await request('/history/import', { agent: 'codex', nativeId: worker.nativeId, name: 'Deleted provider import', cwd: repo });
+    assert.equal(imported.status, 409);
+    assert.match(imported.body.error, /deleted from Alpha/);
+    assert.throws(() => service.sessions.validateStart({ ...worker, id: randomUUID(), alphaThreadId: null }), /deleted from Alpha/);
+    assert.deepEqual((await request('/history', undefined, 'GET')).body, []);
     const saved = await readFile(path.join(repo, '.alpha/threads.json'), 'utf8');
     assert.doesNotMatch(saved, /Old local|provider-history-stays|Disposable old conversation/); assert.match(saved, /Copied private text/);
   } finally { await service.close(); }

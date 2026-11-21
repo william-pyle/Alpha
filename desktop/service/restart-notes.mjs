@@ -28,6 +28,11 @@ export class RestartNotes {
   }
   async failed(session, error) { const item = this.items.find(entry => entry.sessionId === session.id && entry.status === 'dispatched'); if (item) { item.status = 'failed'; item.error = String(error.message || error).slice(0, 1000); await this.save(); } }
   async cancel(id) { const item = this.items.find(entry => entry.id === id); if (!item) throw new Error('Restart note was not found.'); item.status = 'cancelled'; await this.save(); return item; }
+  async purgeSessions(ids) {
+    if (!ids.size) return;
+    this.items = this.items.filter(item => !ids.has(item.sessionId));
+    await this.save();
+  }
   save() { this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, this.items)); this.changed(this.items); return this.writes; }
   close() { return this.writes.catch(() => {}); }
 }

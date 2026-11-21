@@ -143,16 +143,17 @@ export class Sessions extends EventEmitter {
     return publicSession(session);
   }
 
-  async importConversation({ agent, nativeId, name, cwd, pinned = false, bypass = false }) {
+  async importConversation({ agent, nativeId, name, cwd, pinned = false, bypass = false }, { projectId = null } = {}) {
     if (!['codex', 'claude', 'antigravity', 'opencode', 'kimi'].includes(agent) || typeof nativeId !== 'string' || !nativeId.trim()) throw new Error('Choose an agent and its native conversation ID.');
     nativeId = nativeConversationId(nativeId.trim());
     if (agent === 'antigravity' && !validAntigravityId(nativeId)) throw new Error('Use the Antigravity conversation UUID from its /resume picker.');
     cwd = path.resolve(cwd || this.repo);
     if (!(await stat(cwd)).isDirectory()) throw new Error('Working folder must be a directory');
+    this.validateNativeBinding?.({ nativeId });
     const existing = [...this.items.values()].find(item => item.agent === agent && item.nativeId === nativeId);
     if (existing) { existing.name = englishTitle(name, existing.name); existing.pinned = pinned; this.changed(existing); await this.persist(); return publicSession(existing); }
     const now = new Date().toISOString();
-    const session = this.make({ id: randomUUID(), agent, nativeId, name: englishTitle(name), cwd: path.resolve(cwd || this.repo), bypass, pinned, open: false, status: 'stopped', createdAt: now, updatedAt: now, hasConversation: true, lastInputAt: null, lastOutputAt: null, preview: '', cols: 90, rows: 32, attention: false });
+    const session = this.make({ id: randomUUID(), agent, nativeId, name: englishTitle(name), cwd, bypass, pinned, projectId, projectPending: this.trackProjects === true && !projectId, open: false, status: 'stopped', createdAt: now, updatedAt: now, hasConversation: true, lastInputAt: null, lastOutputAt: null, preview: '', cols: 90, rows: 32, attention: false });
     this.items.set(session.id, session); this.changed(session); await this.persist();
     return publicSession(session);
   }
@@ -531,6 +532,7 @@ export class Sessions extends EventEmitter {
     nativeConversationId(nativeId);
     if (this.closed) throw new Error('Alpha is shutting down');
     const session = this.get(id);
+    this.validateNativeBinding?.({ ...session, nativeId: nativeId || session.nativeId });
     if (session.stopping) await session.stopping;
     if (session.process) return publicSession(session);
     // Reopening a configured repository must revalidate its current ownership.
@@ -579,14 +581,14 @@ export class Sessions extends EventEmitter {
   }
   async purge(id) {
     if (typeof id !== 'string' || !/^[a-f\d]{8}-[a-f\d]{4}-[1-8][a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id)) throw Object.assign(new Error('Conversation worker ID is invalid.'), { status: 400 });
-    const session = this.get(id);
-    if (session.process || session.launching || session.stopping || ['starting', 'running'].includes(session.status) || ['working', 'waiting'].includes(session.activity)) {
+    const session = this.items.get(id);
+    if (session && (session.process || session.launching || session.stopping || ['starting', 'running'].includes(session.status) || ['working', 'waiting'].includes(session.activity))) {
       throw Object.assign(new Error('Stop this conversation\'s worker and wait for it to become idle before deleting the conversation. Alpha will not stop active work during deletion.'), { status: 409 });
     }
     const screen = path.join(this.stateDir, `screen-${id}.json`); await assertSafePath(this.stateDir, screen, { allowMissing: true });
-    session.stopNativeWatch?.(); clearTimeout(session.outputTimer);
-    session.terminal?.dispose(); this.items.delete(id);
     await rm(screen, { force: true });
+    session?.stopNativeWatch?.(); clearTimeout(session?.outputTimer);
+    session?.terminal?.dispose(); this.items.delete(id);
     await this.persist();
     return { deleted: true, id, nativeHistoryPreserved: true };
   }

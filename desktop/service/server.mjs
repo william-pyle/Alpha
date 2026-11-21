@@ -145,6 +145,36 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   try {
     const result = initializeProjects ? await projectStore.init() : {};
     if (result.defaultProjectConflict) awareness.event({ id: 'default-project-conflict', kind: 'error', text: result.defaultProjectConflict, source: 'Project setup' });
+    if (result.builtin && !threads.migration.defaultProjectAssignments) {
+      const threadIds = new Set(), sessionIds = new Set();
+      let threadsChanged = false, sessionsChanged = false;
+      for (const thread of threads.items) {
+        if (thread.projectId && thread.projectId !== result.id) continue;
+        if (!thread.projectId || thread.projectPending) {
+          thread.projectId = result.id;
+          thread.projectPending = false;
+          threadsChanged = true;
+        }
+        threadIds.add(thread.id);
+        for (const id of thread.sessionIds) {
+          const session = sessions.items.get(id);
+          if (!session || session.projectId && session.projectId !== result.id) continue;
+          if (!session.projectId || session.projectPending) {
+            session.projectId = result.id;
+            session.projectPending = false;
+            sessionsChanged = true;
+          }
+          sessionIds.add(id);
+        }
+      }
+      // Write worker metadata first so native observation agrees with the
+      // migrated project after a restart between the two saves.
+      if (sessionsChanged) await sessions.persist();
+      if (threadsChanged) await threads.save();
+      await questions.dismissProjectAssignments(threadIds, sessionIds);
+      threads.migration.defaultProjectAssignments = new Date().toISOString();
+      await threads.save();
+    }
   } catch (error) { awareness.event({ id: 'default-project-setup', kind: 'error', text: `Conversations project setup needs review: ${publicError(error)}`, source: 'Project setup' }); }
   files.resolveProjectContent = relative => projectStore.resolveContent(relative);
   files.projectAlias = file => projectStore.contentAlias(file);
@@ -159,13 +189,20 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || thread.status === 'working' || coordinatorStarts.has(thread.id) || coordinators.get(thread.id)?.operationPromises.size)),
     changed: () => broadcast('project-storage-changed', {}) });
   await projectStorage.initialize();
-  sessions.validateStart = session => { projectStorage.assertAvailable(session.projectId); threads.assertAvailable(session.alphaThreadId); };
+  sessions.validateNativeBinding = session => {
+    if (threads.deletedBinding(session)) throw Object.assign(new Error('This conversation was deleted from Alpha and cannot be imported or resumed here.'), { status: 409 });
+  };
+  sessions.validateStart = session => {
+    sessions.validateNativeBinding(session);
+    projectStorage.assertAvailable(session.projectId);
+    threads.assertAvailable(session.alphaThreadId);
+  };
   sessions.validateResume = async session => {
     await projectStorage.assertUsable(session.projectId);
     const project = session.projectId ? await projectStore.get(session.projectId) : null;
     if (project?.projectRepositoryUrl || project?.sourceRepositoryUrl) await projectRepositories.validateWorkingDirectory(project.id, session.cwd);
   };
-  const history = query => sessions.list().filter(item => !query || `${item.name} ${item.agent} ${item.cwd} ${item.preview || ''}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const history = query => sessions.list().filter(item => !threads.deletedBinding(item) && (!query || `${item.name} ${item.agent} ${item.cwd} ${item.preview || ''}`.toLowerCase().includes(query.toLowerCase()))).sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const closeChat = async id => {
     await sessions.remove(id);
     await questions.closeSession(id);
@@ -476,7 +513,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     const questionIds = questions.items.filter(item => item.threadId === record.threadId || sessionIds.has(item.sessionId)).map(item => item.id);
     const threadCoordinator = coordinators.get(record.threadId);
     if (threadCoordinator) { threadCoordinator.removeAllListeners(); await threadCoordinator.close(); coordinators.delete(record.threadId); }
-    for (const session of boundSessions) await sessions.purge(session.id);
+    for (const id of sessionIds) await sessions.purge(id);
+    await restartNotes.purgeSessions(sessionIds);
+    await common.purgeSessions(sessionIds);
     for (const id of sessionIds) { clearTimeout(questionTimers.get(id)); questionTimers.delete(id); }
     const removedReplies = await replies.purgeSessions([...sessionIds]);
     const removedQuestions = await questions.purgeConversation(record.threadId, [...sessionIds]);
@@ -490,14 +529,15 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     let quickStateChanged = false;
     for (const [id, operation] of quick.operations) if (operation.threadId === record.threadId) { quick.operations.delete(id); quickStateChanged = true; }
     if (quickStateChanged) await quick.save();
-    await threads.completeDeletion(record.threadId);
     if (settings.chatEditorHeights) for (const id of sessionIds) delete settings.chatEditorHeights[id];
     if (sessionIds.has(selectedId)) {
       selectedId = threads.selectedId ? threads.get(threads.selectedId).sessionIds[0] || null : sessions.active()[0]?.id || null;
-      settings.selectedId = selectedId; scheduleSettings(); broadcast('selection', { selectedId });
+      settings.selectedId = selectedId; broadcast('selection', { selectedId });
     }
+    if (sessionIds.size) await saveSettings();
+    await threads.completeDeletion(record.threadId);
     for (const id of sessionIds) broadcast('removed', { id });
-    broadcast('conversation-deleted', { threadId: record.threadId, sessionIds: [...sessionIds] });
+    broadcast('conversation-deleted', { threadId: record.threadId, sessionIds: [...sessionIds], questionIds });
     return { sessions: boundSessions.length, replies: removedReplies, questions: removedQuestions.length, awareness: removedAwareness };
   };
   for (const record of threads.pendingDeletions()) {
@@ -548,7 +588,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? (50 * 1024 * 1024 * 6 + 64 * 1024) : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
         if (method === 'GET' && url.pathname === '/api/threads') return json(response, 200, threads.snapshot());
         if (method === 'GET' && url.pathname === '/api/threads/review') return json(response, 200, { items: threads.review(), scope: 'Metadata only. Review one conversation at a time; nothing is changed automatically.' });
-        if (method === 'GET' && url.pathname === '/api/threads/legacy') return json(response, 200, { operations: [...coordinator.operations.values(), ...quick.operations.values()], voiceHistory: voiceHistory.filter(item => !item.threadId), explanation: 'Older mixed Alpha history is read-only and is not loaded into new conversations.' });
+        if (method === 'GET' && url.pathname === '/api/threads/legacy') return json(response, 200, { operations: [...coordinator.operations.values(), ...quick.operations.values()].filter(item => !item.threadId), voiceHistory: voiceHistory.filter(item => !item.threadId), explanation: 'Older mixed Alpha history is read-only and is not loaded into new conversations.' });
         if (method === 'POST' && url.pathname === '/api/threads') {
           const selectedProject = await projectStore.select(data.projectId);
           const thread = threads.create({ ...data, projectId: selectedProject.id }); threads.select(thread.id); await threads.save();
@@ -838,7 +878,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/mcp/check') return json(response, 200, await mcp.check(data.id));
         if (method === 'POST' && url.pathname === '/api/native/settings') return json(response, 200, await nativeSettings.set(data.winKey));
         if (method === 'GET' && url.pathname === '/api/history') return json(response, 200, history(url.searchParams.get('q') || ''));
-        if (method === 'POST' && url.pathname === '/api/history/import') return json(response, 201, await sessions.importConversation(data));
+        if (method === 'POST' && url.pathname === '/api/history/import') return json(response, 201, await sessions.importConversation(data, { projectId: (await projectStore.select()).id }));
         if (method === 'GET' && url.pathname === '/api/files') return json(response, 200, await files.list(url.searchParams.get('path') || repo, url.searchParams.get('mode') || 'main', url.searchParams.get('q') || ''));
         if (method === 'POST' && url.pathname === '/api/files/pick') {
           if (typeof data.requestId !== 'string' || !/^[a-f\d-]{36}$/i.test(data.requestId)) throw new Error('Invalid file picker request.');

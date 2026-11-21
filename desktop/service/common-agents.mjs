@@ -49,6 +49,12 @@ export class CommonAgents {
       await saveJson(this.file, this.agents); await saveJson(this.activityFile, { tasks: this.tasks.slice(-500), pending: [...this.pending.values()] }); this.changed();
     }); return this.writes;
   }
+  async purgeSessions(ids) {
+    if (!ids.size) return;
+    for (const id of ids) this.pending.delete(id);
+    this.tasks = this.tasks.filter(item => !ids.has(item.sessionId) && !ids.has(item.provenance?.sessionId));
+    await this.persist();
+  }
   get(id) { const agent = this.agents.find(item => item.id === id); if (!agent) throw fail('Common agent was not found.'); return agent; }
   allows(project, text = '') {
     const source = `${project || ''} ${text}`.toLowerCase().split(/[^a-z0-9-]+/);

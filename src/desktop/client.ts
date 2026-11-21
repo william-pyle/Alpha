@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { DesktopState, Preview, ServiceEvent } from './types'
+import { deleteVoiceDraft } from '../voice/voice-drafts'
 
 const params = new URLSearchParams(window.location.search)
 export const isDesktop = params.get('desktop') === '1'
@@ -121,6 +122,11 @@ function connect() {
     }
     if (event.type === 'conversation-deleted' && event.threadId) {
       const sessionIds = new Set(event.sessionIds || [])
+      localStorage.removeItem(`alpha.threadDraft.${event.threadId}`)
+      for (const id of new Set([event.threadId, ...sessionIds])) localStorage.removeItem(`alpha.chatDraft.${id}`)
+      for (const id of event.questionIds || []) localStorage.removeItem(`alpha.questionDraft.${id}`)
+      const voiceDraftIds = [`alpha-thread-${event.threadId}`, ...[...sessionIds].map(id => `desktop-chat-${id}`)]
+      void Promise.all(voiceDraftIds.map(deleteVoiceDraft)).catch(reportError)
       const sessions = state.sessions.filter(item => !sessionIds.has(item.id))
       update({
         sessions,

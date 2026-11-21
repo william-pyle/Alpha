@@ -42,7 +42,7 @@ export interface DesktopState {
 }
 export interface ServiceEvent { inspectionId?: string;
   nativeWindow?: NativeWindowState
-  threads?: AlphaThread[]; selectedThreadId?: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness?: AwarenessState; threadId?: string; sessionIds?: string[]; text?: string
+  threads?: AlphaThread[]; selectedThreadId?: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness?: AwarenessState; threadId?: string; sessionIds?: string[]; questionIds?: string[]; text?: string
   type: string; id?: string; cardId?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
   operation?: Operation; settings?: Settings; owner?: VoiceOwner | null; window?: string; route?: string; preview?: Preview; questions?: ChatQuestion[]

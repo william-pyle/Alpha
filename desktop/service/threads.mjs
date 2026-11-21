@@ -85,7 +85,10 @@ export class Threads {
     }
     if (!item.sessionIds.includes(session.id)) item.sessionIds.push(session.id);
     const before = JSON.stringify([item.name, item.projectId, item.projectPending, item.status, item.archived, item.unread]);
-    if (item.kind === 'native') Object.assign(item, { name: session.name, projectId: session.projectId || null, projectPending: !!session.projectPending, archived: item.organizationRevision ? item.archived : item.archived || !session.open });
+    if (item.kind === 'native') {
+      const projectId = session.projectId || item.projectId || null;
+      Object.assign(item, { name: session.name, projectId, projectPending: !projectId && !!session.projectPending, archived: item.organizationRevision ? item.archived : item.archived || !session.open });
+    }
     item.status = session.status === 'running' ? session.activity : session.status;
     item.unread ||= !!session.unread;
     if (publish && (created || before !== JSON.stringify([item.name, item.projectId, item.projectPending, item.status, item.archived, item.unread]))) { item.updatedAt = now(); this.publish(); }

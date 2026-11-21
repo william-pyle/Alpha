@@ -73,6 +73,14 @@ export default function ThreadConversations() {
     if (event.type === 'disconnected') liveVoice.disconnect()
     if (event.type === 'thread-progress' && event.threadId) setProgress(current => ({ ...current, [event.threadId!]: event.text || '' }))
     if (event.type === 'coordinator-result' && event.operation?.threadId) setProgress(current => ({ ...current, [event.operation!.threadId!]: '' }))
+    if (event.type === 'conversation-deleted' && event.threadId) {
+      const id = event.threadId
+      setOlder(current => { const next = { ...current }; delete next[id]; return next })
+      setProgress(current => { const next = { ...current }; delete next[id]; return next })
+      setVisited(current => current.filter(key => key !== id))
+      setMessageMenu(current => current?.sourceId === id ? null : current)
+      setSharing(current => current?.sourceId === id ? null : current)
+    }
   }), [])
   useEffect(() => {
     const switchThread = () => liveVoice.stopImmediately()
@@ -169,7 +177,7 @@ export default function ThreadConversations() {
       setCloseBusy(true)
       void api<{ archiveUndo?: { id: string } }>(`/threads/${id}/close`, {}).then(result => { setClosing(null); if (result.archiveUndo) window.dispatchEvent(new CustomEvent('alpha-organization-change', { detail: { threadId: id, undoId: result.archiveUndo.id } })) }).catch(reportError).finally(() => setCloseBusy(false))
     }}>Move to History</button><button disabled={closeBusy} onClick={() => setClosing(null)}>Cancel</button></ConversationDialog>}
-    {deleting && <DeleteConversationDialog conversation={deleting} close={() => setDeleting(null)} deleted={() => { setOlder(current => { const next = { ...current }; delete next[deleting.id]; return next }); setVisited(current => current.filter(id => id !== deleting.id)) }} />}
+    {deleting && <DeleteConversationDialog conversation={deleting} close={() => setDeleting(null)} />}
     {newThread && <NewConversation close={() => setNewThread(false)} />}
     {editing && <div className="desk-scrim"><form className="desk-dialog" onSubmit={event => { event.preventDefault(); void api(`/threads/${editing.id}`, { name, purpose, projectId: project || null }, 'PATCH').then(() => setEditing(null)).catch(reportError) }}><h2>Conversation details</h2><label className="desk-field">Title<input value={name} onChange={event => setName(event.target.value)} /></label><label className="desk-field">Purpose<input value={purpose} onChange={event => setPurpose(event.target.value)} maxLength={240} /></label><label className="desk-field">Project<select aria-label="Conversation project" value={project} onChange={event => setProject(event.target.value)}><option value="">Ask me in Questions</option>{projects.map(item => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label><p>Title, purpose, project and status are visible to other conversations. Detailed messages stay here.</p><button type="submit">Save details</button><button type="button" onClick={() => setEditing(null)}>Cancel</button><button type="button" onClick={() => { setClosing({ id: editing.id, name: editing.name }); setEditing(null) }}>Close conversation</button><button type="button" onClick={() => { setDeleting({ id: editing.id, name: editing.name }); setEditing(null) }}>Delete conversation</button></form></div>}
     {messageMenu && <MessageMenu {...messageMenu} text={messageMenu.message.text} close={() => setMessageMenu(null)} transfer={() => { setSharing({ sourceId: messageMenu.sourceId, message: messageMenu.message }); setDestination('') }} speak={messageMenu.message.role === 'assistant' ? () => void api('/speech/speak', { source: 'thread', threadId: messageMenu.sourceId, id: messageMenu.message.id }).catch(reportError) : undefined} />}

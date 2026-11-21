@@ -82,7 +82,9 @@ test('stale preview or running worker blocks deletion before any build folder is
   assert.match((await storage.cleanupPlan('sample')).blockedReason, /running worker/);
   assert.match((await storage.deletionPlan('sample')).blockedReason, /running worker/);
   sessions[0] = { status: 'running', activity: 'idle', cwd: repo, projectId: null };
-  assert.match((await storage.cleanupPlan('sample')).blockedReason, /unassigned parent/);
+  assert.match((await storage.cleanupPlan('sample')).blockedReason, /parent working folder/);
+  sessions[0].projectId = 'conversations';
+  assert.match((await storage.cleanupPlan('sample')).blockedReason, /parent working folder/);
 });
 
 test('foreign repository, nested repository in build output, and protected running app block destructive actions', async t => {

@@ -217,6 +217,15 @@ export class Questions extends EventEmitter {
     await this.changed();
     return removed.map(item => item.id);
   }
+  async dismissProjectAssignments(threadIds, sessionIds) {
+    const resolved = this.items.filter(item => item.source === 'project' && item.status === 'pending'
+      && (item.threadId ? threadIds.has(item.threadId) : sessionIds.has(item.sessionId)));
+    for (const item of resolved) {
+      item.status = 'dismissed';
+      item.dismissedAt = new Date().toISOString();
+    }
+    if (resolved.length) await this.changed();
+  }
   close() { return this.writes; }
   async closeSession(id) {
     for (const question of this.items.filter(item => item.sessionId === id && item.source === 'project' && item.status === 'pending')) question.status = 'dismissed';

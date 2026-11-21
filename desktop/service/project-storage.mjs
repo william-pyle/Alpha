@@ -86,7 +86,13 @@ export class ProjectStorage {
   }
   async inactive(id, root, deleting = false) {
     if (this.active(id)) fail('This project has work in progress. Finish or stop it before cleanup.');
-    if (this.sessions().some(s => (s.status === 'running' || s.status === 'starting' || s.activity === 'working') && (s.projectId === id || s.cwd && (within(root, path.resolve(s.cwd)) || !s.projectId && within(path.resolve(s.cwd), root))))) fail('A running worker uses this project or an unassigned parent working folder. Stop its worker before cleaning or deleting local files. Closing a conversation tab only archives it.');
+    if (this.sessions().some(s => {
+      if (!['running', 'starting'].includes(s.status) && s.activity !== 'working') return false;
+      if (s.projectId === id) return true;
+      if (!s.cwd) return false;
+      const cwd = path.resolve(s.cwd);
+      return within(root, cwd) || (!s.projectId || s.projectId === CONVERSATIONS_PROJECT) && within(cwd, root);
+    })) fail('A running worker uses this project or a parent working folder. Stop its worker before cleaning or deleting local files. Closing a conversation tab only archives it.');
     if ((await this.tools(id)).some(tool => tool.owned || tool.ready || ['running', 'running-external', 'starting', 'preparing', 'stopping'].includes(tool.state))) fail('A project tool is running. Stop it before cleaning or deleting local files.');
     if (deleting && this.protectedRoots.some(folder => folder && within(root, path.resolve(folder)))) fail('This project contains the running Alpha application or its active data. Delete it from another Workspace after shutting this instance down.');
   }

@@ -4,14 +4,18 @@ import { expect } from '@playwright/test'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createService } from '../server.mjs'
+import { Threads } from '../threads.mjs'
 import { launchBrowser } from './browser.mjs'
 
 const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || tmpdir(), 'alpha-conversation-delete-ui-'))
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'))
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Fixture project', folder: 'fixture', steps: [] }] }))
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}')
+const saved = await new Threads(path.join(repo, '.alpha')).init()
+const old = saved.create({ name: 'Old deletable conversation' })
+saved.closeConversation(old.id)
+await saved.close()
 const service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } })
-const old = service.threads.create({ name: 'Old deletable conversation', projectId: 'fixture' })
 const current = service.threads.create({ name: 'Current deletable conversation', projectId: 'fixture' })
 const pendingCleanup = service.threads.create({ name: 'Pending cleanup conversation', projectId: 'fixture' })
 service.threads.message(old.id, { id: 'private-fixture', role: 'assistant', text: 'Disposable fixture history' })
@@ -21,8 +25,10 @@ let browser, page
 try {
   browser = await launchBrowser(); page = await browser.newPage({ viewport: { width: 1280, height: 800 } }); page.setDefaultTimeout(15000)
   await page.goto(service.urls.workspace)
+  await page.evaluate(id => localStorage.setItem(`alpha.threadDraft.${id}`, JSON.stringify({ text: 'Cached draft to delete', paths: [] })), old.id)
   await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Conversation history', exact: true }).click()
   const panel = page.getByRole('tabpanel', { name: 'Conversation history' })
+  await expect(panel.getByRole('button', { name: /Old deletable conversation.*Conversations/ })).toBeVisible()
   await expect(panel).toContainText(pendingCleanup.name); await panel.getByRole('button', { name: 'Retry cleanup', exact: true }).click(); await expect(panel).not.toContainText(pendingCleanup.name)
   await panel.getByRole('button', { name: `Delete ${old.name}`, exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete conversation', exact: true })
@@ -38,6 +44,10 @@ try {
   await dialog.getByRole('button', { name: 'Delete from Alpha', exact: true }).click()
   await expect(dialog).toHaveCount(0); await expect(panel.getByRole('button', { name: `Delete ${old.name}`, exact: true })).toHaveCount(0)
   assert.throws(() => service.threads.get(old.id), /not found/)
+  await expect.poll(() => page.evaluate(id => localStorage.getItem(`alpha.threadDraft.${id}`), old.id)).toBeNull()
+  await panel.getByRole('button', { name: 'Review conversation metadata', exact: true }).click()
+  await expect(panel.getByRole('button', { name: `Review ${current.name}`, exact: true })).toBeVisible()
+  await expect(panel).not.toContainText(old.name)
 
   const tab = page.locator(`#conversation-tab-${current.id}`)
   await tab.click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Delete conversation', exact: true }).click()
@@ -46,5 +56,6 @@ try {
   await expect(tab).toBeVisible(); await tab.click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Delete conversation', exact: true }).click()
   await page.getByRole('dialog', { name: 'Delete conversation', exact: true }).getByRole('button', { name: 'Delete from Alpha', exact: true }).click()
   await expect(page.getByText('No open conversations', { exact: true })).toBeVisible(); assert.equal(service.threads.items.length, 0)
+  await expect(panel).not.toContainText(current.name)
   console.log(`Conversation deletion UI passed with disposable fixtures only. Screenshot: ${path.join(repo, 'conversation-delete-confirmation.png')}`)
 } finally { await browser?.close(); await service.close() }
