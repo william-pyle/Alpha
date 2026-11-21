@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile, lstat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile, lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +15,8 @@ const creation = (extra = {}) => ({ account: 'william-pyle', name: 'Sample', des
 const notFound = () => Object.assign(new Error('Not found'), { stderr: 'gh: Not Found (HTTP 404)' });
 
 async function fixture(t, options = {}) {
-  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-project-repositories-'));
+  // Match the service's canonical root; keep checkout alias rejection intact.
+  const repo = await realpath(await mkdtemp(path.join(os.tmpdir(), 'alpha-project-repositories-')));
   const paths = safeProjectPaths(repo, 'sample');
   await mkdir(paths.workspace, { recursive: true });
   await writeFile(path.join(paths.workspace, 'private.txt'), 'Private report: never stage or publish.');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdir, mkdtemp, readFile, writeFile, lstat, symlink, rename } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, lstat, symlink, rename, realpath } from 'node:fs/promises';
 import { Workspace } from '../workspace.mjs';
 import { Projects } from '../projects.mjs';
 import { CardDocuments } from '../card-documents.mjs';
@@ -12,7 +12,8 @@ import { createService } from '../server.mjs';
 import { Files } from '../files.mjs';
 
 async function fixture(options = {}) {
-  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-project-safety-'));
+  // Match createService: Windows TEMP can use an 8.3 alias (RUNNER~1).
+  const repo = await realpath(await mkdtemp(path.join(os.tmpdir(), 'alpha-project-safety-')));
   await mkdir(path.join(repo, 'workspace/old'), { recursive: true });
   const entity = { id: 'sample', title: 'Sample project', folder: 'old', category: 'research', type: 'standalone', created: '2026-11-21', status: 'active', custom: 'preserve', steps: [{ name: 'Original route', path: 'report.html' }] };
   await writeFile(path.join(repo, 'workspace/old/report.html'), '<h1>Keep original bytes</h1>');
