@@ -38,7 +38,7 @@ try {
   await ca.message({ method: 'item/agentMessage/delta', params: { threadId: 'provider-fixture', delta: 'Fixture streaming response' } });
   await expect(pane.getByText('Fixture streaming response', { exact: true })).toBeVisible();
   ca.active.resolve('Fixture result ready for review');
-  await expect(page.locator('.status-runtime')).toContainText('Response completed');
+  await expect(page.locator('.status-runtime>summary')).toHaveText('Ready');
   await page.locator('.status-runtime>summary').click();
   await expect(page.locator('.status-runtime')).toContainText('First text');
   await expect(page.locator('.status-runtime')).toContainText('does not verify');

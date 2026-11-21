@@ -64,14 +64,17 @@ export class Projects {
     return item;
   }
   async workingDirectory(id, requested) {
-    const item = await this.get(id); const paths = safeProjectPaths(this.repo, item.id);
+    const item = await this.get(id);
     // Existing worker cwd is never rewritten. Explicit custom cwd remains an
     // advanced-launch choice, but cannot use the known upstream reference.
     if (requested) {
       if (item.sourceCheckout && within(path.resolve(item.sourceCheckout), path.resolve(requested))) fail('The source repository is a read-only reference. Choose the owned project checkout.');
       return path.resolve(requested);
     }
-    if (item.projectRepositoryUrl && item.repositoryState === 'ready' && item.checkoutPath && path.resolve(item.checkoutPath) === paths.github && await lstat(paths.github).catch(() => null)) return assertSafePath(this.repo, paths.github);
+    if (item.projectRepositoryUrl && item.repositoryState === 'ready' && item.checkoutPath) {
+      const paths = safeProjectPaths(this.repo, item.id);
+      if (path.resolve(item.checkoutPath) === paths.github && await lstat(paths.github).catch(() => null)) return assertSafePath(this.repo, paths.github);
+    }
     return projectWorkspaceDirectory(this.repo, item);
   }
   remove(id, { confirmation, scope } = {}) {

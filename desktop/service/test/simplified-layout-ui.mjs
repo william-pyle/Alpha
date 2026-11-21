@@ -181,7 +181,10 @@ try {
   await ca.message({ method: 'item/agentMessage/delta', params: { threadId: 'fixture-provider', delta: '## Streaming review\n\n**Readable** while arriving.\n\n```rust\nfn example() {' } });
   await expect(pane.getByRole('heading', { name: 'Streaming review' })).toBeVisible();
   ca.active.resolve(markdown + '\n\n' + 'A long review remains readable. '.repeat(250));
-  await expect(page.locator('.status-runtime>summary')).toContainText('not verified');
+  await expect(page.locator('.status-runtime>summary')).toHaveText('Ready');
+  await page.locator('.status-runtime>summary').click();
+  await expect(page.locator('.status-detail')).toContainText('Completion does not verify the work.');
+  await page.locator('.status-runtime>summary').click();
   ca.ask = fixtureAsk;
   await editor.fill('A comfortable draft ready to edit.');
   for (const theme of ['dark', 'light']) {

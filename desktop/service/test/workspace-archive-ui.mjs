@@ -22,7 +22,7 @@ try {
   await page.goto(service.urls.workspace);
   const openWorkspace = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Workspace', exact: true }).click(); };
   await openWorkspace();
-  const scope = page.getByLabel('Workspace scope', { exact: true }), category = page.getByLabel('Workspace category', { exact: true }), search = page.getByLabel('Search cards', { exact: true });
+  const scope = page.getByLabel('Workspace scope', { exact: true }), category = page.getByLabel('Workspace category', { exact: true }), search = page.getByLabel('Search projects', { exact: true });
   const home = page.locator('.home'), group = id => home.locator(`[data-workspace-group="${id}"]`);
   const ids = () => home.locator('.mak-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-card') || node.getAttribute('href')));
   const snap = async name => { const file = path.join(repo, `${name}.png`); await page.screenshot({ path: file }); screenshots.push(file); };
@@ -35,16 +35,19 @@ try {
   await scope.selectOption('all'); await expect(group('Archived')).toContainText('Design archived'); await expect(group('Archived')).toContainText('Engineering old'); await expect(group('Archived')).toContainText('Pinned archived');
   assert.deepEqual((await home.locator('[data-workspace-group]').evaluateAll(nodes => nodes.map(node => node.dataset.workspaceGroup))).filter(id => id !== 'Archived'), normalOrder);
   await expect(group('design')).toHaveAttribute('data-fixture-identity', 'preserved');
-  const all = await ids(); assert.equal(new Set(all).size, all.length); assert.equal(all.length, entities.length);
-  const saved = JSON.parse(await readFile(registryFile)); assert.deepEqual(saved.entities, entities);
+  const all = await ids(); assert.equal(new Set(all).size, all.length); assert.equal(all.length, entities.length + 1);
+  const saved = JSON.parse(await readFile(registryFile)); assert.deepEqual(saved.entities.filter(item => item.id !== 'conversations'), entities);
+  const conversations = saved.entities.filter(item => item.id === 'conversations');
+  assert.equal(conversations.length, 1); assert.equal(conversations[0].builtin, true); assert.equal(conversations[0].pinned, true);
+  await expect(home.locator('[data-entity="conversations"]')).toBeVisible();
   await snap('archive-all-dark-960');
   await scope.selectOption('archived'); await expect(group('design')).toHaveCount(0); await expect(group('engineering')).toHaveCount(0); await expect(group('Archived').locator('.mak-card')).toHaveCount(3);
   await category.selectOption('design'); await expect(group('Archived').locator('.mak-card')).toHaveCount(1); await expect(group('Archived')).toContainText('Design archived');
-  await search.fill('current'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await search.fill('current'); await expect(home.getByRole('status')).toContainText('No projects match');
   await scope.selectOption('active'); await expect(group('design')).toContainText('Design current'); await expect(group('Archived')).toHaveCount(0);
-  await search.fill('archived'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await search.fill('archived'); await expect(home.getByRole('status')).toContainText('No projects match');
   await scope.selectOption('all'); await expect(group('Archived')).toContainText('Design archived'); await expect(group('design')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Clear card search' }).click(); await category.selectOption('empty'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await page.getByRole('button', { name: 'Clear project search' }).click(); await category.selectOption('empty'); await expect(home.getByRole('status')).toContainText('No projects match');
   await category.selectOption(''); await expect(scope).toHaveValue('all'); await expect(group('design')).toBeVisible();
   checks.push('Reproduced before: Show archive replaced Design/Engineering with by date. After: separate virtual Archived, unchanged normal order/DOM identity, no duplicate cards or registry edits; pins, samples, strict age cutoff and done cards preserved. Scope/category/search intersection and empty filters verified.');
 
@@ -62,13 +65,13 @@ try {
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).workspaceFilters.query).toBe('done');
   await page.reload(); await openWorkspace(); await expect(category).toHaveValue('engineering'); await expect(search).toHaveValue('done');
   await scope.focus(); await page.keyboard.press('Tab'); await expect(category).toBeFocused(); await page.keyboard.press('Tab'); await expect(search).toBeFocused();
-  await page.getByRole('button', { name: 'Clear card search' }).click(); await category.selectOption(''); await scope.selectOption('all');
+  await page.getByRole('button', { name: 'Clear project search' }).click(); await category.selectOption(''); await scope.selectOption('all');
   await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click();
   await expect(page.getByLabel('Show Archived group in Workspace')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption('light'); await page.getByRole('button', { name: 'Close settings' }).click();
   for (const width of [960, 390]) { await page.setViewportSize({ width, height: 800 }); await expect(scope).toBeVisible(); await expect(category).toBeVisible(); await expect(search).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await snap(`archive-all-light-${width}`); }
   checks.push('Unarchive returns to original category and preserves ID/folder/report bytes/routes. Compact home toolbar replaces hero. Filter state survives project/back and reload; keyboard order and narrow/light layout verified. No competing archive preference in Settings.');
-  await scope.selectOption('archived'); await category.selectOption('design'); await expect(home.getByRole('status')).toContainText('No cards match');
+  await scope.selectOption('archived'); await category.selectOption('design'); await expect(home.getByRole('status')).toContainText('No projects match');
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).workspaceFilters.scope).toBe('archived');
   await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
   await page.goto(service.urls.workspace); await openWorkspace(); await expect(scope).toHaveValue('archived'); await expect(category).toHaveValue('design');

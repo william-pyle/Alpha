@@ -18,11 +18,14 @@ await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ en
 const bundle = path.join(repo, 'library-bundle'); await packageLibrary(bundle);
 const service = await createService({ repo, uiDir: path.resolve('dist'), sharedLibrary: { bundle, root: path.join(repo, 'SharedLibrary') }, mcpOptions: { home: repo, env: {}, probe: async () => ({ status: 'available' }) } });
 const thread = service.threads.create({ name: 'Example conversation', projectId: 'example' }); service.threads.select(thread.id);
-let browser;
+let browser, page;
+const errors = [];
+let settingsVisits = 0;
 try {
   browser = await launchBrowser({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  if (process.env.ALPHA_UI_TRACE) await page.context().tracing.start({ screenshots: true, snapshots: true });
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
   await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Workspace', exact: true }).click();
   await expect(page.getByRole('tablist', { name: 'Documents' })).toBeVisible();
@@ -32,7 +35,7 @@ try {
   await expect(page.getByRole('textbox', { name: 'Search Workspace' })).toHaveCount(0);
   await expect(page.locator('.mdi-chats')).toBeVisible();
   await expect(page.getByRole('tablist', { name: 'Sidebar' })).toHaveCount(0);
-  const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { settingsVisits++; await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tablist', { name: 'Settings sections' }).getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   await settings(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   await expect(page.locator('.alpha-presence-stage')).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
   await settings(); await page.getByRole('button', { name: 'Start camera for eye contact' }).click(); await page.getByRole('button', { name: 'Close settings' }).click();
@@ -61,12 +64,12 @@ try {
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Create project' }).click();
   await expect(page.getByRole('dialog', { name: 'Create project' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close new card' }).click();
+  await page.getByRole('button', { name: 'Close new project' }).click();
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Settings…' }).click();
+  await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('tabpanel', { name: 'Settings' })).toBeVisible();
   await page.getByRole('tab', { name: 'Categories' }).click();
-  await expect(page.getByRole('heading', { name: 'Card categories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Project categories' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Add category' })).toBeVisible();
   await page.getByLabel('Name', { exact: true }).fill('Writing');
   await page.getByRole('button', { name: 'Add category' }).click();
@@ -101,5 +104,13 @@ try {
   await expect(page.frameLocator('iframe').getByText('Document one')).toBeVisible();
   await page.screenshot({ path: '.test-output/unified-document.png' });
   assert.deepEqual(errors, []);
-  console.log('Unified Alpha layout passed: one surface, document tabs, New Card dialog, Settings sections, Help tab and statusbar.');
-} finally { await browser?.close(); await service.close(); }
+  console.log('Unified Alpha layout passed: one surface, document tabs, Create project dialog, Settings sections, Help tab and statusbar.');
+} catch (error) {
+  await page?.screenshot({ path: path.join(repo, 'failure.png'), timeout: 5000 }).catch(() => {});
+  await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: String(error), errors, settingsVisits }, null, 2));
+  console.error(`Unified UI failure evidence: ${repo}`);
+  throw error;
+} finally {
+  if (process.env.ALPHA_UI_TRACE && page) await page.context().tracing.stop({ path: path.join(repo, 'trace.zip') }).catch(() => {});
+  await browser?.close(); await service.close();
+}

@@ -51,6 +51,19 @@ test('new editable projects create one workspace directly beneath stable root', 
   assert.equal(read.document.title, 'My test project');
   assert.equal(await lstat(path.join(repo, 'workspace', result.entity.folder)).catch(() => null), null);
 });
+test('legacy project IDs remain readable and retain their existing working directory', async () => {
+  const { repo, workspace, projects, entity } = await fixture();
+  const legacy = { ...entity, id: 'Legacy Project' };
+  await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [legacy] });
+  await projects.init();
+  assert.equal((await workspace.read(legacy.id)).text, 'Keep original bytes');
+  assert.equal(await projects.workingDirectory(legacy.id), path.join(repo, 'workspace/old'));
+  assert.equal(await projects.workingDirectory(legacy.id, repo), repo);
+  assert.deepEqual((await workspace.registry()).entities.find(item => item.id === legacy.id), legacy);
+  // New canonical paths still require safe slugs; legacy support cannot bypass it.
+  assert.throws(() => safeProjectPaths(repo, legacy.id), /stable project ID/);
+});
+
 test('lossless migration keeps route and content bytes, aliases and repeated runs are idempotent', async () => {
   const { repo, projects, entity } = await fixture();
   const result = await projects.migrate('sample'); assert.equal(result.status, 'applied');

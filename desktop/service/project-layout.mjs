@@ -68,11 +68,13 @@ export async function ensureProjectWorkspace(repo, id) {
   return paths;
 }
 export async function projectWorkspaceDirectory(repo, entity) {
-  const expected = safeProjectPaths(repo, entity.id);
   if (entity.workspacePath) {
+    const expected = safeProjectPaths(repo, entity.id);
     if (entity.workspacePath !== expected.workspacePath) throw invalid('Project workspace path does not match its stable ID.');
     return assertSafePath(repo, expected.workspace);
   }
+  // Legacy IDs may predate canonical slug rules. Keep their exact IDs/routes;
+  // validate the recorded folder independently without enabling a migration.
   if (typeof entity.folder !== 'string' || !entity.folder || path.isAbsolute(entity.folder) || entity.folder.split(/[\\/]/).some(part => !part || part === '..' || part.includes(':'))) throw invalid('Invalid legacy project folder.');
   const legacy = path.join(repo, 'workspace', entity.folder);
   await assertSafePath(repo, legacy);
