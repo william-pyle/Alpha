@@ -12,7 +12,7 @@ import { ProjectStorageSize } from './ProjectStorage'
  * scripts/shared/report_style.py for generated reports.
  */
 export default function MakCard({ entity, categories }: { entity: WorkspaceEntity; categories: CardCategory[] }) {
-  const steps = entity.steps.length
+  const tabCount = entity.steps.length
   return (
     <div className="entity-card-wrap" data-card={entity.id}>
     <a
@@ -37,7 +37,7 @@ export default function MakCard({ entity, categories }: { entity: WorkspaceEntit
 
       <div className="card-foot">
         <span>
-          {steps} step{steps === 1 ? '' : 's'}
+          {tabCount} tab{tabCount === 1 ? '' : 's'}
         </span>
         <span>·</span>
         <ProjectStorageSize id={entity.id} />
