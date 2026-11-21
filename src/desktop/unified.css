@@ -32,7 +32,6 @@
 .conversation-history-panel .conversation-history>article>button:first-child{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;min-width:0}
 .conversation-history-panel .conversation-history>article>button:first-child>span,.conversation-history-panel .conversation-history>article>button:first-child>small{color:var(--text-dim)}
 .mdi-menu-popup button:focus-visible,.mdi-menu-group>button:focus-visible{outline:2px solid var(--pink);outline-offset:-2px;background:var(--pink-dim)}
-.mdi-statusbar .important-events-trigger{white-space:nowrap}
 .mdi-document-tab{flex:0 0 auto;min-width:140px}
 .mdi-document-tab:first-child{position:sticky;left:0;z-index:2;min-width:112px;background:var(--bg-deep)}
 .mdi-document-tab:first-child.selected{background:var(--surface-solid)}

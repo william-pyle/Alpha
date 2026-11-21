@@ -215,7 +215,15 @@ try {
   await page.setViewportSize({ width: 960, height: 720 });
   await open('Tools', 'Settings'); await capture('settings-light-960');
   await open('Tools', "What I've learned"); await capture('learned-light-960');
+  const statusAttention = page.locator('.mdi-statusbar').getByRole('button', { name: /^Needs attention:/ });
   if (previewOnly) {
+    service.awareness.event({ id: 'attention-preview', threadId: b.id, kind: 'attention', text: 'A worker is waiting for input.', source: 'Fixture' });
+    service.awareness.event({ id: 'review-preview', threadId: a.id, kind: 'review', text: 'A worker finished its turn.', source: 'Native completion event' });
+    await statusAttention.click();
+    await panel('Needs attention').waitFor();
+    await capture('attention-light-960');
+    await page.setViewportSize({ width: 390, height: 720 });
+    await capture('attention-light-390');
     await writeFile(path.join(repo, 'preview.json'), JSON.stringify({ status: 'captured-for-visual-review', fixtureOnly: true, deviceScaleFactor: 1, screenshots, reportBounds, errors, formalChecksRun: false, nativeWindowObserved: false }, null, 2));
     console.log(`Preview screenshots: ${repo}`);
   } else {
@@ -266,14 +274,24 @@ try {
     await expect(page.locator('.mdi-app-view')).toBeVisible();
     checks.push('Obsolete File/View commands and Ctrl+K are removed; Workspace remains available.');
     service.awareness.event({ id: 'routine', threadId: a.id, kind: 'exit', text: 'Routine exit', source: 'Fixture' });
+    await expect(statusAttention).toHaveCount(0);
     service.awareness.event({ id: 'actionable', threadId: b.id, kind: 'error', text: 'Isolated worker failure needs review.', source: 'Fixture' });
-    await open('View', 'Needs attention');
+    await expect(statusAttention).toHaveAccessibleName('Needs attention: 1. 1 issue');
+    await expect(statusAttention).toHaveAttribute('data-urgent', 'true');
+    await expect(panel('Needs attention')).toBeHidden();
+    await statusAttention.click();
     await expect(panel('Needs attention')).toContainText('Isolated worker failure needs review.');
     await expect(panel('Needs attention')).not.toContainText('Routine exit');
     await panel('Needs attention').getByRole('button', { name: 'Open originating conversation' }).click();
     await expect.poll(() => service.threads.selectedId).toBe(b.id);
     await panel('Needs attention').getByRole('button', { name: 'Dismiss', exact: true }).click();
     await expect(panel('Needs attention')).toContainText('Nothing needs attention.');
+    await expect(statusAttention).toHaveCount(0);
+    service.awareness.event({ id: 'recovery-fixture', kind: 'error', text: 'A deleted conversation needs cleanup.', source: 'Conversation deletion recovery' });
+    await panel('Needs attention').getByRole('button', { name: 'Open conversation history' }).click();
+    await expect(panel('Conversation history')).toBeVisible();
+    await statusAttention.click();
+    await panel('Needs attention').getByRole('button', { name: 'Dismiss', exact: true }).click();
     checks.push('Needs attention excludes routine activity and resolves actions against the recorded originating conversation.');
     await page.evaluate(() => { location.hash = '#/fixture/0'; });
     await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Example project', exact: true })).toBeVisible();

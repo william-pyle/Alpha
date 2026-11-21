@@ -1,8 +1,17 @@
 import type { AlphaThread, DesktopState } from './types'
 
+export const attentionLabels = {
+  error: { heading: 'Issue to resolve', singular: 'issue', plural: 'issues' },
+  attention: { heading: 'Worker needs input', singular: 'input request', plural: 'input requests' },
+  health: { heading: 'Alpha health', singular: 'health alert', plural: 'health alerts' },
+  review: { heading: 'Result ready for review; not verified', singular: 'result to review', plural: 'results to review' },
+}
+
+type AttentionKind = keyof typeof attentionLabels
+
 export function importantEvents(state: DesktopState) {
-  return state.awareness.items.filter(item =>
-    ['error', 'attention', 'review', 'health'].includes(item.kind) &&
+  return state.awareness.items.filter((item): item is typeof item & { kind: AttentionKind } =>
+    Object.prototype.hasOwnProperty.call(attentionLabels, item.kind) &&
     !(item.kind === 'review' && item.source === 'Coordinator completion event') &&
     !(item.kind === 'attention' && state.questions.some(question => question.threadId === item.threadId && (!item.sessionId || question.sessionId === item.sessionId))))
 }
