@@ -97,6 +97,7 @@ try {
   await pane.getByLabel('Choose images for Alpha').setInputFiles({ name: 'layout-fixture.png', mimeType: 'image/png', buffer: png });
   await expect(pane.getByLabel('Attached images').locator('img')).toHaveCount(1); await page.reload(); await expect(pane.getByLabel('Attached images').locator('img')).toHaveCount(1);
   await editor.fill('Review the attached layout.'); await pane.getByRole('button', { name: 'Send to Alpha' }).click(); await expect(editor).toHaveValue('');
+  await expect.poll(() => requests.length).toBe(1);
   assert.equal(requests.at(-1).threadId, a.id); assert.equal(requests.at(-1).images.length, 1);
   checks.push(`Composer pointer ${pointer.before}->${pointer.after}px; keyboard ->${savedHeight}px; 50-line editing, thread drafts, attachment persistence and send origin verified.`);
 
