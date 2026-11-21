@@ -88,7 +88,7 @@ async function fixture(t, options = {}) {
   const service = fresh();
   t.after(async () => {
     await Promise.all([...service.tasks.values()]);
-    assert.equal(path.dirname(repo), path.resolve(os.tmpdir()));
+    assert.equal(path.dirname(repo), await realpath(os.tmpdir()));
     assert.ok(path.basename(repo).startsWith('alpha-project-repositories-'));
     await rm(repo, { recursive: true, force: true });
   });
