@@ -53,7 +53,6 @@
 .unified-shell .conversation-markdown { font-size:var(--reading-size,16px); line-height:var(--reading-spacing,1.6); }
 .unified-shell .mak-composer textarea { font-size:var(--reading-size,16px); line-height:var(--reading-spacing,1.6); }
 .unified-shell[data-reduced-motion=true] *, .unified-shell[data-reduced-motion=true] *::before,.unified-shell[data-reduced-motion=true] *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
-.organization-undo { flex:none; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 12px; font-size:12px; background:var(--bg); border-top:1px solid var(--hairline); }
 .completion-summary { font-size:var(--reading-size,16px); line-height:var(--reading-spacing,1.6); white-space:normal; }
 .completion-summary h3 { font-size:1em; margin:.55em 0 .2em; }
 .completion-summary ul { margin:.2em 0 .6em; padding-left:1.3em; }

@@ -8,7 +8,6 @@ import QuestionsPanel from './QuestionsPanel'
 import SettingsDialog from './SettingsDialog'
 import NewCard from '../components/NewCard'
 import useUiInspection from './useUiInspection'
-import OrganizationUndo from './OrganizationUndo'
 import TopMenus from './TopMenus'
 import LearningPanel from './LearningPanel'
 import ConversationHistory from './ConversationHistory'
@@ -153,7 +152,6 @@ export default function UnifiedShell() {
     </div>
     <QuestionsPanel />
     <NewCard hideTrigger />
-    <OrganizationUndo />
     <ConversationStatus />
   </div>
 }
