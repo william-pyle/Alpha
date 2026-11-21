@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated WebView-compatible UI + headless terminal fixture, no owner state.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -7,7 +8,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const root = await mkdtemp(path.resolve('.test-output/native-questions-ui-'));
+const root = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-native-questions-ui-'));
 await mkdir(path.join(root, 'workspace')); await mkdir(path.join(root, '.alpha'));
 await writeFile(path.join(root, 'workspace/workspace.json'), JSON.stringify({ entities: [] }));
 const service = await createService({ repo: root, uiDir: path.resolve('dist'), restoreSessions: false, checkUpdates: false, mcpOptions: { home: root, env: {} } });

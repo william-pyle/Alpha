@@ -32,10 +32,10 @@ function probe(value) {
 
 export function validateTools(tools) {
   if (tools == null) return [];
-  if (!Array.isArray(tools) || tools.length > 20) throw fail('Card tools must be an array of at most 20 tools.');
+  if (!Array.isArray(tools) || tools.length > 20) throw fail('Project tools must be an array of at most 20 tools.');
   const seen = new Set();
   return tools.map(value => {
-    if (!isObject(value) || !idPattern.test(value.id) || seen.has(value.id) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 80 || !['managed-process', 'observed-external', 'one-shot'].includes(value.kind)) throw fail('Card tool definition is invalid or duplicated.');
+    if (!isObject(value) || !idPattern.test(value.id) || seen.has(value.id) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 80 || !['managed-process', 'observed-external', 'one-shot'].includes(value.kind)) throw fail('Project tool definition is invalid or duplicated.');
     seen.add(value.id);
     const start = value.kind === 'observed-external' ? null : command(value.start, 'Tool start');
     const readiness = probe(value.readiness);
@@ -114,14 +114,14 @@ export class WorkspaceTools {
   persist() { this.saves = this.saves.catch(() => {}).then(() => saveJson(this.file, Object.fromEntries(this.owned))); return this.saves; }
   async tool(cardId, toolId) {
     const entity = (await this.workspace.registry()).entities.find(item => item.id === cardId);
-    if (!entity) throw fail('Workspace card was not found.', 404);
+    if (!entity) throw fail('Workspace project was not found.', 404);
     const tool = validateTools(entity.tools).find(item => item.id === toolId);
     if (!tool) throw fail('Workspace tool was not found.', 404);
     return tool;
   }
   async list(cardId) {
     const entity = (await this.workspace.registry()).entities.find(item => item.id === cardId);
-    if (!entity) throw fail('Workspace card was not found.', 404);
+    if (!entity) throw fail('Workspace project was not found.', 404);
     return Promise.all(validateTools(entity.tools).map(tool => this.status(cardId, tool)));
   }
   async status(cardId, tool) {

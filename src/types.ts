@@ -20,6 +20,12 @@ export interface WorkspaceEntity {
   created: string
   /** Last day an agent touched this entity; dashboard sorts/archives by it. */
   updated?: string
+  builtin?: boolean
+  removedAt?: string
+  workspacePath?: string
+  projectRepositoryUrl?: string
+  sourceRepositoryUrl?: string
+  repositoryState?: string
   folder: string
   steps: WorkspaceStep[]
   /** Tab to open for a card link without an explicit step; otherwise use latest. */

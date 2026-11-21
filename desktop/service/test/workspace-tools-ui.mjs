@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated desktop UI check. No owner application or Workspace process is used.
 import { expect } from '@playwright/test';
 import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache', 'workspace-tools-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-workspace-tools-ui-'));
 await cp(path.join(root, 'dist'), path.join(repo, 'ui'), { recursive: true });
 await cp(path.join(root, 'public/assets'), path.join(repo, 'ui/assets'), { recursive: true });
 await mkdir(path.join(repo, 'workspace', 'sample'), { recursive: true });

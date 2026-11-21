@@ -88,7 +88,7 @@ test('new cards keep registry data, use unique local folders and update their li
   const updated = { ...one.document, title: 'Reviewed research', summary: 'What worked.' };
   assert.equal((await request(`/workspace/cards/${one.entity.id}/0`, { document: updated, revision: one.revision }, 'PUT')).status, 200);
   const registry = JSON.parse(await readFile(path.join(repo, 'workspace/workspace.json'), 'utf8'));
-  assert.equal(registry.entities.length, 3); assert.equal(registry.customRoot, 'keep');
+  assert.equal(registry.entities.length, 4); assert.equal(registry.customRoot, 'keep');
   assert.equal(registry.entities.find(entity => entity.id === one.entity.id).title, updated.title);
   assert.equal(registry.entities.find(entity => entity.id === one.entity.id).description, updated.summary);
 });

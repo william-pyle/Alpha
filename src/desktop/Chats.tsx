@@ -1,3 +1,4 @@
+import { NewCardDialog } from '../components/NewCard'
 import { useCallback, useEffect, useState } from 'react'
 import { api, reportError, selectChat, sendEvent, useDesktop, windowAction } from './client'
 import type { AgentId, ChatSession } from './types'
@@ -16,14 +17,15 @@ export function NewChat({ close }: { close: () => void }) {
   const [agent, setAgent] = useState<AgentId>(state.settings.defaultAgent)
   const [name, setName] = useState('')
   const [purpose, setPurpose] = useState('')
-  const [cwd, setCwd] = useState(state.repo)
-  const [projectId, setProjectId] = useState('')
+  const [cwd, setCwd] = useState('')
+  const [projectId, setProjectId] = useState('conversations')
+  const [createProject, setCreateProject] = useState(false)
   const [projects, setProjects] = useState<{ id: string; title: string }[]>([])
   const [bypass, setBypass] = useState(state.settings.defaultBypass)
   const [resumeId, setResumeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  useEffect(() => { void api<{ entities: { id: string; title: string }[] }>('/workspace').then(value => setProjects(value.entities)).catch(error => setError(error.message)) }, [])
+  useEffect(() => { void api<{ entities: { id: string; title: string }[] }>('/workspace').then(value => setProjects(value.entities.filter(item => !(item as { removedAt?: string }).removedAt))).catch(error => setError(error.message)) }, [])
   async function launch(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('')
     try {
@@ -32,17 +34,17 @@ export function NewChat({ close }: { close: () => void }) {
       selectChat(session.id); close()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); setBusy(false) }
   }
-  return <div className="desk-scrim" onClick={close}><form className="desk-dialog" onClick={event => event.stopPropagation()} onSubmit={launch}>
+  return <><div className="desk-scrim" onClick={close}><form className="desk-dialog" onClick={event => event.stopPropagation()} onSubmit={launch}>
     <div className="desk-dialog-heading"><div><span className="desk-eyebrow">A PLACE FOR THE NEXT THING</span><h2>New chat</h2></div><button type="button" className="desk-icon" onClick={close} aria-label="Close"><Icon name="close" /></button></div>
     <div className="agent-picker">{state.agents.map(item => <button type="button" key={item.id} className={`agent-choice ${agent === item.id ? 'selected' : ''}`} onClick={() => setAgent(item.id)} disabled={!item.available} style={{ '--agent-color': item.color } as React.CSSProperties}><span className="agent-mark"><AgentLogo agent={item.id} size={23} /></span><span>{item.label}<small>{item.available ? ['shell', 'gitbash'].includes(item.id) ? 'Local terminal' : 'Your CLI account' : 'Not installed'}</small></span>{agent === item.id && <span className="choice-check">✓</span>}</button>)}</div>
     <label className="desk-field">Chat name <small>English only</small><input required autoFocus placeholder="e.g. Dream Game · animations" value={name} onChange={event => setName(event.target.value)} maxLength={100} /></label>
     <label className="desk-field">Purpose<input value={purpose} onChange={event => setPurpose(event.target.value)} maxLength={240} placeholder="The result this conversation should produce" /></label>
-    <label className="desk-field">Working folder<input value={cwd} onChange={event => setCwd(event.target.value)} required spellCheck={false} /></label>
-    <label className="desk-field">Project<select aria-label="Project for new chat" value={projectId} onChange={event => setProjectId(event.target.value)}><option value="">Ask me in Questions</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+    <label className="desk-field">Working folder<input value={cwd} placeholder="Use selected project workspace or owned checkout" onChange={event => setCwd(event.target.value)} spellCheck={false} /></label>
+    <label className="desk-field">Project<span className="project-repository-field"><select aria-label="Project for new chat" value={projectId} onChange={event => setProjectId(event.target.value)}><option value="conversations" hidden>Conversations</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}</select><button type="button" aria-label="Create project for native conversation" onClick={() => setCreateProject(true)}>+</button></span></label>
     {!['shell', 'gitbash'].includes(agent) && <><label className="desk-check"><input type="checkbox" checked={bypass} onChange={event => setBypass(event.target.checked)} /><span>Always approve<small>{`Same ${isMac ? 'macOS' : isWindows ? 'Windows' : 'user'} account and file access as your usual terminal.`}</small></span></label><details className="desk-details"><summary>Resume an existing CLI conversation</summary><p>For a conversation started outside Alpha, copy its ID from your CLI's session details or resume picker. Chats created here return automatically.</p><label className="desk-field">Native session ID<input value={resumeId} onChange={event => setResumeId(event.target.value)} placeholder="Optional session ID" /></label></details></>}
     {error && <p className="desk-error-inline" role="alert">{error}</p>}
     <button className="desk-primary" disabled={busy || !state.connected}>{busy ? 'Opening…' : 'Open chat'}<Icon name="arrow" size={16} /></button>
-  </form></div>
+  </form></div>{createProject && <NewCardDialog onClose={() => setCreateProject(false)} onCreated={entity => { setProjects(current => [...current.filter(item => item.id !== entity.id), entity]); setProjectId(entity.id) }} />}</>
 }
 
 function History({ close, choose }: { close: () => void; choose: (id: string) => void }) {

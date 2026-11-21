@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { api, onServiceEvent, useDesktop } from './client'
 import './agent-center.css'
 
@@ -56,28 +55,26 @@ function TaskFeedback({ task, refresh }: { task: Run; refresh: () => Promise<voi
 
 export default function AgentCenter({ initialTab = 'Agents', onClose }: { initialTab?: 'Agents' | 'Health'; onClose: () => void }) {
   const { repo } = useDesktop()
-  const dialog = useRef<HTMLDialogElement>(null)
-  const [tab, setTab] = useState(initialTab), [data, setData] = useState<Data | null>(null), [health, setHealth] = useState<Health | null>(null), [error, setError] = useState('')
+  const tab = initialTab
+  const [data, setData] = useState<Data | null>(null), [health, setHealth] = useState<Health | null>(null), [error, setError] = useState('')
   const refresh = async () => {
     const [agents, status] = await Promise.all([api<Data>('/common-agents'), api<Health>('/health')]); setData(agents); setHealth(status)
   }
   useEffect(() => {
-    const node = dialog.current; node?.showModal()
     const update = () => void refresh().catch(error => setError(error.message))
     update(); const timer = window.setInterval(update, 5000)
     const unsubscribe = onServiceEvent(event => { if (['common-agents', 'health'].includes(event.type)) update() })
-    return () => { clearInterval(timer); unsubscribe(); node?.close() }
+    return () => { clearInterval(timer); unsubscribe() }
   }, [])
-  return createPortal(<dialog ref={dialog} className="agent-center" aria-label="Alpha agents and health" onCancel={event => { event.preventDefault(); onClose() }}>
-    <header><strong>Alpha&apos;s workshop</strong><button aria-label="Close agent center" onClick={onClose}>Close</button></header>
-    <nav aria-label="Agent center sections">{(['Agents', 'Health'] as const).map(name => <button key={name} aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}</nav>
+  return <section className="agent-center workspace-agent-tab" aria-label={tab === 'Agents' ? 'Common agents' : 'Alpha health'}>
+    <header><h1>{tab === 'Agents' ? 'Common agents' : 'Alpha health'}</h1><button aria-label={tab === 'Agents' ? 'Return from Common agents' : 'Return from Alpha health'} onClick={onClose}>Close tab</button></header>
     <main>{error && <p role="alert">{error}</p>}{tab === 'Agents' ? <>
       <h2>Common agents</h2><p>Reusable roles for work that repeats across projects. Alpha looks for repeated completed tasks, creates roles when there is enough evidence, and reviews failure feedback to maintain them.</p>
       <p>Roles run in your existing coding tools with the current permissions. Versions can be restored below. A completed turn still needs verification of its result.</p>
       {data && <ScopeEditor key={data.scope.excludedProjects.join(',')} excluded={data.scope.excludedProjects} refresh={refresh} />}
       {data?.agents.map(agent => <AgentCard key={`${agent.id}:${agent.activeVersion}`} agent={agent} refresh={refresh} repo={repo} />)}
-      <h3>Repeated work</h3>{data?.patterns.length ? <ul>{data.patterns.map(pattern => <li key={pattern.id}>{pattern.name}: {pattern.observations} completed tasks across {pattern.projects} project folders or cards · {pattern.agentCreated ? 'Role available' : 'Watching for three tasks across two projects'}</li>)}</ul> : <p>New tasks will appear here as work completes. Alpha watches task requests and completion events, not every terminal keystroke.</p>}
+      <h3>Repeated work</h3>{data?.patterns.length ? <ul>{data.patterns.map(pattern => <li key={pattern.id}>{pattern.name}: {pattern.observations} completed tasks across {pattern.projects} projects · {pattern.agentCreated ? 'Role available' : 'Watching for three tasks across two projects'}</li>)}</ul> : <p>New tasks will appear here as work completes. Alpha watches task requests and completion events, not every terminal keystroke.</p>}
       <h3>Recent tasks &amp; feedback</h3>{data?.tasks.slice(-15).reverse().map(task => <TaskFeedback key={task.id} task={task} refresh={refresh} />)}
     </> : <><h2>Health &amp; responsiveness</h2><p>Observed API timings and problems. Repeated delays are surfaced with a proposed fix or redesign.</p>{health?.issues.filter(issue => issue.status === 'open').map(issue => <article className="agent-card" key={issue.id}><strong>{issue.area}</strong><p>{issue.symptom}</p><p>{issue.proposal}</p><button onClick={() => void api('/health/resolve', { id: issue.id }).then(refresh).catch(error => setError(error.message))}>Mark resolved</button></article>)}{!health?.issues.some(issue => issue.status === 'open') && <p>No open health issues.</p>}<table><thead><tr><th>Request</th><th>Time</th><th>Status</th></tr></thead><tbody>{health?.recentRequests.slice().reverse().map((request, index) => <tr key={`${request.at}:${index}`}><td>{request.route}</td><td>{(request.durationMs / 1000).toFixed(2)}s{request.slow ? ' · slow' : ''}</td><td>{request.status}</td></tr>)}</tbody></table></>}</main>
-  </dialog>, document.body)
+  </section>
 }

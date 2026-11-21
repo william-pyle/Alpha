@@ -47,8 +47,12 @@ export class Files {
     const root = within(this.repo, absolute) && !relative.split(/[\\/]/).some(secretPart) ? this.repo : path.dirname(absolute);
     return `${this.origin}/view/${this.grant(root)}/${path.relative(root, absolute).split(path.sep).map(encodeURIComponent).join('/')}`;
   }
+  async projectPath(file) {
+    const absolute = path.resolve(file);
+    return this.resolveProjectContent && within(this.repo, absolute) ? path.resolve(this.repo, await this.resolveProjectContent(path.relative(this.repo, absolute))) : absolute;
+  }
   async list(folder = this.repo, mode = 'main', query = '') {
-    const actual = await realpath(path.resolve(folder));
+    const actual = await realpath(await this.projectPath(folder));
     const entries = await readdir(actual, { withFileTypes: true });
     const atRoot = actual.toLowerCase() === this.repo.toLowerCase();
     const filtered = entries.filter(entry => (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) && (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
@@ -67,25 +71,26 @@ export class Files {
     return { path: actual, parent: path.dirname(actual), entries: result, truncated: filtered.length > 1500, mode };
   }
   async preview(file) {
-    const actual = await realpath(path.resolve(file));
+    const actual = await realpath(await this.projectPath(file));
     const info = await stat(actual);
     if (!info.isFile()) throw new Error('Choose a file to preview');
     const ext = path.extname(actual).toLowerCase();
     const base = { path: actual, name: path.basename(actual), size: info.size };
-    if (['.html', '.htm', '.pdf'].includes(ext)) return { ...base, kind: 'document', url: this.url(actual) };
-    if (/^image\//.test(mime[ext] || '')) return { ...base, kind: 'image', url: this.url(actual) };
-    if (/^(video|audio)\//.test(mime[ext] || '')) return { ...base, kind: mime[ext].split('/')[0], url: this.url(actual) };
+    const viewUrl = this.url(this.projectAlias ? await this.projectAlias(actual) : actual);
+    if (['.html', '.htm', '.pdf'].includes(ext)) return { ...base, kind: 'document', url: viewUrl };
+    if (/^image\//.test(mime[ext] || '')) return { ...base, kind: 'image', url: viewUrl };
+    if (/^(video|audio)\//.test(mime[ext] || '')) return { ...base, kind: mime[ext].split('/')[0], url: viewUrl };
     if (textExtensions.has(ext) || info.size === 0 || path.basename(actual).startsWith('.env')) {
       if (info.size > 50 * 1024 * 1024) return { ...base, kind: 'unsupported', reason: 'This text file is larger than the 50 MB preview limit.' };
       const bytes = await readFile(actual);
-      return { ...base, kind: 'text', text: bytes.toString('utf8'), ...(ext === '.md' ? { revision: createHash('sha256').update(bytes).digest('hex'), url: this.url(actual) } : {}) };
+      return { ...base, kind: 'text', text: bytes.toString('utf8'), ...(ext === '.md' ? { revision: createHash('sha256').update(bytes).digest('hex'), url: viewUrl } : {}) };
     }
     return { ...base, kind: 'unsupported', reason: 'Open this file in its desktop application.' };
   }
   async saveMarkdown({ path: requested, text, revision }) {
     if (typeof requested !== 'string' || path.extname(requested).toLowerCase() !== '.md' || typeof text !== 'string' || Buffer.byteLength(text) > 50 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(revision || '')) throw new Error('Choose a Markdown file of up to 50 MB with a current revision.');
     const operation = this.writes.catch(() => {}).then(async () => {
-      const actual = await realpath(path.resolve(requested));
+      const actual = await realpath(await this.projectPath(requested));
       if (path.extname(actual).toLowerCase() !== '.md') throw new Error('Only Markdown files can be edited.');
       const original = await readFile(actual);
       if (createHash('sha256').update(original).digest('hex') !== revision) throw Object.assign(new Error('This file changed on disk. Your draft is kept. Reopen the file to compare before saving.'), { status: 409 });
@@ -108,7 +113,8 @@ export class Files {
   async content(request, response, url) {
     const match = /^\/view\/([\w-]+)\/(.*)$/.exec(url.pathname);
     if (!match || !this.grants.has(match[1])) throw Object.assign(new Error('Preview not found'), { status: 404 });
-    const relative = decodeURIComponent(match[2]);
+    let relative = decodeURIComponent(match[2]);
+    if (match[1] === this.repoGrant && this.resolveProjectContent) relative = await this.resolveProjectContent(relative);
     if (relative.split(/[\\/]/).some(secretPart)) throw Object.assign(new Error('Private application files cannot be loaded by reports'), { status: 403 });
     const { file, info } = await realFile(this.grants.get(match[1]), relative);
     if (!info.isFile()) throw Object.assign(new Error('File not found'), { status: 404 });

@@ -4,7 +4,7 @@ import { liveVoice } from './live'
 import { Nose } from './Icons'
 import MakComposer from './MakComposer'
 import MakImages from './MakImages'
-import LearningPanel from './LearningPanel'
+import { openWorkspaceUtility } from './workspaceUtilities'
 import type { Operation } from './types'
 import './conversation-pane.css'
 
@@ -14,7 +14,6 @@ export default function ConversationPane() {
   const state = useDesktop()
   const live = useSyncExternalStore(liveVoice.subscribe, liveVoice.snapshot)
   const [sending, setSending] = useState(false)
-  const [learningOpen, setLearningOpen] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
   const seen = useRef<Set<string> | null>(null)
   const active = ['live', 'connecting', 'closing'].includes(live.status)
@@ -57,18 +56,18 @@ export default function ConversationPane() {
   return <aside className="alpha-conversation-pane" aria-label="Alpha replies">
     <header><div className="alpha-conversation-brand"><Nose size={26} /><div><strong>Alpha</strong><small>Just our conversation</small></div></div><span className="alpha-conversation-status">{active ? live.status === 'live' ? 'Listening' : 'Connecting…' : state.coordinator === 'working' ? 'Thinking…' : 'Here with you'}</span></header>
     <div className="alpha-conversation-toolbar">
-      <button type="button" aria-expanded={learningOpen} onClick={() => setLearningOpen(value => !value)}>What I&apos;ve learned</button>
+      <button type="button" onClick={() => openWorkspaceUtility('learned-preferences')}>What I&apos;ve learned</button>
       <button type="button" aria-pressed={state.settings.speakReplies !== false} onClick={() => void toggleSpeech()}>{state.settings.speakReplies !== false ? 'Speak replies' : 'Replies muted'}</button>
       {state.speech.speaking && <button type="button" onClick={() => void api('/speech/stop', {}).catch(reportError)}>Stop speaking</button>}
       {state.voice.configured && <button type="button" disabled={!!anotherVoice || live.status === 'closing'} onClick={toggleLive}>{active ? 'End live voice' : 'Live voice'}</button>}
     </div>
-    {learningOpen ? <LearningPanel onClose={() => setLearningOpen(false)} /> : <div className="alpha-conversation-scroll" aria-live="polite">
+    <div className="alpha-conversation-scroll" aria-live="polite">
       {entries.length === 0 && live.captions.length === 0 && <div className="alpha-conversation-welcome"><strong>Hi, I’m Alpha.</strong><p>Tell me what you’re thinking. I’ll keep my replies here while the work stays in the main window.</p><p>You can type or tap the microphone below to talk.</p></div>}
       {entries.map(entry => entry.kind === 'operation' ? <div className="alpha-conversation-exchange" data-origin={entry.operation.origin} key={entry.id}><p className="alpha-conversation-user"><span>You</span>{entry.operation.text}</p>{!!entry.operation.images?.length && <MakImages paths={entry.operation.images} />}{entry.operation.status !== 'running' && <div className={`alpha-conversation-reply${entry.operation.status === 'failed' ? ' failed' : ''}`}><span>Alpha</span><p>{entry.operation.result || 'I could not finish that request.'}</p>{entry.operation.status === 'completed' && <button type="button" aria-label="Speak Alpha reply" title="Speak reply" onClick={() => void speak('operation', entry.operation.id)}>▶</button>}</div>}</div> : <div className="alpha-conversation-reply" key={entry.id}><span>{entry.name}</span><p>{entry.text}</p><button type="button" aria-label={`Speak reply from ${entry.name}`} title="Speak reply" onClick={() => void speak('reply', entry.id.slice(6))}>▶</button></div>)}
       {live.captions.slice(-30).map((caption, index) => <p className={caption.role === 'user' ? 'alpha-conversation-user' : 'alpha-conversation-reply'} key={`${caption.start}-${index}`}><span>{caption.role === 'user' ? 'You' : 'Alpha · live'}</span>{caption.text}</p>)}
       <div ref={bottom} />
-    </div>}
+    </div>
     {(live.error || state.speech.error) && <div className="alpha-conversation-error" role="alert">{live.error || state.speech.error}</div>}
-    <div hidden={learningOpen}><MakComposer connected={state.connected} sending={sending} onSend={send} autoSendVoice /></div>
+    <div><MakComposer connected={state.connected} sending={sending} onSend={send} autoSendVoice /></div>
   </aside>
 }

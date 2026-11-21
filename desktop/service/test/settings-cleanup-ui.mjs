@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { Dictation } from '../dictation.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/settings-cleanup-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-settings-cleanup-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 let installed = false, running = false;
@@ -25,7 +26,7 @@ try {
   await page.goto(service.urls.workspace);
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
-  const settings = page.getByRole('dialog', { name: 'Settings' });
+  const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await expect(settings.getByLabel('Dictation provider')).toHaveCount(0);
   await expect(settings.getByLabel('Application theme')).toHaveCount(0);
 

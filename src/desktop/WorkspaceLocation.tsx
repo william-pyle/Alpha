@@ -22,7 +22,7 @@ export default function WorkspaceLocation() {
   }
   return <section className="workspace-location" aria-label="Workspace location"><h3>Workspace location</h3>
     <p>Current folder</p><p className="settings-repo">{state?.current || 'Loading…'}</p>
-    <p>This folder contains your cards, project files, local knowledge and Alpha chat history.</p>
+    <p>This folder contains your projects, files, local knowledge and Alpha chat history.</p>
     {state?.available ? <>
       <label>Workspace folder<input value={folder} placeholder="Choose a folder…" disabled={busy} onChange={event => setFolder(event.target.value)} /></label>
       <button className="desk-secondary" disabled={busy} onClick={() => void action('browse')}>Browse…</button>

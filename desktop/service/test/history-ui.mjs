@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Exercise the actual History -> resume -> close -> restart flow with isolated
 // native metadata and deterministic terminals. No user chats or logins are used.
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache/history-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-history-ui-'));
 const priorHome = process.env.CODEX_HOME;
 process.env.CODEX_HOME = path.join(repo, 'codex');
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'ses_opencodeFixture'];

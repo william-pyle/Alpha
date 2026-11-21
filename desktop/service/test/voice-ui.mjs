@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // No microphone, paid model request, native terminal or personal workspace is used.
 import assert from 'node:assert/strict';
 import { cp, mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache/voice-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-voice-ui-'));
 await mkdir(path.join(repo, 'workspace'));
 await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');

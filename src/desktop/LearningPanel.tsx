@@ -32,7 +32,7 @@ export default function LearningPanel({ onClose }: { onClose: () => void }) {
     finally { setBusy(false) }
   }
   return <section className="alpha-learning-panel" aria-label="What I've learned">
-    <header><strong>What I&apos;ve learned</strong><button type="button" disabled={busy} onClick={onClose}>Back to our chat</button></header>
+    <header><strong>What I&apos;ve learned</strong><button type="button" disabled={busy} onClick={onClose}>Close tab</button></header>
     <p>Tell me what I should do differently next time. You can also add, edit or forget a lesson here.</p>
     <p className="alpha-learning-note">Lessons are saved on this computer and included in future Alpha conversations. Coding &amp; work lessons also accompany task handoffs. Restart live voice to pick up changes.</p>
     {loading ? <p>Loading lessons...</p> : lessons.length === 0 ? <p>No saved lessons yet.</p> : <ul>{lessons.map(lesson => <li key={lesson.id}>

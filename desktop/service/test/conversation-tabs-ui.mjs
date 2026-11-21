@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated Workspace + actual Windows PowerShell PTYs; no owner/provider sessions.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -7,7 +8,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/conversation-tabs-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-conversation-tabs-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Fixture Workspace', folder: 'fixture', steps: [] }] }));
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');
@@ -27,7 +28,7 @@ const tab = id => page.locator(`#conversation-tab-${id}`);
 const mode = name => page.getByRole('button', { name: `Worker terminal for ${name}`, exact: true });
 const contextAction = async (id, label, keyboard = false) => { if (keyboard) { await tab(id).focus(); await tab(id).press('Shift+F10'); } else await tab(id).click({ button: 'right' }); await page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: label, exact: true }).click(); };
 const history = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Conversation history', exact: true }).click(); };
-const events = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click(); };
+const events = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); };
 const request = async (route, data = {}) => { const response = await fetch(service.origin + '/api' + route, { method: 'POST', headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); assert.ok(response.ok, await response.clone().text()); return response.json(); };
 try {
   browser = await launchBrowser(); page = await browser.newPage({ viewport: { width: 1440, height: 900 } }); page.setDefaultTimeout(15000);
@@ -35,7 +36,7 @@ try {
   const editor = page.getByRole('textbox', { name: 'Message Alpha' });
   await expect(editor).toBeEnabled(); await expect(page.locator('.mdi-center')).toBeVisible(); await expect(page.locator('.conversation-menu')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Return to conversation/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Important events:/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Needs attention:/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'New conversation', exact: true }).click(); await expect(page.getByRole('heading', { name: 'New conversation', exact: true })).toBeVisible(); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await editor.fill('Architecture draft'); await tab(a.id).focus(); await tab(a.id).press('ArrowRight'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true'); await expect(tab(b.id)).toBeFocused(); await expect(editor).toHaveValue('');
   await editor.fill('Research draft'); await tab(b.id).press('Home'); await expect(editor).toHaveValue('Architecture draft'); await page.reload(); await expect(editor).toHaveValue('Architecture draft');
@@ -91,15 +92,15 @@ try {
   await request(`/threads/${a.id}/close`); assert.equal(service.threads.get(a.id).archived, true); await expect(tab(a.id)).toHaveCount(0);
   await events(); const notice = page.locator('[data-event-id="synthetic-failure"]'); await expect(notice).toHaveCount(1); await expect(notice).toContainText('History'); await notice.getByRole('button', { name: 'Open originating conversation' }).click();
   await expect(tab(a.id)).toHaveAttribute('aria-selected', 'true'); assert.equal(service.threads.get(a.id).archived, true); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); await expect(activity.getByRole('button', { name: 'Enable terminal controls' })).toBeVisible();
-  await events(); await notice.getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.getByRole('button', { name: 'Close Important events' }).click(); service.awareness.event(event); await expect(page.locator('[data-event-id="synthetic-failure"]')).toHaveCount(0);
+  await events(); await notice.getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.getByRole('button', { name: 'Close Needs attention' }).click(); service.awareness.event(event); await expect(page.locator('[data-event-id="synthetic-failure"]')).toHaveCount(0);
   service.awareness.event({ id: 'worker-review', threadId: b.id, kind: 'review', text: 'A worker finished its turn.', source: 'Native completion event' });
-  await events(); await expect(page.locator('[data-event-id="worker-review"]')).toContainText('not verified'); await page.locator('[data-event-id="worker-review"]').getByRole('button', { name: 'Snooze 30 minutes' }).click(); await page.getByRole('button', { name: 'Close Important events' }).click();
-  service.awareness.control({ quiet: true }); service.awareness.event({ ...event, id: 'quiet-error' }); await expect(page.getByRole('button', { name: /^Important events:/ })).toHaveCount(0); await events(); await expect(page.locator('[data-event-id="quiet-error"]')).toBeVisible(); await page.getByRole('button', { name: 'Close Important events' }).click();
+  await events(); await expect(page.locator('[data-event-id="worker-review"]')).toContainText('not verified'); await page.locator('[data-event-id="worker-review"]').getByRole('button', { name: 'Snooze 30 minutes' }).click(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
+  service.awareness.control({ quiet: true }); service.awareness.event({ ...event, id: 'quiet-error' }); await expect(page.getByRole('button', { name: /^Needs attention:/ })).toHaveCount(0); await events(); await expect(page.locator('[data-event-id="quiet-error"]')).toBeVisible(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   const question = await service.questions.ask({ source: 'coordinator', sourceId: 'question-fixture', threadId: b.id, sessionId: b.id, chatName: b.name, text: 'Synthetic decision?', options: ['Keep'] });
   await page.getByRole('button', { name: /^Attention for Research/ }).click(); await expect(page.locator(`[data-question-id="${question.id}"]`)).toHaveCount(1);
-  await events(); await expect(page.getByRole('dialog', { name: 'Important events' })).not.toContainText('Synthetic decision?'); await page.getByRole('button', { name: 'Close Important events' }).click();
+  await events(); await expect(page.getByRole('tabpanel', { name: 'Needs attention' })).not.toContainText('Synthetic decision?'); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   await request(`/questions/${question.id}/dismiss`); await expect(page.locator(`[data-question-id="${question.id}"]`)).toHaveCount(0);
-  service.awareness.event({ id: 'app-health-fixture', kind: 'health', text: 'Synthetic app-level health problem', source: 'Alpha health' }); await events(); await page.locator('[data-event-id="app-health-fixture"]').getByRole('button', { name: 'Open Alpha health' }).click(); await expect(page.getByRole('button', { name: 'Health', exact: true })).toHaveAttribute('aria-pressed', 'true'); await page.getByRole('button', { name: 'Close agent center' }).click();
+  service.awareness.event({ id: 'app-health-fixture', kind: 'health', text: 'Synthetic app-level health problem', source: 'Alpha health' }); await events(); await page.locator('[data-event-id="app-health-fixture"]').getByRole('button', { name: 'Open Alpha health' }).click(); await expect(page.getByRole('tabpanel', { name: 'Alpha health', exact: true })).toBeVisible(); await page.getByRole('button', { name: 'Close Alpha health', exact: true }).click();
   checks.push('Background failure dedup/no focus theft; archived origin navigation retains archive and exact worker; dismiss receipt, snooze, quiet manual access; questions only in Questions and cleared on resolution.');
 
   // Close target B from A without changing A, then every synthetic conversation.
@@ -109,10 +110,10 @@ try {
   // selecting the final open fixture first so the last close reaches null.
   await request(`/threads/${extra[0].id}/reopen`); await request(`/threads/${extra[0].id}/select`); await request(`/threads/${extra[0].id}/close`);
   await expect(page.getByText('No open conversations', { exact: true })).toBeVisible(); await expect(page.locator('.mdi-center')).toBeVisible(); await expect(page.getByRole('button', { name: 'New conversation', exact: true })).toBeInViewport(); await page.reload(); await expect(page.getByText('No open conversations', { exact: true })).toBeVisible();
-  await history(); await page.getByRole('dialog', { name: 'Conversation history' }).getByRole('button', { name: new RegExp('^Research conversation') }).click(); await expect(editor).toHaveValue('Research draft'); assert.equal(service.sessions.items.size, 3);
+  await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: new RegExp('^Research conversation') }).click(); await expect(editor).toHaveValue('Research draft'); assert.equal(service.sessions.items.size, 3);
   for (const id of [w1.id, w2.id, w3.id]) assert.equal(service.sessions.get(id).status, 'running');
   const oldOrigin = service.origin; await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
-  await history(); await page.getByRole('dialog', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
+  await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
   checks.push('Background close targets captured ID; last close/null survives reload; History reopens drafts and selection across isolated service restart without restarting workers; raw mode/worker choice persists.');
   assert.deepEqual(errors, []); await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowsPTY: process.platform === 'win32', checks, screenshots }, null, 2)); console.log(`Conversation tabs UI passed. Evidence: ${repo}`);
 } catch (error) { await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: error.stack, checks }, null, 2)); if (page) await page.screenshot({ path: path.join(repo, 'failure.png') }).catch(() => {}); console.error(`Evidence: ${repo}`); throw error; }

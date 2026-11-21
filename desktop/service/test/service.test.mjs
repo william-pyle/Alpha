@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import http from 'node:http';
@@ -12,7 +13,7 @@ import { completedTurn, tailNativeFile } from '../native-events.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 async function fixture() {
   await mkdir(path.join(root, '.cache'), { recursive: true });
-  const repo = await mkdtemp(path.join(root, '.cache', 'desktop-test-'));
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-desktop-service-'));
   await mkdir(path.join(repo, 'workspace', 'A space'), { recursive: true });
   await mkdir(path.join(repo, 'inbox')); await mkdir(path.join(repo, 'projects'));
   await mkdir(path.join(repo, 'ui'));

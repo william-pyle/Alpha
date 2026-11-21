@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Real renderer + service snapshots, with a deterministic fullscreen CLI fixture.
 // No live chats, agent logins or user settings are changed.
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { createService } from '../server.mjs';
 import { clipboardPermissions, launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const repo = await mkdtemp(path.join(root, '.cache/scroll-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-scroll-ui-'));
 await mkdir(path.join(repo, 'workspace'), { recursive: true });
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 const service = await createService({ repo, uiDir: path.join(root, 'dist'), mcpOptions: { home: repo, env: {} } });

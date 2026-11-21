@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, cp } from 'node:fs/promises';
@@ -9,7 +10,7 @@ import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache', 'workspace-edit-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-workspace-edit-ui-'));
 await mkdir(path.join(repo, 'workspace', 'sample'), { recursive: true });
 const report = '<h1>Project notes</h1><p>The report must survive metadata edits.</p>';
 await writeFile(path.join(repo, 'workspace', 'sample', 'report.html'), report);
@@ -28,16 +29,16 @@ try {
   for (const surface of [page, peer]) { await surface.getByRole('button', { name: 'View', exact: true }).click(); await surface.getByRole('menuitem', { name: 'Workspace', exact: true }).click(); }
   const homeCard = page.locator('.home [data-card="sample"]');
   const edit = () => homeCard.getByRole('button', { name: /^Edit Character Workshop:/ });
-  const menu = page.getByRole('dialog', { name: 'Card settings: Character Workshop' });
+  const menu = page.getByRole('dialog', { name: 'Project settings: Character Workshop' });
   await edit().click(); await menu.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(edit()).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
   await expect(peer.locator('.home [data-card="sample"] button')).toHaveAttribute('aria-label', 'Edit Character Workshop: Done');
-  await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('dev');
+  await edit().click(); await menu.getByRole('combobox', { name: 'Project category' }).selectOption('dev');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
 
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
-  const settings = page.getByRole('dialog', { name: 'Settings' });
+  const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await settings.getByRole('tab', { name: 'Categories' }).click();
   await settings.getByRole('textbox', { name: 'Name' }).fill('Writing');
   await settings.getByRole('combobox', { name: 'Icon' }).selectOption('📝');
@@ -45,18 +46,18 @@ try {
   await settings.getByRole('button', { name: 'Edit Writing' }).click();
   await settings.getByRole('textbox', { name: 'Name' }).fill('Editorial');
   await settings.getByRole('button', { name: 'Save category' }).click();
-  await settings.getByRole('button', { name: 'Close settings' }).click();
-  await edit().click(); await menu.getByRole('combobox', { name: 'Card category' }).selectOption('writing');
+  await page.getByRole('button', { name: 'Close Settings', exact: true }).click();
+  await edit().click(); await menu.getByRole('combobox', { name: 'Project category' }).selectOption('writing');
   await expect(homeCard.locator('.chip').first()).toHaveText(/Editorial/);
 
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
   await settings.getByRole('tab', { name: 'Categories' }).click();
   await settings.getByRole('button', { name: 'Delete Editorial' }).click();
-  await settings.getByRole('combobox', { name: 'Move cards to' }).selectOption('dev');
+  await settings.getByRole('combobox', { name: 'Move projects to' }).selectOption('dev');
   await settings.getByRole('button', { name: 'Delete category' }).click();
   await expect(homeCard.locator('.chip').first()).toHaveText(/Development/);
-  await settings.getByRole('button', { name: 'Close settings' }).click();
+  await page.getByRole('button', { name: 'Close Settings', exact: true }).click();
 
   await edit().click(); await menu.getByRole('button', { name: 'Archived', exact: true }).click();
   await expect(homeCard).toHaveCount(0);

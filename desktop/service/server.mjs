@@ -18,6 +18,9 @@ import { ContextLibrary } from './context.mjs';
 import { taskTitle } from './titles.mjs';
 import { taskEffort } from './effort.mjs';
 import { Workspace, localDay, metadataPatch } from './workspace.mjs';
+import { Projects } from './projects.mjs';
+import { ProjectRepositories } from './project-repositories.mjs';
+import { safeProjectPaths } from './project-layout.mjs';
 import { WorkspaceTools } from './workspace-tools.mjs';
 import { Replies } from './replies.mjs';
 import { Speech } from './speech.mjs';
@@ -54,7 +57,7 @@ const appVersion = effectiveVersion(process.env.ALPHA_APP_VERSION, product.versi
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
-export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, dictationOptions, checkUpdates = false, sharedLibrary: libraryOptions, workspaceLocation: locationOptions }) {
+export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, dictationOptions, checkUpdates = false, sharedLibrary: libraryOptions, workspaceLocation: locationOptions, repositoryOptions, initializeProjects = true }) {
   repo = await realpath(repo);
   stateDir ||= path.join(repo, '.alpha');
   const dictation = dictationOptions?.dictation || new Dictation(repo);
@@ -137,6 +140,21 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const workspaceTools = await new WorkspaceTools({ workspace, stateDir, native, changed: cardId => broadcast('workspace-tool-state', { cardId }) }).init();
   const registry = async () => workspace.registry();
   const cards = new CardDocuments(workspace);
+  const projectStore = new Projects(workspace, { sessions: () => sessions.list(), threads: () => threads.items });
+  try {
+    const result = initializeProjects ? await projectStore.init() : {};
+    if (result.defaultProjectConflict) awareness.event({ id: 'default-project-conflict', kind: 'error', text: result.defaultProjectConflict, source: 'Project setup' });
+  } catch (error) { awareness.event({ id: 'default-project-setup', kind: 'error', text: `Conversations project setup needs review: ${publicError(error)}`, source: 'Project setup' }); }
+  files.resolveProjectContent = relative => projectStore.resolveContent(relative);
+  files.projectAlias = file => projectStore.contentAlias(file);
+  const projectRepositories = new ProjectRepositories({ repo,
+    getProject: async (id, options = {}) => { const item = await projectStore.get(id, { allowRemoved: !!options.allowRemoved }); const record = await readJson(path.join(safeProjectPaths(repo, id).root, 'project.json'), {}); return { ...item, checkoutPath: item.checkoutPath || record.applicationRoot || record.source?.checkout || record.development?.sourceFolder || null }; },
+    patchProject: (id, patch) => projectStore.patch(id, patch),
+    changed: job => broadcast('project-repository', { job }), activeSessions: () => sessions.list(), ...repositoryOptions });
+  sessions.validateResume = async session => {
+    const project = session.projectId ? await projectStore.get(session.projectId) : null;
+    if (project?.projectRepositoryUrl || project?.sourceRepositoryUrl) await projectRepositories.validateWorkingDirectory(project.id, session.cwd);
+  };
   const history = query => sessions.list().filter(item => !query || `${item.name} ${item.agent} ${item.cwd} ${item.preview || ''}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const closeChat = async id => {
     await sessions.remove(id);
@@ -184,8 +202,14 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         case 'open_chat': {
           args = openChatArguments(args);
           if (args.bypass === true && settings.defaultBypass !== true) throw new Error('To enable bypass, choose it yourself in New chat or Settings. Alpha cannot raise the selected permission level.');
-          if (args.projectId && !(await registry()).entities.some(card => card.id === args.projectId)) throw new Error('Choose an existing Workspace project ID.');
-          const session = await sessions.create({ agent: args.agent, cwd: args.cwd, projectId: args.projectId || (threadId ? threads.get(threadId).projectId : null), alphaThreadId: threadId, name: taskTitle(args.name), effort: taskEffort(latestRequest, args.effort), bypass: args.bypass === false ? false : settings.defaultBypass === true });
+          const selectedProject = threadId ? threads.get(threadId).projectId : args.projectId;
+          if (threadId && args.projectId && args.projectId !== selectedProject) throw new Error('The conversation project selected by the user is authoritative. Change it in Conversation details before starting work elsewhere.');
+          const assignedProject = await projectStore.select(selectedProject);
+          const session = await projectStore.exclusive(assignedProject.id, async () => {
+            const cwd = await projectStore.workingDirectory(assignedProject.id, args.cwd);
+            await projectRepositories.validateWorkingDirectory(assignedProject.id, cwd);
+            return sessions.create({ agent: args.agent, cwd, projectId: assignedProject.id, alphaThreadId: threadId, name: taskTitle(args.name), effort: taskEffort(latestRequest, args.effort), bypass: args.bypass === false ? false : settings.defaultBypass === true });
+          });
           if (!threadId) focus(session.id); return session;
         }
         case 'read_chat': return sessions.read(args.id);
@@ -212,6 +236,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         case 'focus_chat': return focus(args.id);
         case 'rename_chat': return sessions.rename(args.id, args.name);
         case 'interrupt_chat': sessions.input(args.id, '\x03'); return { delivered: 'Ctrl+C', sessionId: args.id };
+        case 'get_project_settings': return { project: await projectStore.get(args.projectId), repository: await projectRepositories.state(args.projectId), migration: await projectStore.migrationPlan(args.projectId) };
+        case 'associate_project_repository': return projectRepositories.associate(args.projectId, { ...(Object.hasOwn(args, 'projectRepositoryUrl') ? { projectRepositoryUrl: args.projectRepositoryUrl } : {}), ...(Object.hasOwn(args, 'sourceRepositoryUrl') ? { sourceRepositoryUrl: args.sourceRepositoryUrl } : {}) });
         case 'list_workspace': return workspace.list(args);
         case 'read_workspace': return workspace.read(args.entityId, args.step);
         case 'workspace_activity': return workspace.activity(args.date);
@@ -317,7 +343,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     broadcast('session', { session }); integrations.publish('session', { event: session.status, session }).catch(() => {});
     if (session.open && session.projectPending) void registry().then(registry => {
       const current = sessions.get(session.id);
-      if (current.open && current.projectPending) return questions.ask({ source: 'project', sourceId: `project:${current.id}`, sessionId: current.id, threadId: threads.owner(current.id)?.id, chatName: current.name, text: `Which card or project should I track ${current.name} under?`, options: registry.entities.map(card => `${card.id} - ${card.title}`) });
+      if (current.open && current.projectPending) return questions.ask({ source: 'project', sourceId: `project:${current.id}`, sessionId: current.id, threadId: threads.owner(current.id)?.id, chatName: current.name, text: `Which project should I track ${current.name} under?`, options: registry.entities.filter(card => !card.removedAt).map(card => `${card.id} - ${card.title}`) });
     }).catch(error => broadcast('service-error', { error: publicError(error) }));
   });
   sessions.on('screen-cleared', ({ id }) => broadcast('screen-cleared', { id }));
@@ -454,9 +480,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'GET' && url.pathname === '/api/threads/review') return json(response, 200, { items: threads.review(), scope: 'Metadata only. Review one conversation at a time; nothing is changed automatically.' });
         if (method === 'GET' && url.pathname === '/api/threads/legacy') return json(response, 200, { operations: [...coordinator.operations.values(), ...quick.operations.values()], voiceHistory: voiceHistory.filter(item => !item.threadId), explanation: 'Older mixed Alpha history is read-only and is not loaded into new conversations.' });
         if (method === 'POST' && url.pathname === '/api/threads') {
-          if (data.projectId && !(await registry()).entities.some(card => card.id === data.projectId)) throw new Error('Choose an existing project.');
-          const thread = threads.create(data); threads.select(thread.id); await threads.save();
-          if (thread.projectPending) await questions.ask({ source: 'project', sourceId: `thread-project:${thread.id}`, threadId: thread.id, sessionId: thread.id, chatName: thread.name, text: `Which card or project should I track ${thread.name} under?`, options: (await registry()).entities.map(card => `${card.id} - ${card.title}`) });
+          const selectedProject = await projectStore.select(data.projectId);
+          const thread = threads.create({ ...data, projectId: selectedProject.id }); threads.select(thread.id); await threads.save();
+          if (thread.projectPending) await questions.ask({ source: 'project', sourceId: `thread-project:${thread.id}`, threadId: thread.id, sessionId: thread.id, chatName: thread.name, text: `Which project should I track ${thread.name} under?`, options: (await registry()).entities.filter(card => !card.removedAt).map(card => `${card.id} - ${card.title}`) });
           const related = threads.directory().find(item => item.id !== thread.id && !item.archived && item.projectId && item.projectId === thread.projectId);
           if (related) awareness.event({ id: `overlap:${thread.id}:${related.id}`, threadId: thread.id, kind: 'overlap', inference: true, text: `This may overlap with ${related.name}: both are assigned to ${thread.projectId}. Compare their purposes before duplicating work.`, source: 'Project assignment metadata' });
           return json(response, 201, thread);
@@ -508,7 +534,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (method === 'POST' && threadRoute[2] === 'share') { const result = threads.share(thread.id, data.destinationId, data.messageId, data.transferId); await threads.save(); return json(response, 200, result); }
           if (method === 'POST' && threadRoute[2] === 'undo') { const result = threads.undoArchive(thread.id, data.id); await threads.save(); return json(response, 200, { restored: true, id: result.id }); }
           if (method === 'PATCH') {
-            if (data.projectId && !(await registry()).entities.some(card => card.id === data.projectId)) throw new Error('Choose an existing project.');
+            if (data.projectId) await projectStore.select(data.projectId);
             if (typeof data.name === 'string') taskTitle(data.name);
             if (thread.kind === 'native') {
               const session = sessions.get(thread.sessionIds[0]);
@@ -519,7 +545,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
             if (Object.hasOwn(data, 'projectId')) {
               for (const question of questions.items.filter(item => item.threadId === thread.id && item.source === 'project' && item.status === 'pending')) { question.status = 'dismissed'; question.resolution = 'Project changed explicitly in conversation details'; }
               await questions.changed();
-              if (updated.projectPending) await questions.ask({ source: 'project', sourceId: `thread-project:${thread.id}`, threadId: thread.id, sessionId: thread.id, chatName: thread.name, text: `Which card or project should I track ${thread.name} under?`, options: (await registry()).entities.map(card => `${card.id} - ${card.title}`) });
+              if (updated.projectPending) await questions.ask({ source: 'project', sourceId: `thread-project:${thread.id}`, threadId: thread.id, sessionId: thread.id, chatName: thread.name, text: `Which project should I track ${thread.name} under?`, options: (await registry()).entities.filter(card => !card.removedAt).map(card => `${card.id} - ${card.title}`) });
             }
             await threads.save(); return json(response, 200, updated);
           }
@@ -596,7 +622,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (question.source === 'project') {
             const registryData = await registry(), choice = answer.trim().toLowerCase();
             const card = registryData.entities.find(card => [card.id, card.title, `${card.id} - ${card.title}`].some(value => value.toLowerCase() === choice));
-            if (!card) throw new Error('Choose an existing card by its name or project ID.');
+            if (!card) throw new Error('Choose an existing project by its name or project ID.');
             const thread = question.threadId && threads.get(question.threadId);
             if (thread) threads.patch(thread.id, { projectId: card.id });
             const session = sessions.items.get(question.sessionId);
@@ -667,6 +693,25 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         const cardMetadata = url.pathname.match(/^\/api\/workspace\/entities\/([^/]+)$/);
         if (method === 'POST' && url.pathname === '/api/workspace/undo') return json(response, 200, await workspace.undo(data.id));
         if (method === 'PATCH' && cardMetadata) return json(response, 200, await workspace.update(decodeURIComponent(cardMetadata[1]), metadataPatch(data)));
+        if (method === 'GET' && url.pathname === '/api/project-repositories/account') return json(response, 200, await projectRepositories.account());
+        const projectRoute = /^\/api\/workspace\/projects\/([a-z0-9-]+)(?:\/(repositories|repository-state|repository-create|repository-retry|migration|checkout-migration|remove))?$/.exec(url.pathname);
+        if (projectRoute) {
+          const [, id, action] = projectRoute;
+          if (method === 'GET' && !action) return json(response, 200, { project: await projectStore.get(id), repository: await projectRepositories.state(id), migration: await projectStore.migrationPlan(id), paths: safeProjectPaths(repo, id) });
+          if (method === 'GET' && action === 'repository-state') return json(response, 200, { project: await projectStore.get(id), repository: await projectRepositories.state(id) });
+          if (method === 'POST' && action === 'repositories') return json(response, 202, await projectRepositories.associate(id, data));
+          if (method === 'POST' && action === 'repository-create') return json(response, 202, await projectRepositories.create(id, data));
+          if (method === 'POST' && action === 'repository-retry') return json(response, 202, await projectRepositories.retry(id));
+          if (method === 'GET' && action === 'checkout-migration') return json(response, 200, await projectRepositories.checkoutMigrationPlan(id));
+          if (method === 'POST' && action === 'checkout-migration') return json(response, 200, await projectStore.exclusive(id, () => projectRepositories.migrateCheckout(id, data)));
+          if (method === 'GET' && action === 'migration') return json(response, 200, await projectStore.migrationPlan(id));
+          if (method === 'POST' && action === 'migration') { if (data.confirmation !== id) throw new Error('Confirm the exact project ID before migration.'); return json(response, 200, await projectStore.migrate(id)); }
+          if (method === 'POST' && action === 'remove') return json(response, 200, await projectStore.exclusive(id, () => projectRepositories.lock(id, async () => {
+            const job = await projectRepositories.state(id);
+            if (['queued', 'running'].includes(job?.status)) throw Object.assign(new Error('Repository setup is still running. Wait for its result before removing this project.'), { status: 409 });
+            return projectStore.remove(id, data);
+          })));
+        }
         if (method === 'GET' && url.pathname === '/api/projects') {
           const matches = await projects.detect(url.searchParams.get('path') || repo);
           return json(response, 200, { matches, adapters: projects.adapters.map(item => ({ id: item.id, label: item.label })) });
@@ -721,6 +766,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         if (method === 'POST' && url.pathname === '/api/settings') {
           if (inventory().some(item => item.id === data.defaultAgent)) settings.defaultAgent = data.defaultAgent;
+          const utilityIds = ['learned-preferences', 'common-agents', 'health', 'settings', 'conversation-history', 'needs-attention'];
+          if (Array.isArray(data.utilityTabs) && data.utilityTabs.length <= 6 && data.utilityTabs.every(id => utilityIds.includes(id))) settings.utilityTabs = [...new Set(data.utilityTabs)];
+          if (data.activeUtilityTab === null || utilityIds.includes(data.activeUtilityTab)) settings.activeUtilityTab = data.activeUtilityTab;
           if (typeof data.trustProjectsScope === 'boolean') settings.trustProjectsScope = data.trustProjectsScope;
           if (typeof data.defaultBypass === 'boolean') settings.defaultBypass = data.defaultBypass;
           if (Number.isInteger(data.terminalFontSize) && data.terminalFontSize >= 10 && data.terminalFontSize <= 24) settings.terminalFontSize = data.terminalFontSize;
@@ -749,8 +797,14 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
         }
         if (method === 'POST' && url.pathname === '/api/sessions') {
-          if (data.projectId && !(await registry()).entities.some(card => card.id === data.projectId)) throw new Error('Choose an existing Workspace project ID.');
-          const session = await sessions.create({ ...data, name: taskTitle(data.name), bypass: data.bypass ?? settings.defaultBypass });
+          const boundThread = data.alphaThreadId ? threads.get(data.alphaThreadId) : null;
+          if (boundThread && (boundThread.id !== threads.selectedId || data.projectId && data.projectId !== boundThread.projectId)) throw Object.assign(new Error('Select the originating conversation and keep its chosen project when adding a worker.'), { status: 409 });
+          const project = await projectStore.select(boundThread ? boundThread.projectId : data.projectId);
+          const session = await projectStore.exclusive(project.id, async () => {
+            const cwd = await projectStore.workingDirectory(project.id, data.cwd);
+            await projectRepositories.validateWorkingDirectory(project.id, cwd);
+            return sessions.create({ ...data, projectId: project.id, cwd, name: taskTitle(data.name), bypass: data.bypass ?? settings.defaultBypass });
+          });
           if (typeof data.purpose === 'string') { const owner = threads.owner(session.id); if (owner) { threads.patch(owner.id, { purpose: data.purpose }); await threads.save(); } }
           await integrations.publish('session', { event: 'started', session }); focus(session.id); return json(response, 201, session);
         }

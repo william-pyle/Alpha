@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { api, onServiceEvent } from './client'
+import { api, onServiceEvent, useDesktop } from './client'
 import RestartPlan from './RestartPlan'
 type Update = { status: string; currentVersion: string; version?: string; releaseUrl?: string; percent?: number; error?: string }
 export default function Updates({ compact = false }: { compact?: boolean }) {
+  const desktop = useDesktop()
   const [state, setState] = useState<Update | null>(null), [busy, setBusy] = useState(false), [dismissed, setDismissed] = useState('')
   useEffect(() => {
     void api<Update>('/updates').then(setState).catch(() => {})
@@ -14,7 +15,8 @@ export default function Updates({ compact = false }: { compact?: boolean }) {
     catch (error) { setState(current => current && { ...current, error: String(error) }) }
     finally { setBusy(false) }
   }
-  if (!state || (compact && (!['available', 'downloading', 'downloaded'].includes(state.status) || dismissed === state.version))) return null
+  const working = desktop.questions.length > 0 || desktop.sessions.some(item => item.status === 'starting' || item.status === 'running' && ['working', 'waiting'].includes(item.activity)) || desktop.threads.some(thread => thread.operation && !['completed', 'failed', 'interrupted'].includes(thread.operation.phase))
+  if (!state || (compact && (working || !['available', 'downloading', 'downloaded'].includes(state.status) || dismissed === state.version))) return null
   return <section className={compact ? 'alpha-update-notice' : 'alpha-update-settings'} aria-label="Alpha updates">
     {!compact && <h3>Alpha updates</h3>}
     <p>{state.status === 'available' ? `Update available: Alpha ${state.version}.` : state.status === 'downloaded' ? `Alpha ${state.version} is ready to install.` : state.status === 'downloading' ? `Downloading update · ${state.percent || 0}%` : state.status === 'checking' ? 'Checking GitHub…' : state.status === 'current' ? `Alpha ${state.currentVersion} is up to date.` : `Alpha ${state.currentVersion}`}</p>

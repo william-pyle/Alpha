@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Real terminal parser and trusted browser gestures; no system clipboard writes.
 import { expect } from '@playwright/test';
 import { mkdtemp, mkdir, cp, writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache/clipboard-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-clipboard-ui-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 await cp(path.join(root, 'dist'), path.join(repo, 'ui'), { recursive: true });

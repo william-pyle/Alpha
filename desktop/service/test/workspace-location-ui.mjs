@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { resolveWorkspace } from '../workspace-location.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output',{recursive:true});
-const root=await realpath(await mkdtemp(path.resolve('.test-output/location-ui-')));
+const root=await realpath(await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-location-ui-')));
 const configDir=path.join(root,'config'), repo=await resolveWorkspace({configDir,defaultRoot:path.join(root,'Original')});
 const destination=path.join(root,'Chosen Workspace é 日本語');
 const service=await createService({repo,uiDir:path.resolve('dist'),workspaceLocation:{configDir},mcpOptions:{home:root,env:{}},native:event=>{

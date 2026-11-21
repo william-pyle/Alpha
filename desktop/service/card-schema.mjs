@@ -8,7 +8,7 @@ export const cardStatuses = ['idea', 'in-progress', 'review', 'done'];
 const fail = message => { throw Object.assign(new Error(message), { status: 400 }); };
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function keys(value, allowed, label) {
-  if (!object(value) || Object.keys(value).some(key => !allowed.includes(key))) fail(`${label} has unsupported fields. Check the editable card format.`);
+  if (!object(value) || Object.keys(value).some(key => !allowed.includes(key))) fail(`${label} has unsupported fields. Check the editable project format.`);
 }
 function text(value, label, max, required = false) {
   if (value === undefined && !required) return;
@@ -26,13 +26,13 @@ export function cardSourceUrl(value) {
   return undefined;
 }
 function validate(value, draft) {
-  keys(value, ['format', 'version', 'template', 'title', 'summary', 'items'], 'This card');
-  if (value.format !== CARD_FORMAT || value.version !== CARD_VERSION) fail('This editable card version is not supported. Update Alpha before editing it.');
+  keys(value, ['format', 'version', 'template', 'title', 'summary', 'items'], 'This project');
+  if (value.format !== CARD_FORMAT || value.version !== CARD_VERSION) fail('This editable project version is not supported. Update Alpha before editing it.');
   if (!cardTemplates.includes(value.template)) fail('Choose the Gallery or Research template.');
   text(value.title, 'Page title', 200, !draft);
   if (typeof value.title !== 'string') fail('Enter a page title.');
   text(value.summary, 'Introduction', 20000);
-  if (!Array.isArray(value.items) || value.items.length > CARD_MAX_ITEMS) fail(`A card can contain up to ${CARD_MAX_ITEMS} entries.`);
+  if (!Array.isArray(value.items) || value.items.length > CARD_MAX_ITEMS) fail(`A project can contain up to ${CARD_MAX_ITEMS} entries.`);
   const ids = new Set();
   for (const item of value.items) {
     keys(item, ['id', 'title', 'body', 'image', 'alt', 'prompt', 'url', 'linkLabel', 'status'], 'An entry');
@@ -42,7 +42,7 @@ function validate(value, draft) {
     if (typeof item.title !== 'string') fail('Enter an entry title.');
     text(item.body, 'Entry notes', 40000); text(item.prompt, 'Prompt', 40000);
     text(item.alt, 'Image description', 500); text(item.linkLabel, 'Link label', 120);
-    if (item.image !== undefined && item.image !== '' && (!localCardPath(item.image) || !/\.(png|jpe?g|gif|webp)$/i.test(item.image))) fail('Images must be PNG, JPEG, WebP or GIF files inside this card folder.');
+    if (item.image !== undefined && item.image !== '' && (!localCardPath(item.image) || !/\.(png|jpe?g|gif|webp)$/i.test(item.image))) fail('Images must be PNG, JPEG, WebP or GIF files inside this project folder.');
     if (item.url !== undefined && item.url !== '') {
       text(item.url, 'Source URL', 2000);
       if (!draft && !cardSourceUrl(item.url)) fail('Use a complete http:// or https:// source URL without embedded credentials.');

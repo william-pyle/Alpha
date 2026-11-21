@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Disposable service/profile only. All task outcomes below are synthetic fixture evidence.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/trust-pass-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-trust-pass-ui-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Fixture project', folder: 'fixture', steps: [] }] }));
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');
@@ -76,16 +77,16 @@ try {
   const worker = service.sessions.make({ id: 'legacy-native-fixture', nativeId: 'preserved-provider-fixture', name: 'Conversation 7', agent: 'codex', cwd: repo, open: true, status: 'stopped', projectId: 'fixture', projectPending: false });
   service.sessions.items.set(worker.id, worker); service.sessions.changed(worker);
   service.awareness.event({ id: 'native-attention-fixture', threadId: worker.id, sessionId: worker.id, kind: 'attention', text: 'A native worker needs your input. Open Work details to inspect its prompt.', source: 'Fixture prompt' });
-  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click();
   await page.locator('.thread-attention article').filter({ hasText: 'Conversation 7' }).getByRole('button', { name: 'Open originating conversation' }).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${worker.id}`);
   await expect(page.getByRole('button', { name: 'Enable terminal controls', exact: true })).toBeVisible();
   await menu('History');
   await page.getByRole('button', { name: 'Review conversation metadata', exact: true }).click();
-  const review = page.locator('.desk-dialog').filter({ has: page.getByRole('heading', { name: 'Review conversation metadata' }) });
+  const review = page.getByRole('tabpanel', { name: 'Conversation history', exact: true });
   await expect(review).toContainText('Choose a descriptive title');
   await expect(review).toContainText('Add a purpose');
-  await review.getByRole('button', { name: 'Close review' }).click();
+  await page.getByRole('button', { name: 'Close Conversation history', exact: true }).click();
   assert.equal(service.sessions.get(worker.id).nativeId, 'preserved-provider-fixture'); assert.equal(service.threads.get(worker.id).name, 'Conversation 7');
   checks.push('Attention opens the correct native Activity with controls locked; optional legacy review changes no metadata or IDs');
 
@@ -95,13 +96,12 @@ try {
   await dialog.getByRole('button', { name: 'Create conversation', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const created = service.threads.items.at(-1);
-  assert.equal(created.name, 'Review startup performance evidence'); assert.equal(created.projectId, null);
+  assert.equal(created.name, 'Review startup performance evidence'); assert.equal(created.projectId, 'conversations');
   await page.locator(`#conversation-tab-${b.id}`).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
-  const ownership = page.locator('.question-card').filter({ hasText: `Which card or project should I track ${created.name} under?` });
-  await ownership.getByLabel(`Project for ${created.name}`, { exact: true }).selectOption('fixture - Fixture project');
-  await ownership.getByRole('button', { name: 'Send answer' }).click();
-  await expect.poll(() => service.threads.get(created.id).projectId).toBe('fixture'); await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
+  await expect(page.locator('.question-card').filter({ hasText: `Which project should I track ${created.name} under?` })).toHaveCount(0);
+  assert.equal(service.threads.get(created.id).projectId, 'conversations');
+  await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   await page.locator(`#conversation-tab-${created.id}`).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${created.id}`);
   await menu('Conversation details');
@@ -117,7 +117,7 @@ try {
   checks.push('Purpose-derived title, no guessed project, project Question answered while another thread selected, explicit metadata edit and draft');
 
   await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Common agents', exact: true }).click();
-  const workshop = page.getByRole('dialog', { name: 'Alpha agents and health' });
+  const workshop = page.getByRole('tabpanel', { name: 'Common agents' });
   const task = workshop.locator('.agent-run').filter({ hasText: run.id });
   await expect(task).toContainText('Turn completed; result not yet accepted');
   await task.getByRole('button', { name: 'Mark accepted' }).click();
@@ -133,7 +133,7 @@ try {
   await task.getByText('Corrections and feedback history', { exact: true }).click();
   await expect(task).toContainText('verified'); assert.equal(service.common.tasks[0].feedbackHistory.length, 3);
   await page.screenshot({ path: path.join(repo, 'outcome-evidence.png') });
-  await workshop.getByRole('button', { name: 'Close agent center' }).click();
+  await page.getByRole('button', { name: 'Close Common agents', exact: true }).click();
   checks.push('Acceptance does not verify; evidence entry, version provenance and correction history render in product UI');
 
   await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });

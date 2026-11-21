@@ -7,19 +7,21 @@ import { createService } from '../server.mjs';
 
 async function fixture() {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-orchestration-'));
-  await mkdir(path.join(repo, 'workspace'));
-  await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'alpha', title: 'Alpha' }, { id: 'mooseville', title: 'Mooseville' }] }));
+  await mkdir(path.join(repo, 'workspace/alpha'), { recursive: true });
+  await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'alpha', title: 'Alpha', folder: 'alpha', steps: [] }, { id: 'mooseville', title: 'Mooseville' }] }));
   const service = await createService({ repo, uiDir: repo, mcpOptions: { home: repo, env: {} } });
   const request = (route, data, method) => fetch(service.origin + '/api' + route, { method: method || (data ? 'POST' : 'GET'), headers: { Authorization: `Bearer ${service.token}`, Origin: service.origin, 'Content-Type': 'application/json' }, ...(data ? { body: JSON.stringify(data) } : {}) });
   return { repo, service, request };
 }
 
-test('new chats ask for an unknown project and persist the actual answer instead of using the visible card', async () => {
+test('new chats default to Conversations; explicitly unresolved projects retain origin-bound Questions', async () => {
   const { service, request } = await fixture();
   try {
     const response = await request('/sessions', { agent: 'shell', name: 'Project Tracking' });
     assert.equal(response.status, 201); const session = await response.json();
-    assert.equal(session.projectPending, true); assert.equal(session.projectId, null);
+    assert.equal(session.projectPending, false); assert.equal(session.projectId, 'conversations');
+    await request(`/threads/${session.id}`, { projectId: null }, 'PATCH');
+    assert.equal(service.sessions.get(session.id).projectPending, true);
     for (let index = 0; index < 100 && !service.questions.list().length; index++) await new Promise(resolve => setTimeout(resolve, 10));
     const question = service.questions.list()[0]; assert.equal(question.source, 'project');
     assert.equal((await request(`/sessions/${session.id}/input`, { text: 'echo should-wait', composed: true })).ok, false);

@@ -2,7 +2,7 @@
 
 Alpha uses a Tauri Windows host with a React interface and one authenticated
 loopback Node service. Chats and Workspace share one native window. Chats has
-a resizable sidebar, terminal and message editor; Workspace, cards, files and
+a resizable sidebar, terminal and message editor; Workspace, projects, files and
 Help use document tabs. The service manages native PTYs, chat history,
 Workspace storage, questions and update checks.
 
@@ -10,7 +10,7 @@ The message editor saves drafts per chat. Enter sends and Alt+Enter inserts a
 line. Pasted or dropped images are saved in the Workspace inbox and added to
 the draft. The shared Questions section routes answers to the chat that asked.
 
-Card categories are stored in the selected Workspace's
+Project categories are stored in the selected Workspace's
 `workspace/workspace.json` as stable IDs with names and icons. Settings
 contains General, Speech-to-text, Voice, Updates, Theme, MCP, Categories and
 Skills. Workspace location remains under General. Theme supports editing the

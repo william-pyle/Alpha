@@ -1,0 +1,301 @@
+// Isolated UI fixture. --preview captures the interface before regression checks.
+import assert from 'node:assert/strict';
+import { expect } from '@playwright/test';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { createService } from '../server.mjs';
+import { launchBrowser } from './browser.mjs';
+
+const previewOnly = process.argv.includes('--preview');
+await mkdir('.test-output', { recursive: true });
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || tmpdir(), 'alpha-project-utilities-'));
+await mkdir(path.join(repo, 'workspace'));
+await mkdir(path.join(repo, 'workspace/legacy'));
+const legacyReport = '<!doctype html><h1>Legacy fixture report</h1><p>Keep these report bytes and routes.</p>';
+await writeFile(path.join(repo, 'workspace/legacy/index.html'), legacyReport);
+await mkdir(path.join(repo, '.alpha'));
+await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Example project', folder: 'fixture', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: true, steps: [] }, { id: 'legacy', title: 'Legacy report', folder: 'legacy', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: true, steps: [{ name: 'Overview', path: 'index.html' }] }] }));
+await writeFile(path.join(repo, '.alpha/settings.json'), JSON.stringify({ speakReplies: false, viewerEnabled: false }));
+let service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+const a = service.threads.create({ name: 'UI fixture conversation', projectId: 'fixture', purpose: 'Inspect the updated Workspace tools.' });
+const b = service.threads.create({ name: 'Other isolated conversation', projectId: 'fixture', purpose: 'Verify origin-bound navigation.' });
+service.threads.message(a.id, { id: 'fixture-message', role: 'assistant', text: 'Workspace tools open beside this conversation. Your project and draft stay with this thread.' });
+service.threads.select(a.id);
+await service.threads.save();
+const errors = [], checks = [], screenshots = [], reportBounds = [];
+let browser, page;
+const request = async (route, data = {}) => {
+  const response = await fetch(service.origin + '/api' + route, { method: 'POST', headers: { Authorization: `Bearer ${service.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+};
+const open = async (menu, title) => { await page.getByRole('button', { name: menu, exact: true }).click(); await page.getByRole('menuitem', { name: title, exact: true }).click(); };
+const toolTitles = [["What I've learned", 'learned-preferences'], ['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings', 'settings'], ['Conversation history', 'conversation-history'], ['Needs attention', 'needs-attention']];
+const panel = title => page.getByRole('tabpanel', { name: title, exact: true });
+const capture = async name => { const file = `${name}.png`; await page.screenshot({ path: path.join(repo, file) }); screenshots.push(file); };
+const inspectReport = async name => {
+  await page.locator('.report-frame.loaded').waitFor();
+  const surface = await page.locator('.mdi-workspace-surface').boundingBox();
+  const frame = await page.locator('.report-frame').boundingBox();
+  reportBounds.push({ name, surface, frame });
+  await capture(name);
+  if (!previewOnly) {
+    assert.ok(surface && frame, 'The report and Workspace viewer must have visible bounds.');
+    assert.ok(frame.height >= surface.height - 120, `Report must fill the available viewer below its toolbar: ${frame.height}/${surface.height}`);
+    assert.ok(Math.abs(frame.y + frame.height - surface.y - surface.height) < 3, 'Report bottom must align with the Workspace viewer bottom.');
+    assert.ok(Math.abs(frame.width - surface.width) < 3, 'Report must fill the Workspace viewer width.');
+  }
+};
+try {
+  browser = await launchBrowser();
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  page.setDefaultTimeout(10000);
+  page.on('pageerror', error => errors.push(error.message));
+  // Account display is mocked. This fixture never creates or writes a remote.
+  await page.route('**/api/project-repositories/account', route => route.fulfill({ json: { login: 'william-pyle' } }));
+  let checkoutStatus = 'deferred';
+  const checkoutPosts = [];
+  await page.route('**/api/workspace/projects/*/checkout-migration', route => {
+    if (route.request().method() === 'POST') { checkoutPosts.push(route.request().postDataJSON()); checkoutStatus = 'current'; }
+    return route.fulfill({ json: { status: checkoutStatus, from: path.join(repo, 'legacy-owned-checkouts/example-project-with-a-long-repository-name'), to: path.join(repo, 'projects/preview-project/github'), reason: checkoutStatus === 'deferred' ? 'A fixture session pins this checkout. No files can move while it is active.' : checkoutStatus === 'ready' ? 'Verified owned fixture checkout; no files have moved.' : 'Mock checkout move completed; no filesystem action was performed.' } });
+  });
+  await page.goto(service.urls.workspace);
+  await page.locator('.mdi-document-tabs').waitFor();
+  await page.getByRole('textbox', { name: 'Message Alpha' }).fill('This draft stays with its conversation.');
+  await capture('workspace-dark-1440');
+  await page.evaluate(() => { location.hash = '#/legacy/0'; });
+  await inspectReport('report-full-height-dark-1440');
+  await page.setViewportSize({ width: 960, height: 720 });
+  await inspectReport('report-full-height-dark-960');
+  await open('Tools', 'Settings');
+  if (!previewOnly) await expect(page.locator('.mdi-app-view')).toBeHidden();
+  await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Legacy report', exact: true }).click();
+  await inspectReport('report-restored-after-utility-dark-960');
+  if (!previewOnly) checks.push('HTML report fills the Workspace viewer at wide/narrow sizes and after returning from a utility tab; its iframe does not collapse to intrinsic height.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Workspace', exact: true }).click();
+  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('New fixture conversation');
+  await page.getByRole('textbox', { name: 'Purpose', exact: true }).fill('Keep these entered details while creating a project.');
+  await capture('new-conversation-dark-1440');
+  await page.getByRole('button', { name: 'Create project for conversation', exact: true }).click();
+  const createProject = page.getByRole('dialog', { name: 'Create project', exact: true });
+  if (!previewOnly) {
+    await createProject.getByLabel('Project title', { exact: true }).fill('Cancelled project draft');
+    await createProject.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('New fixture conversation');
+    await expect(page.getByRole('textbox', { name: 'Purpose', exact: true })).toHaveValue('Keep these entered details while creating a project.');
+    await expect(page.getByRole('combobox', { name: 'Project for conversation', exact: true })).toHaveValue('conversations');
+    assert.ok(!(await service.workspace.registry()).entities.some(item => item.title === 'Cancelled project draft'));
+    await page.getByRole('button', { name: 'Create project for conversation', exact: true }).click();
+  }
+  await createProject.getByLabel('Project title', { exact: true }).fill('Preview project');
+  await capture('create-project-dark-1440');
+  await createProject.getByRole('button', { name: 'Create', exact: true }).click();
+  const createRepository = page.getByRole('dialog', { name: 'Create GitHub repository', exact: true });
+  await createRepository.getByText('william-pyle', { exact: true }).waitFor();
+  await capture('create-repository-dark-1440');
+  await createRepository.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await createProject.getByRole('button', { name: 'Create project', exact: true }).click();
+  await createProject.waitFor({ state: 'hidden' });
+  const created = (await service.workspace.registry()).entities.find(item => item.title === 'Preview project');
+  if (!previewOnly) {
+    await expect(page.getByRole('combobox', { name: 'Project for conversation', exact: true })).toHaveValue(created.id);
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('New fixture conversation');
+    await expect(page.getByRole('textbox', { name: 'Purpose', exact: true })).toHaveValue('Keep these entered details while creating a project.');
+    checks.push('Conversations is the default; + create cancellation preserves entered conversation data; successful creation selects the project and preserves that data.');
+  }
+  await capture('project-selected-in-conversation-dark-1440');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Workspace', exact: true }).click();
+  const projectCard = page.locator(`.entity-card-wrap[data-card="${created.id}"]`);
+  await projectCard.click({ button: 'right' });
+  await capture('project-context-menu-dark-1440');
+  await page.getByRole('menuitem', { name: 'Project settings', exact: true }).click();
+  const projectSettings = page.getByRole('dialog', { name: 'Project settings: Preview project', exact: true });
+  await projectSettings.waitFor();
+  await capture('project-settings-dark-1440');
+  await projectSettings.getByText('Existing checkout migration', { exact: true }).click();
+  await projectSettings.getByRole('button', { name: 'Check checkout migration', exact: true }).click();
+  await projectSettings.getByText(/deferred: A fixture session/).waitFor();
+  await capture('checkout-migration-deferred-dark-1440');
+  if (!previewOnly) await expect(projectSettings.getByRole('button', { name: 'Move checkout', exact: true })).toHaveCount(0);
+  checkoutStatus = 'ready';
+  await projectSettings.getByRole('button', { name: 'Check checkout migration', exact: true }).click();
+  await projectSettings.getByText('Confirm local checkout move', { exact: true }).waitFor();
+  await projectSettings.getByRole('button', { name: 'Move checkout', exact: true }).scrollIntoViewIfNeeded();
+  await capture('checkout-migration-ready-dark-1440');
+  await page.setViewportSize({ width: 960, height: 720 });
+  await projectSettings.getByRole('button', { name: 'Move checkout', exact: true }).scrollIntoViewIfNeeded();
+  await capture('checkout-migration-ready-dark-960');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  if (!previewOnly) {
+    const confirmCheckout = projectSettings.getByRole('textbox', { name: 'Confirm checkout migration project ID', exact: true });
+    const moveCheckout = projectSettings.getByRole('button', { name: 'Move checkout', exact: true });
+    await expect(moveCheckout).toBeDisabled();
+    await confirmCheckout.fill('wrong-id'); await expect(moveCheckout).toBeDisabled();
+    await confirmCheckout.fill(created.id); await expect(moveCheckout).toBeEnabled();
+    await moveCheckout.click();
+    await expect(projectSettings.getByText(/current: Mock checkout move completed/)).toBeVisible();
+    assert.deepEqual(checkoutPosts, [{ confirmation: created.id }]);
+    await expect(moveCheckout).toHaveCount(0);
+    checks.push('Mock checkout migration exposes no move when deferred; ready requires exact project ID and submits once; current removes the move action. No remote or checkout filesystem action occurs.');
+  }
+  await projectSettings.getByText('Existing checkout migration', { exact: true }).click();
+  if (!previewOnly) {
+    const source = projectSettings.getByRole('textbox', { name: /Source repository/ });
+    const working = projectSettings.getByRole('textbox', { name: /Project repository URL/ });
+    await source.fill('https://github.com/example/upstream');
+    await working.fill('https://github.com/william-pyle/example-owned');
+    await expect(projectSettings.getByRole('button', { name: 'Create', exact: true })).toHaveCount(0);
+    await expect(source).toHaveValue('https://github.com/example/upstream');
+    await working.fill('');
+    await expect(projectSettings.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
+    await projectSettings.getByRole('button', { name: 'Save project settings', exact: true }).click();
+    await expect.poll(async () => (await service.workspace.registry()).entities.find(item => item.id === created.id)?.sourceRepositoryUrl).toBe('https://github.com/example/upstream');
+    await page.waitForResponse(response => response.url().endsWith(`/workspace/projects/${created.id}/repository-state`) && response.ok());
+    await expect(source).toHaveValue('https://github.com/example/upstream');
+    await expect(working).toHaveValue('');
+    assert.equal((await service.workspace.registry()).entities.find(item => item.id === created.id)?.projectRepositoryUrl, '');
+    checks.push('Project/source URL inputs are independent; Create appears only for a blank working URL; read-only source association persists without cloning or remote writes.');
+  }
+  await projectSettings.getByRole('button', { name: 'Close', exact: true }).last().click();
+  await projectCard.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Delete project...', exact: true }).click();
+  await capture('delete-project-dark-1440');
+  const remove = page.getByRole('dialog', { name: 'Delete project: Preview project', exact: true });
+  if (previewOnly) await remove.getByRole('button', { name: 'Cancel', exact: true }).click();
+  else {
+    const contents = await readFile(path.join(repo, created.workspacePath, 'content.card.json'), 'utf8');
+    const retained = service.threads.create({ name: 'Retained project history', projectId: created.id, purpose: 'Preserve references after list removal.' });
+    await expect(remove.getByRole('radio')).toBeChecked();
+    await expect(remove.getByRole('button', { name: 'Remove project, keep files', exact: true })).toBeDisabled();
+    await remove.getByRole('textbox', { name: 'Confirm project ID', exact: true }).fill('wrong-id');
+    await expect(remove.getByRole('button', { name: 'Remove project, keep files', exact: true })).toBeDisabled();
+    await remove.getByRole('textbox', { name: 'Confirm project ID', exact: true }).fill(created.id);
+    await remove.getByRole('button', { name: 'Remove project, keep files', exact: true }).click();
+    await expect(projectCard).toHaveCount(0);
+    assert.equal(await readFile(path.join(repo, created.workspacePath, 'content.card.json'), 'utf8'), contents);
+    assert.equal(service.threads.get(retained.id).projectId, created.id);
+    assert.ok((await service.workspace.registry()).entities.find(item => item.id === created.id)?.removedAt);
+    await page.locator('.entity-card-wrap[data-card="conversations"]').click({ button: 'right' });
+    await expect(page.getByRole('menuitem', { name: /Delete project|Archive project/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    checks.push('Typed local removal defaults to keep files and preserves exact bytes and historical project references; Conversations has no Delete or Archive action.');
+  }
+  await page.locator('.entity-card-wrap[data-card="legacy"]').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Project settings', exact: true }).click();
+  const migration = page.getByRole('dialog', { name: 'Project settings: Legacy report', exact: true });
+  await migration.getByText('Move to the canonical workspace', { exact: true }).waitFor();
+  await capture('workspace-migration-dark-1440');
+  await page.setViewportSize({ width: 960, height: 720 });
+  await migration.getByRole('button', { name: 'Apply workspace migration', exact: true }).scrollIntoViewIfNeeded();
+  await capture('workspace-migration-dark-960');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  if (!previewOnly) {
+    await expect(migration.getByRole('button', { name: 'Apply workspace migration', exact: true })).toBeDisabled();
+    await migration.getByRole('textbox', { name: 'Confirm workspace migration project ID', exact: true }).fill('legacy');
+    await migration.getByRole('button', { name: 'Apply workspace migration', exact: true }).click();
+    await expect.poll(async () => (await service.workspace.registry()).entities.find(item => item.id === 'legacy').workspacePath).toBe('projects/legacy/workspace');
+    assert.equal(await readFile(path.join(repo, 'projects/legacy/workspace/index.html'), 'utf8'), legacyReport);
+    assert.equal((await service.workspace.registry()).entities.find(item => item.id === 'legacy').steps[0].path, 'index.html');
+    checks.push('Canonical workspace migration requires the exact project ID and keeps report bytes and route filenames.');
+  }
+  await migration.getByRole('button', { name: 'Close', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await capture('tools-menu-dark-1440');
+  await page.keyboard.press('Escape');
+  for (const [title, id] of toolTitles) {
+    await open(['conversation-history', 'needs-attention'].includes(id) ? 'View' : 'Tools', title);
+    await panel(title).waitFor();
+    await capture(`${id}-dark-1440`);
+  }
+  await request('/settings', { workspaceTheme: 'light' });
+  await page.setViewportSize({ width: 960, height: 720 });
+  await open('Tools', 'Settings'); await capture('settings-light-960');
+  await open('Tools', "What I've learned"); await capture('learned-light-960');
+  if (previewOnly) {
+    await writeFile(path.join(repo, 'preview.json'), JSON.stringify({ status: 'captured-for-visual-review', fixtureOnly: true, deviceScaleFactor: 1, screenshots, reportBounds, errors, formalChecksRun: false, nativeWindowObserved: false }, null, 2));
+    console.log(`Preview screenshots: ${repo}`);
+  } else {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await request('/settings', { workspaceTheme: 'dark' });
+    const editor = page.getByRole('textbox', { name: 'Message Alpha' });
+    for (const [title, id] of toolTitles) {
+      await open(['conversation-history', 'needs-attention'].includes(id) ? 'View' : 'Tools', title);
+      await expect(panel(title)).toBeVisible();
+      await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(editor).toHaveValue('This draft stays with its conversation.');
+      assert.equal(service.threads.selectedId, a.id);
+      assert.equal(service.threads.get(a.id).projectId, 'fixture');
+    }
+    checks.push('Six singleton Workspace tabs preserve the selected conversation, project and draft; no utility dialogs.');
+    await open('Tools', "What I've learned");
+    await page.getByLabel('What should I do differently?').fill('Unsaved lesson draft stays while switching tools.');
+    await open('Tools', 'Settings');
+    await open('Tools', "What I've learned");
+    await expect(page.getByLabel('What should I do differently?')).toHaveValue('Unsaved lesson draft stays while switching tools.');
+    await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'), 'utf8')).utilityTabs?.length).toBe(6);
+    await page.reload();
+    await expect(panel("What I've learned")).toBeVisible();
+    for (const [title] of toolTitles) await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
+    checks.push('Open utility tabs and active utility persist on reload; unsaved edits remain while tabs switch.');
+    const file = page.getByRole('button', { name: 'File', exact: true });
+    const tools = page.getByRole('button', { name: 'Tools', exact: true });
+    await file.click(); await tools.click();
+    await expect(page.locator('.mdi-menu-popup')).toHaveCount(1);
+    await expect(page.getByRole('menu', { name: 'Tools', exact: true })).toBeVisible();
+    await editor.click(); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    await tools.click(); await editor.focus(); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    await tools.click(); await page.evaluate(() => dispatchEvent(new Event('blur'))); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    await tools.click(); service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: false, maximized: false, minimized: false } });
+    await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: true, maximized: false, minimized: false } });
+    await tools.focus(); await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: "What I've learned", exact: true })).toBeFocused();
+    await page.keyboard.press('End'); await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape'); await expect(tools).toBeFocused();
+    await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    checks.push('Exclusive menus dismiss outside pointer/focus/DOM blur/native deactivation; arrows, End and Escape preserve keyboard access.');
+    await file.click(); await expect(page.getByRole('menuitem', { name: /Open file|Close document/ })).toHaveCount(0); await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'View', exact: true }).click(); await expect(page.getByRole('menuitem', { name: /Quick switcher/ })).toHaveCount(0); await page.keyboard.press('Escape');
+    await page.keyboard.press('Control+k'); await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Workspace', exact: true }).click();
+    await expect(page.locator('.mdi-app-view')).toBeVisible();
+    checks.push('Obsolete File/View commands and Ctrl+K are removed; Workspace remains available.');
+    service.awareness.event({ id: 'routine', threadId: a.id, kind: 'exit', text: 'Routine exit', source: 'Fixture' });
+    service.awareness.event({ id: 'actionable', threadId: b.id, kind: 'error', text: 'Isolated worker failure needs review.', source: 'Fixture' });
+    await open('View', 'Needs attention');
+    await expect(panel('Needs attention')).toContainText('Isolated worker failure needs review.');
+    await expect(panel('Needs attention')).not.toContainText('Routine exit');
+    await panel('Needs attention').getByRole('button', { name: 'Open originating conversation' }).click();
+    await expect.poll(() => service.threads.selectedId).toBe(b.id);
+    await panel('Needs attention').getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await expect(panel('Needs attention')).toContainText('Nothing needs attention.');
+    checks.push('Needs attention excludes routine activity and resolves actions against the recorded originating conversation.');
+    await page.evaluate(() => { location.hash = '#/fixture/0'; });
+    await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Example project', exact: true })).toBeVisible();
+    await open('View', 'Needs attention');
+    await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'), 'utf8')).activeUtilityTab).toBe('needs-attention');
+    await service.close();
+    service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+    await page.goto(service.urls.workspace);
+    await expect(panel('Needs attention')).toBeVisible();
+    for (const [title] of toolTitles) await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
+    assert.equal(service.threads.selectedId, b.id);
+    assert.equal(service.threads.get(a.id).projectId, 'fixture');
+    await page.getByRole('button', { name: 'Close Needs attention', exact: true }).click();
+    await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Example project', exact: true })).toHaveAttribute('aria-selected', 'true');
+    assert.equal(new URL(page.url()).hash, '#/fixture/0');
+    checks.push('Isolated service restart restores all six tabs, active tool and exact conversation/project identities.');
+    assert.deepEqual(errors, []);
+    await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowObserved: false, checks, screenshots, reportBounds, errors }, null, 2));
+    console.log(`Utility UI checks passed: ${repo}`);
+  }
+} catch (error) {
+  if (page) await page.screenshot({ path: path.join(repo, 'failure.png') }).catch(() => {});
+  await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: String(error), errors, checks, screenshots }, null, 2));
+  console.error(`UI evidence: ${repo}`); throw error;
+} finally { await browser?.close(); await service.close(); }

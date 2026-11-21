@@ -65,9 +65,9 @@ export class QuickActions {
       return card && chat ? {} : { card, chat };
     };
     let match = /^(?:архивируй|заархивируй|отправь в архив|archive)\s+(.+)$/iu.exec(text);
-    if (match) { const { card } = resolve(match[1]); return card ? async () => { await call('update_workspace', { entityId: card.id, status: 'archived' }); return `Archived the card "${card.title}".`; } : null; }
+    if (match) { const { card } = resolve(match[1]); return card ? async () => { await call('update_workspace', { entityId: card.id, status: 'archived' }); return `Archived the project "${card.title}".`; } : null; }
     match = /^(?:верни из архива|разархивируй|unarchive)\s+(.+)$/iu.exec(text);
-    if (match) { const { card } = resolve(match[1]); return card ? async () => { await call('update_workspace', { entityId: card.id, status: 'active' }); return `The card "${card.title}" is active again.`; } : null; }
+    if (match) { const { card } = resolve(match[1]); return card ? async () => { await call('update_workspace', { entityId: card.id, status: 'active' }); return `The project "${card.title}" is active again.`; } : null; }
     match = /^(?:отметь|пометь|mark)\s+(.+?)\s+(?:как\s+|as\s+)?(готовой|готово|завершенной|завершено|done|активной|active)$/iu.exec(text);
     if (match) { const { card } = resolve(match[1]), status = /актив|active/iu.test(match[2]) ? 'active' : 'done'; return card ? async () => { await call('update_workspace', { entityId: card.id, status }); return `"${card.title}": ${status}.`; } : null; }
     match = /^(закрепи|открепи|pin|unpin)\s+(.+)$/iu.exec(text);
@@ -83,7 +83,7 @@ export class QuickActions {
       const { chat, card } = resolve(subject);
       if (chat) return async () => { await call('focus_chat', { id: chat.id }); return `Opened the chat "${chat.name}".`; };
       if (/^(?:workspace|воркспейс|рабочее пространство)$/iu.test(subject)) return async () => { await call('show_workspace', {}); return 'Workspace is open.'; };
-      if (card) return async () => { await call('show_workspace', { entityId: card.id }); return `Opened the card "${card.title}".`; };
+      if (card) return async () => { await call('show_workspace', { entityId: card.id }); return `Opened the project "${card.title}".`; };
     }
     match = /^(?:прочитай|прочти|что в|read|summarize)\s+(.+)$/iu.exec(text);
     if (match) { const { card } = resolve(match[1]); return card ? async () => { const value = await call('read_workspace', { entityId: card.id }); return `${value.title}\n${value.description || ''}\n\n${value.text.slice(0, 4000)}${value.note ? '\n' + value.note : ''}`; } : null; }

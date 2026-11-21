@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // One-window interaction with isolated state and mocked model/audio.
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/conversations-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-conversations-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'example', title: 'Example', folder: 'example', steps: [] }] }));
 await writeFile(path.join(repo, '.alpha/settings.json'), JSON.stringify({ speakReplies: false, transcribeProvider: 'local' }));
@@ -76,15 +77,15 @@ try {
   await page.locator(`#conversation-tab-${b.id}`).click(); await expect(pane.getByText(/Reference explicitly shared from Architecture:/)).toContainText('A background result');
   assert.equal(requests.length, count); await expect(pane.getByText('Architecture: Private A', { exact: true })).toHaveCount(0);
   service.awareness.event({ id: 'attention-a', threadId: a.id, kind: 'error', text: 'A decision needs review.', source: 'Fixture question event' });
-  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click(); await expect(page.getByText('A decision needs review.', { exact: true })).toBeVisible();
-  await page.locator('.thread-attention article').filter({ hasText: 'A decision needs review.' }).getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.reload(); await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); await expect(page.getByText('A decision needs review.', { exact: true })).toBeVisible();
+  await page.locator('.thread-attention article').filter({ hasText: 'A decision needs review.' }).getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.reload(); await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click();
   await expect(page.getByText('A decision needs review.', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Close Important events' }).click(); await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect.poll(() => service.awareness.settings.quiet).toBe(true);
+  await page.getByRole('button', { name: 'Close Needs attention' }).click(); await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect.poll(() => service.awareness.settings.quiet).toBe(true);
   await page.getByRole('button', { name: 'Close settings' }).click();
   await menu("What I've learned"); const learning = page.getByRole('region', { name: "What I've learned" });
   await learning.getByLabel('Use this for').selectOption('work'); await learning.getByLabel('What should I do differently?').fill('Name anything unfinished.'); await learning.getByRole('button', { name: 'Remember this' }).click();
   await expect(learning.getByText('Name anything unfinished.', { exact: true })).toBeVisible();
-  await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await learning.getByRole('button', { name: 'Back to our chat' }).click();
+  await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await page.getByRole('button', { name: "Close What I've learned", exact: true }).click();
   await page.screenshot({ path: path.join(repo, 'conversations-wide.png') });
   for (const width of [768, 390]) { await page.setViewportSize({ width, height: 1000 }); await expect(pane).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.screenshot({ path: path.join(repo, `conversations-${width}.png`) }); }
   await expect.poll(() => service.threads.get(b.id).draft?.text).toBe('Draft B');

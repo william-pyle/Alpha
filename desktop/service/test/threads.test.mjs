@@ -66,6 +66,8 @@ test('service binds project questions and coordinator tools to the originating t
   };
   try {
     const a = (await request('/threads', { name: 'A' })).data;
+    assert.equal(a.projectId, 'conversations');
+    await request(`/threads/${a.id}`, { projectId: null }, 'PATCH');
     const b = (await request('/threads', { name: 'B', projectId: 'alpha' })).data;
     await request(`/threads/${b.id}/select`, {});
     assert.equal((await request(`/threads/${a.id}/input`, { id: 'blocked', text: 'Do work' })).status, 400);

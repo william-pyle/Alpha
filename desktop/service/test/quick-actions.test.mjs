@@ -41,7 +41,7 @@ test('direct card actions and date lookups bypass the model and never open worke
     const read = await request('read', 'Прочитай эту карточку'); assert.match(read.result, /animation was exported/); assert.doesNotMatch(read.result, /hidden styles|not report content/);
     const day = await request('date', 'Что делали 10 сентября 2026?'); assert.match(day.result, /Animation Review/);
     service.quick.context = () => ({ chats: [{ id: 'unrelated-chat', name: 'Animation Review' }], route: '#/test-card' });
-    const current = await request('current-card', 'Открой эту карточку', { selectedId: 'unrelated-chat' }); assert.equal(current.status, 'completed'); assert.match(current.result, /card/);
+    const current = await request('current-card', 'Открой эту карточку', { selectedId: 'unrelated-chat' }); assert.equal(current.status, 'completed'); assert.match(current.result, /project/);
     await request('pin-card', 'Закрепи эту карточку', { selectedId: 'unrelated-chat' }); assert.equal((await service.workspace.registry()).entities[0].pinned, true);
     assert.equal(await service.quick.ask({ id: 'ambiguous-surface', text: 'Открой Animation Review' }), null);
     assert.equal(await service.quick.ask({ id: 'compound', text: 'Что делали вчера и архивируй Animation Review' }), null);

@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated workspace, fake microphone and transcription; no real agent input.
 import { expect } from '@playwright/test';
 import { launchBrowser } from './browser.mjs';
@@ -8,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createService } from '../server.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache/desktop-dictation-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-desktop-dictation-ui-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 await cp(path.join(root, 'dist'), path.join(repo, 'ui'), { recursive: true });

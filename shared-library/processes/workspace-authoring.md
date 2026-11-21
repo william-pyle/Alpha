@@ -1,8 +1,13 @@
-# Authoring a Workspace card
+# Authoring a Workspace project
 
-1. Read the current registry and reuse the relevant project or task card.
-2. Create a dated folder only for a new independent task. Keep sources and
-   output media local to that task or its project folder.
+1. Read the current registry and reuse the relevant project.
+2. Reuse the stable project ID at `projects/<id>`. Keep exactly one canonical
+   Workspace folder at `projects/<id>/workspace`; do not create dated workspaces
+   or another project entry for the same project. An optional owned working
+   GitHub checkout belongs directly in `projects/<id>/github`, never nested
+   under another repository-name folder. Keep private reports, records and
+   assets outside that checkout. Existing active/pinned sources and project
+   renderers require a documented, lossless migration; do not move them silently.
 3. Write the result in English by default. Use stable tab names and relative
    paths. Keep one main project pinned when it is the user's working hub.
    For directly editable galleries or research, follow

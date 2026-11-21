@@ -2,12 +2,15 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { createPortal } from 'react-dom'
 import type { CardCategory, WorkspaceEntity } from '../types'
 import { updateWorkspaceEntity, type EntityPatch } from '../lib/workspace'
-import { isDesktop } from '../desktop/client'
+import ProjectSettings from '../desktop/ProjectSettings'
+import ConversationDialog from '../desktop/ConversationDialog'
+import ConversationContextMenu from '../desktop/ConversationContextMenu'
+import { api, isDesktop } from '../desktop/client'
 import './entity-controls.css'
 
 const labels = { active: 'Active', done: 'Done', archived: 'Archived' } as const
-const Controls = createContext<{ open: (entity: WorkspaceEntity, button: HTMLButtonElement) => void; editing: string | null } | null>(null)
-type Target = { id: string; button: HTMLButtonElement; anchor: DOMRect }
+const Controls = createContext<{ open: (entity: WorkspaceEntity, button: HTMLElement) => void; editing: string | null } | null>(null)
+type Target = { id: string; button: HTMLElement; anchor: DOMRect }
 
 export function EntityStatusButton({ entity }: { entity: WorkspaceEntity }) {
   const controls = useContext(Controls)
@@ -18,7 +21,7 @@ export function EntityStatusButton({ entity }: { entity: WorkspaceEntity }) {
       aria-label={`Edit ${entity.title}: ${labels[entity.status]}`}
       aria-haspopup="dialog"
       aria-expanded={controls?.editing === entity.id}
-      title={`${labels[entity.status]} · ${isDesktop ? 'Change status or category' : 'Open the desktop app to edit this card'}`}
+      title={`${labels[entity.status]} · ${isDesktop ? 'Change status or category' : 'Open the desktop app to edit this project'}`}
       disabled={!isDesktop}
       onClick={event => controls?.open(entity, event.currentTarget)}
     >
@@ -69,7 +72,7 @@ function EntityMenu({ entity, categories, target, onClose, onChanged }: {
       await onChanged()
       onClose()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The card could not be updated. Try again.')
+      setError(reason instanceof Error ? reason.message : 'The project could not be updated. Try again.')
     } finally { setSaving(false) }
   }
 
@@ -77,7 +80,7 @@ function EntityMenu({ entity, categories, target, onClose, onChanged }: {
     <dialog
       ref={dialog}
       className="entity-menu"
-      aria-label={`Card settings: ${entity.title}`}
+      aria-label={`Project settings: ${entity.title}`}
       aria-busy={saving}
       onCancel={event => { event.preventDefault(); if (!saving) onClose() }}
       onClick={event => {
@@ -88,8 +91,8 @@ function EntityMenu({ entity, categories, target, onClose, onChanged }: {
       onKeyDown={event => event.stopPropagation()}
     >
       <div className="entity-menu-heading">
-        <div><span>Card settings</span><h2>{entity.title}</h2></div>
-        <button type="button" className="entity-menu-close" aria-label="Close card settings" disabled={saving} onClick={onClose}>×</button>
+        <div><span>Project settings</span><h2>{entity.title}</h2></div>
+        <button type="button" className="entity-menu-close" aria-label="Close project settings" disabled={saving} onClick={onClose}>×</button>
       </div>
       <fieldset disabled={saving}>
         <legend>Status</legend>
@@ -105,14 +108,14 @@ function EntityMenu({ entity, categories, target, onClose, onChanged }: {
       </fieldset>
       <label className="entity-category-control">
         Category
-        <select aria-label="Card category" value={category} disabled={saving} onChange={event => void save({ category: event.target.value })}>
+        <select aria-label="Project category" value={category} disabled={saving} onChange={event => void save({ category: event.target.value })}>
           {categories.map(item => <option key={item.id} value={item.id}>{item.icon} {item.name}</option>)}
         </select>
       </label>
-      <button type="button" className="entity-pin-toggle" disabled={saving} onClick={() => void save({ pinned: !entity.pinned })}>
-        {entity.pinned ? 'Unpin card' : 'Pin card'}
+      <button type="button" className="entity-pin-toggle" disabled={saving || !!entity.builtin} onClick={() => void save({ pinned: !entity.pinned })}>
+        {entity.pinned ? 'Unpin project' : 'Pin project'}
       </button>
-      <p className="entity-menu-hint">Archived cards keep their files and tabs. Use the Workspace Archived or All scope to find them. Their original categories are retained.</p>
+      <p className="entity-menu-hint">Archived projects keep their files and tabs. Use the Workspace Archived or All scope to find them. Their original categories are retained.</p>
       {saving && <p className="entity-menu-feedback" role="status">Saving…</p>}
       {error && <p className="entity-menu-error" role="alert">{error}</p>}
     </dialog>, document.body,
@@ -127,13 +130,27 @@ export default function EntityControls({ entities, categories, onChanged, childr
 }) {
   const [target, setTarget] = useState<Target | null>(null)
   const entity = entities.find(item => item.id === target?.id)
+  const [context, setContext] = useState<{ id: string; x: number; y: number; origin: HTMLElement } | null>(null)
+  const [settings, setSettings] = useState<string | null>(null), [removing, setRemoving] = useState<WorkspaceEntity | null>(null), [confirmation, setConfirmation] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false)
+  const contextEntity = entities.find(item => item.id === context?.id)
+  const openContext = (element: HTMLElement, x: number, y: number) => { const node = element.closest<HTMLElement>('[data-entity],[data-card]'); const id = node?.dataset.entity || node?.dataset.card; if (id && node) setContext({ id, x, y, origin: node }) }
   function close() {
     setTarget(null)
     if (target?.button.isConnected) target.button.focus({ preventScroll: true })
   }
   return (
     <Controls.Provider value={{ editing: target?.id ?? null, open: (item, button) => setTarget({ id: item.id, button, anchor: button.getBoundingClientRect() }) }}>
-      {children}
+      <div style={{ display: 'contents' }} onContextMenu={event => { if (!isDesktop || !(event.target as HTMLElement).closest('[data-entity],[data-card]')) return; event.preventDefault(); openContext(event.target as HTMLElement, event.clientX, event.clientY) }} onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { const node = (event.target as HTMLElement).closest<HTMLElement>('[data-entity],[data-card]'); if (!node) return; event.preventDefault(); const box = node.getBoundingClientRect(); openContext(node, box.left + 20, box.top + 20) } }}>{children}</div>
+      {context && contextEntity && <ConversationContextMenu target={context} close={() => setContext(null)} items={[
+        { label: 'Project settings', run: () => setSettings(contextEntity.id) },
+        { label: 'Status and category', run: () => setTarget({ id: contextEntity.id, button: context.origin, anchor: context.origin.getBoundingClientRect() }) },
+        ...(!contextEntity.builtin && contextEntity.id !== 'conversations' ? [
+          { label: contextEntity.status === 'archived' ? 'Restore project' : 'Archive project', run: () => void updateWorkspaceEntity(contextEntity.id, { status: contextEntity.status === 'archived' ? 'active' : 'archived' }).then(onChanged).catch(reason => setError(String(reason))) },
+          { label: 'Delete project...' , run: () => { setRemoving(contextEntity); setConfirmation(''); setError('') } },
+        ] : []),
+      ]} />}
+      {settings && <ProjectSettings id={settings} close={() => setSettings(null)} />}
+      {removing && <ConversationDialog title={`Delete project: ${removing.title}`} close={() => { if (!busy) setRemoving(null) }}><form className="project-settings-form" onSubmit={event => { event.preventDefault(); setBusy(true); void api(`/workspace/projects/${removing.id}/remove`, { scope: 'keep-files', confirmation }).then(onChanged).then(() => { setRemoving(null); window.dispatchEvent(new Event('alpha-workspace-changed')) }).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))).finally(() => setBusy(false)) }}><p>Remove this project from the Workspace list. This is separate from Archive.</p><label><input type="radio" checked readOnly name="removal-scope" /> Keep all local files (default)</label><p>Local workspace and checkout files stay where they are. Git history, conversation histories, active workers and their project references are retained. The GitHub repository is never deleted by Alpha.</p><p>Type <strong>{removing.id}</strong> to confirm this local list removal.</p><input aria-label="Confirm project ID" autoFocus value={confirmation} onChange={event => setConfirmation(event.target.value)} />{error && <p role="alert">{error}</p>}<footer><button type="button" disabled={busy} onClick={() => setRemoving(null)}>Cancel</button><button type="submit" disabled={busy || confirmation !== removing.id}>Remove project, keep files</button></footer></form></ConversationDialog>}
       {entity && target && <EntityMenu key={entity.id} entity={entity} categories={categories} target={target} onClose={close} onChanged={onChanged} />}
     </Controls.Provider>
   )

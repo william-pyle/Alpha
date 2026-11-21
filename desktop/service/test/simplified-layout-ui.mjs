@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated service and synthetic conversations only; never contacts a live model.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -7,7 +8,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser, clipboardPermissions } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/simplified-layout-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-simplified-layout-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'fixture', title: 'Fixture project', folder: 'fixture', steps: [] }] }));
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');
@@ -44,7 +45,7 @@ try {
   const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   const closeSettings = () => page.getByRole('button', { name: 'Close settings' }).click();
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
-  const notification = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Important events', exact: true }).click(); };
+  const notification = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); };
   const snap = async name => { const file = path.join(repo, `${name}.png`); await page.screenshot({ path: file }); screenshots.push(file); };
   await expect(editor).toHaveCount(1); await expect(page.getByRole('tablist', { name: 'Sidebar' })).toHaveCount(0);
   await expect(page.locator('.alpha-presence')).toHaveCount(0); await expect(page.locator('.thread-activity')).toHaveCount(0);
@@ -157,7 +158,7 @@ try {
   await work.getByRole('button', { name: 'Enable terminal controls' }).click(); await expect(work.getByRole('button', { name: 'Lock terminal controls' })).toBeVisible();
   await work.getByRole('button', { name: 'Close Work details' }).click(); assert.equal(service.sessions.get(idle.id).nativeId, 'exact-native-fixture');
   await page.locator('.status-runtime>summary').click(); await expect(page.locator('.status-detail')).toContainText('0 active workers'); await page.locator('.status-runtime>summary').click();
-  await editor.fill('Draft stays while panels open'); await menu("What I've learned"); await page.getByRole('button', { name: 'Close Learned preferences' }).click(); await expect(editor).toHaveValue('Draft stays while panels open');
+  await editor.fill('Draft stays while panels open'); await menu("What I've learned"); await page.getByRole('button', { name: 'Close What I\'ve learned' }).click(); await expect(editor).toHaveValue('Draft stays while panels open');
   checks.push('On-demand Work details preserves exact native identity and manual controls; idle open worker is not counted as active. Secondary panels preserve draft.');
 
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await closeSettings();
@@ -167,8 +168,8 @@ try {
   await expect(page.locator(`[data-question-id="${quiet.id}"]`)).toBeVisible(); await service.questions.dismiss(quiet.id);
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).not.toBeChecked(); await closeSettings();
   service.awareness.event({ id: 'review-layout', threadId: a.id, kind: 'review', text: 'Result ready for review; not verified.', source: 'Fixture' });
-  await notification(); await expect(page.getByRole('dialog', { name: 'Important events' })).toContainText('not verified');
-  await page.getByRole('dialog', { name: 'Important events' }).getByRole('button', { name: 'Snooze 30 minutes' }).last().click(); await page.getByRole('button', { name: 'Close Important events' }).click();
+  await notification(); await expect(page.getByRole('tabpanel', { name: 'Needs attention' })).toContainText('not verified');
+  await page.getByRole('tabpanel', { name: 'Needs attention' }).getByRole('button', { name: 'Snooze 30 minutes' }).last().click(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   checks.push('Quiet mode in Settings does not auto-open new Questions; explicit notification origin still works. Review remains distinct from verified; snooze available.');
 
   // Long/streaming Markdown stays inside message scroll, including an incomplete fence.
@@ -220,7 +221,7 @@ try {
   }
   const menuTab = pane.locator('[role=tab][aria-selected=true]');
   await menuTab.focus(); await menuTab.press('Shift+F10'); await expect(page.getByRole('menuitem', { name: 'Search this conversation', exact: true })).toBeFocused();
-  await page.getByRole('menuitem', { name: 'History', exact: true }).click(); await expect(page.getByRole('dialog', { name: 'Conversation history' })).toBeVisible(); await page.keyboard.press('Escape'); await expect(menuTab).toBeFocused();
+  await page.getByRole('menuitem', { name: 'History', exact: true }).click(); await expect(page.getByRole('tabpanel', { name: 'Conversation history' })).toBeVisible(); await page.getByRole('button', { name: 'Close Conversation history', exact: true }).click(); await menuTab.focus(); await expect(menuTab).toBeFocused();
   checks.push('Streaming/incomplete and long Markdown; light/dark rendered at 960x1440, 960x520, 768x600, 390x600. Actual message/composer/header bounds and no viewport overflow asserted.');
   assert.deepEqual(errors, []); assert.deepEqual(remote, []);
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).viewerEnabled).toBe(false);

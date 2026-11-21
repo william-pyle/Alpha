@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { realFile, saveJson, sleep, readJson } from './util.mjs';
 import { validateCard, cardText, CARD_MAX_BYTES } from './card-schema.mjs';
+import { CONVERSATIONS_PROJECT, projectWorkspaceDirectory } from './project-layout.mjs';
 import defaultCategories from './default-categories.json' with { type: 'json' };
 
 const execute = promisify(execFile);
@@ -59,18 +60,17 @@ export class Workspace {
   }
   async list({ query = '', date, status } = {}) {
     const { entities } = await this.registry();
-    return entities.filter(item => (!query || `${item.id} ${item.title} ${item.description}`.toLowerCase().includes(query.toLowerCase())) && (!date || item.created === date || item.updated === date) && (!status || item.status === status)).map(brief);
+    return entities.filter(item => !item.removedAt && (!query || `${item.id} ${item.title} ${item.description}`.toLowerCase().includes(query.toLowerCase())) && (!date || item.created === date || item.updated === date) && (!status || item.status === status)).map(brief);
   }
   async read(id, step = 0) {
     const entity = (await this.registry()).entities.find(item => item.id === id);
-    if (!entity) throw new Error('Workspace card was not found.');
+    if (!entity) throw new Error('Workspace project was not found.');
     const result = { ...brief(entity), text: '' };
     const selected = entity.steps?.[step];
     if (!selected) return result;
-    const relative = path.join(entity.folder, selected.path.split('?')[0]);
-    const { file } = await realFile(path.join(this.repo, 'workspace'), relative);
+    const { file } = await realFile(await projectWorkspaceDirectory(this.repo, entity), selected.path.split('?')[0]);
     if (selected.viewer === 'card' && file.endsWith('.card.json') && (await stat(file)).size <= CARD_MAX_BYTES) return { ...result, text: cardText(validateCard(JSON.parse(await readFile(file, 'utf8')))).slice(0, 12000) };
-    if (!/\.(html?|md|txt)$/i.test(file) || (await stat(file)).size > 3 * 1024 * 1024) return { ...result, note: 'The card uses a visual or large report. Open it for the full content.' };
+    if (!/\.(html?|md|txt)$/i.test(file) || (await stat(file)).size > 3 * 1024 * 1024) return { ...result, note: 'The project uses a visual or large report. Open it for the full content.' };
     const text = await readFile(file, 'utf8');
     result.text = stripCodeBlocks(text).replace(/<[^<>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 12000);
     return result;
@@ -98,8 +98,10 @@ export class Workspace {
         const registry = JSON.parse(source);
         registry.categories = categoriesOf(registry);
         const entity = registry.entities.find(item => item.id === id);
-        if (!entity) throw Object.assign(new Error('Workspace card was not found.'), { status: 404 });
-        if (undo && fingerprint(entity) !== undo.after) throw Object.assign(new Error('This card changed after that action. Undo would overwrite newer edits; review its current values.'), { status: 409 });
+        if (!entity) throw Object.assign(new Error('Workspace project was not found.'), { status: 404 });
+        if (undo && fingerprint(entity) !== undo.after) throw Object.assign(new Error('This project changed after that action. Undo would overwrite newer edits; review its current values.'), { status: 409 });
+        if (entity.removedAt) throw invalid('Removed projects retain their history but cannot be reorganized.');
+        if ((entity.builtin || id === CONVERSATIONS_PROJECT) && (patch.status && patch.status !== 'active' || patch.pinned === false || undoId)) throw invalid('Conversations stays active and pinned.');
         const before = structuredClone(entity);
         if (undo) {
           for (const key of undo.keys) { if (Object.hasOwn(undo.before, key)) entity[key] = undo.before[key]; else delete entity[key]; }
@@ -165,7 +167,7 @@ export class Workspace {
             const used = registry.entities.filter(item => item.category === id);
             reassigned = used.length;
             if (registry.categories.length < 2) throw invalid('Keep at least one category.');
-            if (used.length && (!categoryId(details.replacement) || details.replacement === id || !registry.categories.some(item => item.id === details.replacement))) throw invalid('Choose another category for these cards.');
+            if (used.length && (!categoryId(details.replacement) || details.replacement === id || !registry.categories.some(item => item.id === details.replacement))) throw invalid('Choose another category for these projects.');
             for (const entity of used) { entity.category = details.replacement; entity.updated = localDay(); }
             registry.categories.splice(index, 1);
           }

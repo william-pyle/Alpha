@@ -528,6 +528,9 @@ export class Sessions extends EventEmitter {
     const session = this.get(id);
     if (session.stopping) await session.stopping;
     if (session.process) return publicSession(session);
+    // Reopening a configured repository must revalidate its current ownership.
+    // An already-running process is never interrupted by this gate.
+    await this.validateResume?.(session);
     if (!session.open && this.active().length >= 80) throw new Error('Close a tab before opening another.');
     await this.hydrate(session);
     if (!nativeId) await this.recoverNative(session);

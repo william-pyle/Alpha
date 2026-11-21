@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
@@ -5,7 +6,7 @@ import path from 'node:path';
 import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
-const repo = await mkdtemp(path.resolve('.test-output/window-chrome-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-window-chrome-ui-'));
 await mkdir(path.join(repo, 'workspace')); await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 const commands = [], service = await createService({ repo, uiDir: path.resolve('dist'), native: event => commands.push(event), mcpOptions: { home: repo, env: {} } });
 const update = maximized => service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, maximized, minimized: false } });

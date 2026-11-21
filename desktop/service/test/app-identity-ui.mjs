@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Fixed brand rendering and native bundle assets, using isolated state only.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -8,7 +9,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/app-identity-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-app-identity-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 const service = await createService({ repo, uiDir: path.resolve('dist'), restoreSessions: false, checkUpdates: false, mcpOptions: { home: repo, env: {} } });
@@ -62,7 +63,7 @@ try {
   assert.equal(hash(await brand.screenshot()), original);
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
-  const settings = page.getByRole('dialog', { name: 'Settings' });
+  const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
   await expect(settings.getByLabel('Persona artwork')).toHaveValue('/art/rena.png');
   await expect(settings.locator('.application-theme-preview img')).toHaveAttribute('src', '/art/rena.png');

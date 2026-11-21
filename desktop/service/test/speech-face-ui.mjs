@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Default: deterministic playback events. Opt-in local mode exercises Windows
 // output without recording a microphone or changing the owner's running app.
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/speech-face-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-speech-face-'));
 await mkdir(path.join(repo, 'workspace')); await mkdir(path.join(repo, '.alpha'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
 await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}');

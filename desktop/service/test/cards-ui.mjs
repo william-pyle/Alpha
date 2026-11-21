@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Runs only against an isolated Workspace.
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { launchBrowser } from './browser.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const sampleAssets = path.join(root, 'public/art');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache', 'cards-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-cards-ui-'));
 await cp(path.join(root, 'dist'), path.join(repo, 'ui'), { recursive: true });
 await cp(path.join(root, 'public/assets'), path.join(repo, 'ui/assets'), { recursive: true });
 await mkdir(path.join(repo, 'workspace/original'), { recursive: true });
@@ -28,14 +29,14 @@ try {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
   await page.getByRole('button', { name: 'File', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'New card' }).click();
-  const dialog = page.getByRole('dialog', { name: 'New Workspace card' });
-  await dialog.getByLabel('Card title').fill('My editable board');
-  await dialog.getByRole('button', { name: 'Create card', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Create project' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create project' });
+  await dialog.getByLabel('Project title').fill('My editable board');
+  await dialog.getByRole('button', { name: 'Create project', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'My editable board', exact: true })).toBeVisible();
   const id = new URL(page.url()).hash.slice(2).split('/')[0];
   const registry = JSON.parse(await readFile(path.join(repo, 'workspace/workspace.json'), 'utf8'));
-  const entity = registry.entities.find(item => item.id === id), cardFile = path.join(repo, 'workspace', entity.folder, 'content.card.json');
+  const entity = registry.entities.find(item => item.id === id), cardFile = path.join(repo, entity.workspacePath, 'content.card.json');
   await page.getByRole('button', { name: 'Add first entry' }).click();
   const entry = index => page.locator('.card-entry-editor').nth(index);
   await entry(0).getByLabel('Entry title', { exact: true }).fill('The gentleman');

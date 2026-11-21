@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import { expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import { launchBrowser } from './browser.mjs';
 import { packageLibrary } from '../../../scripts/package-library.mjs';
 
 await mkdir('.test-output', { recursive: true });
-const repo = await mkdtemp(path.resolve('.test-output/alpha-workflow-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-alpha-workflow-'));
 await mkdir(path.join(repo, 'workspace/example'), { recursive: true });
 await writeFile(path.join(repo, 'workspace/example/report.html'), '<!doctype html><html data-mak-report="document"><body><h1>Example project report</h1></body></html>');
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'example', title: 'Example project', folder: 'example', category: 'project', status: 'active', sample: true, created: '2026-11-08', steps: [{ name: 'Report', path: 'report.html' }] }] }));

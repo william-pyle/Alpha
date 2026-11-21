@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated fake chats and local documents. No production session is touched.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const repo = await mkdtemp(path.join(root, '.cache/links-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-links-ui-'));
 await mkdir(path.join(repo, 'workspace/test'), { recursive: true });
 const external = 'https://browser-check.example/page?one=1&two=2#details';
 await writeFile(path.join(repo, 'workspace/test/report.html'), `<!doctype html><html><head></head><body><h1>Link report</h1><a href="${external}"><span>External report link</span></a><a href="#section">Local section</a><h2 id="section">Section</h2><a href="${external}" download>Download</a></body></html>`);

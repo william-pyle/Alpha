@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated application state and browser profiles; no real chats or preferences.
 import { expect } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, cp } from 'node:fs/promises';
@@ -9,7 +10,7 @@ import { launchBrowser } from './browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
-const repo = await mkdtemp(path.join(root, '.cache/theme-ui-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-theme-ui-'));
 await mkdir(path.join(repo, 'workspace/test'), { recursive: true });
 await mkdir(path.join(repo, 'knowledge'), { recursive: true });
 await cp(path.join(root, 'public/assets'), path.join(root, 'dist/assets'), { recursive: true });

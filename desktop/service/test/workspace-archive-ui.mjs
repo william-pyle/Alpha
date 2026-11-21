@@ -1,3 +1,4 @@
+import { tmpdir as isolatedTmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { mkdir, mkdtemp, writeFile, readFile } from 'node:fs/promises';
@@ -5,7 +6,7 @@ import path from 'node:path';
 import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
 
-const repo = await mkdtemp(path.resolve('.test-output/workspace-archive-'));
+const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-workspace-archive-'));
 await mkdir(path.join(repo, 'workspace/cards'), { recursive: true });
 const today = new Date().toISOString().slice(0, 10), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
 const card = (id, category, patch = {}) => ({ id, title: id, description: `Fixture ${id}`, folder: 'cards', category, status: 'active', created: today, steps: [{ name: 'Overview', path: 'report.html' }], ...patch });
@@ -50,7 +51,7 @@ try {
   await scope.selectOption('archived'); await snap('archive-only-dark-960'); await scope.selectOption('all');
   await group('Archived').scrollIntoViewIfNeeded(); await snap('archive-group-dark-960');
   await group('Archived').getByRole('button', { name: 'Edit Design archived: Archived' }).click();
-  await page.getByRole('dialog', { name: 'Card settings: Design archived' }).getByRole('button', { name: 'Active', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Project settings: Design archived' }).getByRole('button', { name: 'Active', exact: true }).click();
   await expect(group('design')).toContainText('Design archived'); await expect(group('Archived')).not.toContainText('Design archived');
   const restored = JSON.parse(await readFile(registryFile)).entities.find(item => item.id === 'Design archived');
   assert.equal(restored.category, 'design'); assert.equal(restored.folder, 'cards'); assert.deepEqual(restored.steps, entities[2].steps);

@@ -46,6 +46,8 @@ jobs:
           path: |
             .test-output/*/failure.png
             .test-output/*/failure.json
+            ${{ runner.temp }}/alpha-*/failure.png
+            ${{ runner.temp }}/alpha-*/failure.json
           if-no-files-found: ignore
           retention-days: 7
       - run: cargo test --manifest-path src-tauri/Cargo.toml

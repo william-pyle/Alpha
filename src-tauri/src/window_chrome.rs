@@ -6,7 +6,8 @@ use tauri::Manager;
 pub fn publish(app: &tauri::AppHandle, window: &tauri::WebviewWindow, error: Option<String>) {
     let event = serde_json::json!({"type":"window-state", "nativeWindow": {
         "available": cfg!(windows), "maximized": window.is_maximized().unwrap_or(false),
-        "minimized": window.is_minimized().unwrap_or(false), "error": error
+        "minimized": window.is_minimized().unwrap_or(false),
+        "focused": window.is_focused().unwrap_or(false), "error": error
     }});
     if let Ok(mut service) = app.state::<super::Service>().0.lock() {
         if let Some(stdin) = service.as_mut().and_then(|child| child.stdin.as_mut()) {

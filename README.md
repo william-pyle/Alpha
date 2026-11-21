@@ -6,16 +6,32 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.21**, adding origin-bound native Questions, verified answer delivery, optional Codex update Skip, explicit project-trust opt-in and bounded dispatch recovery. Conversation tabs, persistent Workspace and the fixed app identity remain. See [release notes](release-notes/v0.2.21.md).
+knowledge into one Windows desktop window. This source targets **0.2.22**, with
+project workspaces, repository settings, focused menus and persistent Workspace
+utilities. See [release notes](release-notes/v0.2.22.md).
 
 ## What you can do
+
+Version 0.2.22 source adds a canonical workspace for each project, a protected
+Conversations default and a + create flow. Project settings keep working and
+read-only source repositories independent, support asynchronous cloning and
+coordinator association, and offer guarded repository creation for blank working
+repository settings. Delete project keeps local files and never deletes a remote
+repository. New layouts use `projects/<stable-id>/workspace` with an optional
+`github` sibling; existing pinned checkouts and active sessions remain in place.
+
+Exclusive, dismissible menus support keyboard and accessibility controls. Current
+activity and Needs attention help track conversations. Six singleton Workspace
+utility tabs persist across sessions. The File menu no longer offers Open/Close,
+and the QuickSwitcher and Ctrl+K shortcut have been removed. Publication,
+installation and native acceptance remain separate verification steps.
 
 - Open Codex, Claude Code, PowerShell or Git Bash chats in the resizable sidebar.
   Each chat has a terminal, message editor, saved drafts and history.
 - Answer agent prompts in one Questions section. Choose a suggested answer or
   type your own response and send it back to the originating chat.
-- Open Workspace cards, files and Help as document tabs. Create editable Gallery
-  and Research cards, organize them by category, preview changes and save.
+- Open Workspace projects, files and Help as document tabs. Create editable Gallery
+  and Research projects, organize them by category, preview changes and save.
 - Paste or drop images into a message draft. Alpha saves them to the Workspace
   inbox and inserts their paths without sending the draft.
 - Use desktop dictation and Talk to Alpha. Settings has separate Speech-to-text,
@@ -66,8 +82,7 @@ apply it on Alpha's next normal launch. A copy keeps the original folder.
 
 ## Use Alpha
 
-Choose **New conversation** and a project. If you leave the project unspecified,
-answer in **Questions** before sending work. Each conversation has its own
+Choose **New conversation** and a project. New conversations default to **Conversations**. Use + beside the project selector to create a project without losing the new-conversation form. Each conversation has its own
 history, saved draft, images, voice and worker links. Use the conversation selector
 to switch; **History** includes archived threads. Alpha shares titles, purposes,
 projects and statuses across threads, without automatically sharing transcripts.
@@ -80,9 +95,7 @@ history remain intact; **Load earlier native conversation** imports verified use
 messages and final replies. New native launchers are under **New conversation ?
 Advanced launchers**. Their existing approval settings still apply.
 
-Workspace stays open as a document tab. Use **File → New card** for Gallery or
-Research content, **File → Open file** for a file tab and **Help → Open Help**
-for the built-in guide. **Tools → Settings** contains General, Speech-to-text,
+Workspace stays open as a document tab. Use **File → Create project** for Gallery or Research content and **Help → Open Help** for the built-in guide. Close documents using their tab controls. **Tools → Settings** contains General, Speech-to-text,
 Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens the archive and controls the conversation sidebar.
 
 Alpha checks GitHub shortly after startup and every six hours. To check now,
@@ -171,7 +184,7 @@ can update role definitions; it cannot launch project work, publish or install.
 **Tools → Alpha health** shows observed request timings and problems with a
 proposed next step. Questions from Alpha and agent chats share the Questions area.
 
-Workspace cards can define managed tools with **Start**, **Stop**, readiness
+Workspace projects can define managed tools with **Start**, **Stop**, readiness
 state and **Launch** controls. Alpha stops only processes it owns and identifies;
 externally observed services remain visible without being claimed as managed.
 Tool definitions and project-specific commands stay in the Workspace registry.

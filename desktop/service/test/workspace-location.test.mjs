@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, symlink, writeFile, lstat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveWorkspace, WorkspaceLocation } from '../workspace-location.mjs';
@@ -112,4 +112,91 @@ test('location endpoints require authentication and preserve the current running
     const response=await fetch(route,{...request,headers:{...request.headers,Authorization:`Bearer ${service.token}`}});
     assert.equal(response.status,200);assert.equal((await response.json()).current,repo);assert.equal(await f.current(),repo);
   } finally {await service.close();}
+});
+
+test('canonical project-only Workspace copy preserves one workspace and source provenance without creating a checkout', async () => {
+  const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Canonical copy');
+  const project = { id: 'sample', title: 'Sample', folder: 'sample', workspacePath: 'projects/sample/workspace', sourceRepositoryUrl: 'https://github.com/storytold/reference', steps: [{ path: 'index.html' }] };
+  await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [project] });
+  await put(repo, 'projects/sample/workspace/index.html', '<h1>Keep project report</h1>');
+  await put(repo, 'projects/sample/project.json', JSON.stringify({ id: 'sample', sourceRepositoryUrl: project.sourceRepositoryUrl, custom: 'keep' }));
+  await put(repo, '.alpha/project-migrations/sample.json', JSON.stringify({ id: 'sample', phase: 'committed', from: 'old historical location', to: path.join(repo, project.workspacePath) }));
+  await f.change(repo).set({ path: target, mode: 'copy' });
+  assert.equal(await resolveWorkspace(f.options), target);
+  assert.deepEqual((await readJson(path.join(target, 'workspace/workspace.json'))).entities, [project]);
+  for (const root of [repo, target]) assert.equal(await readFile(path.join(root, project.workspacePath, 'index.html'), 'utf8'), '<h1>Keep project report</h1>');
+  assert.equal(await lstat(path.join(target, 'projects/sample/github')).catch(() => null), null);
+  assert.deepEqual(await readdir(path.join(target, 'projects/sample')), ['project.json', 'workspace']);
+});
+
+test('bulk copy refuses registered or canonical checkout references before creating destination or staging files', async () => {
+  for (const canonical of [false, true]) {
+    const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Must not copy');
+    const project = { id: 'sample', folder: 'sample', workspacePath: 'projects/sample/workspace', ...(canonical ? {} : { checkoutPath: path.join(repo, 'projects/sample/github') }) };
+    await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [project] });
+    await put(repo, 'projects/sample/workspace/index.html', 'Keep private report');
+    if (canonical) await put(repo, 'projects/sample/project.json', JSON.stringify({ applicationRoot: path.join(f.root, 'pinned-existing-checkout') }));
+    await assert.rejects(f.change(repo).set({ path: target, mode: 'copy' }), /Copy current Workspace is deferred.*checkout/);
+    assert.equal(await lstat(target).catch(() => null), null);
+    assert.equal(await readJson(path.join(f.options.configDir, 'workspace-change.json'), null), null);
+    assert.equal((await readdir(f.root)).some(name => name.startsWith('.alpha-workspace-')), false);
+    assert.equal(await f.current(), repo);
+  }
+});
+
+test('pending bulk copy rechecks a newly appeared managed checkout at startup without copying any files', async () => {
+  const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Pending copy');
+  await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [{ id: 'sample', folder: 'sample', workspacePath: 'projects/sample/workspace' }] });
+  await put(repo, 'projects/sample/workspace/index.html', 'Original report');
+  await f.change(repo).set({ path: target, mode: 'copy' });
+  await put(repo, 'projects/sample/github/.git/config', 'Original checkout metadata');
+  await put(repo, 'projects/sample/github/dirty.txt', 'Uncommitted content');
+  await assert.rejects(resolveWorkspace(f.options), /github folder.*duplicated/);
+  assert.equal(await lstat(target).catch(() => null), null);
+  assert.equal((await readdir(f.root)).some(name => name.startsWith('.alpha-workspace-')), false);
+  assert.equal(await f.current(), repo);
+  assert.equal(await readFile(path.join(repo, 'projects/sample/github/dirty.txt'), 'utf8'), 'Uncommitted content');
+  assert.ok(await readJson(path.join(f.options.configDir, 'workspace-change.json'), null));
+});
+
+test('unfinished workspace, checkout and repository journals defer bulk copy and are rechecked at startup', async () => {
+  for (const [folder, state] of [['project-migrations', { phase: 'prepared' }], ['checkout-migrations', { phase: 'renamed' }], ['project-repositories', { status: 'failed' }]]) {
+    const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Recovery copy');
+    await f.change(repo).set({ path: target, mode: 'copy' });
+    await put(repo, `.alpha/${folder}/sample.json`, JSON.stringify({ projectId: 'sample', ...state }));
+    await assert.rejects(resolveWorkspace(f.options), /unfinished.*operation/);
+    await assert.rejects(f.change(repo).set({ path: target, mode: 'copy' }), /unfinished.*operation/);
+    assert.equal(await lstat(target).catch(() => null), null); assert.equal(await f.current(), repo);
+    assert.equal((await readdir(f.root)).some(name => name.startsWith('.alpha-workspace-')), false);
+  }
+});
+
+test('new and explicitly selected roots reject Git ancestors while existing saved-root reads remain available', async () => {
+  const f = await fixture(), repo = await resolveWorkspace(f.options);
+  const outer = path.join(f.root, 'outer-git'), target = path.join(outer, 'new-private-workspace'), existing = path.join(outer, 'saved-private-workspace');
+  await mkdir(path.join(outer, '.git'), { recursive: true });
+  await put(existing, 'workspace/workspace.json', '{"entities":[]}');
+  await assert.rejects(f.change(repo).set({ path: target, mode: 'copy' }), /inside a Git checkout/);
+  await assert.rejects(f.change(repo).set({ path: existing, mode: 'existing' }), /inside a Git checkout/);
+  await assert.rejects(resolveWorkspace({ ...f.options, supplied: target }), /inside a Git checkout/);
+  assert.equal(await lstat(target).catch(() => null), null); assert.equal(await f.current(), repo);
+  await saveJson(path.join(f.options.configDir, 'repository.json'), existing);
+  assert.equal(await resolveWorkspace(f.options), existing);
+});
+
+test('a Git ancestor created after saving a copy request is rejected before startup staging', async () => {
+  const f = await fixture(), repo = await resolveWorkspace(f.options), parent = path.join(f.root, 'queued-parent'), target = path.join(parent, 'Workspace');
+  await f.change(repo).set({ path: target, mode: 'copy' });
+  await mkdir(path.join(parent, '.git'), { recursive: true });
+  await assert.rejects(resolveWorkspace(f.options), /inside a Git checkout/);
+  assert.equal(await lstat(target).catch(() => null), null); assert.equal(await f.current(), repo);
+  assert.deepEqual(await readdir(parent), ['.git']);
+});
+
+test('an older completed copy receipt cannot select a duplicated checkout through recovery', async () => {
+  const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Old completed copy');
+  await put(target, 'workspace/workspace.json', JSON.stringify({ entities: [{ id: 'sample', folder: 'sample', checkoutPath: path.join(repo, 'projects/sample/github') }] }));
+  await saveJson(path.join(f.options.configDir, 'workspace-change.json'), { source: repo, destination: target, mode: 'copy', completed: true });
+  await assert.rejects(resolveWorkspace(f.options), /Copy current Workspace is deferred/);
+  assert.equal(await f.current(), repo);
 });
