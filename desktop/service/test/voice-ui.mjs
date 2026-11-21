@@ -16,7 +16,9 @@ await writeFile(path.join(repo, '.alpha/settings.json'), '{"speakReplies":false}
 const uiDir = path.join(repo, 'ui');
 await cp(path.join(root, 'dist'), uiDir, { recursive: true });
 await cp(path.join(root, 'public/assets'), path.join(uiDir, 'assets'), { recursive: true });
-await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
+await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({
+  entities: [{ id: 'fixture', title: 'Voice fixture project', folder: 'fixture', steps: [] }],
+}));
 const service = await createService({ repo, uiDir, mcpOptions: { home: repo, env: {} } });
 const requests = [];
 const thread = service.threads.create({ name: 'Voice input', projectId: 'fixture' });
@@ -62,7 +64,10 @@ try {
     assert.equal(requests.length, before);
     assert.equal(await input.inputValue(), 'First line\nSecond line');
     await input.press('Enter');
-    await page.waitForFunction(() => document.querySelector('.voice-compose textarea')?.value === '');
+    await page.waitForFunction(() => {
+      const editor = document.querySelector('.voice-compose textarea');
+      return editor && !editor.disabled && editor.value === '';
+    });
     assert.equal(requests.at(-1).text, 'First line\nSecond line'); assert.equal(requests.length, before + 1);
 
     await input.fill('Review this screenshot');
@@ -83,7 +88,10 @@ try {
     assert.equal(await input.inputValue(), 'Review this screenshot'); assert.equal(await attached.locator('img').count(), 1);
     await page.getByRole('button', { name: 'Dismiss message error' }).click();
     fail = false; await input.press('Enter');
-    await page.waitForFunction(() => document.querySelector('.voice-compose textarea')?.value === '');
+    await page.waitForFunction(() => {
+      const editor = document.querySelector('.voice-compose textarea');
+      return editor && !editor.disabled && editor.value === '';
+    });
     assert.equal(await attached.count(), 0);
     assert.equal(requests.at(-1).images.length, 1);
     const saved = requests.at(-1).images[0];
