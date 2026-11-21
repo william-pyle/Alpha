@@ -52,9 +52,11 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
     return () => { cancelled = true }
   }, [draftId, saved])
   const [uploading, setUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const busy = useRef(false)
   const picker = useRef<HTMLInputElement>(null)
-  const disabled = sending || uploading || !connected
+  const sendPending = sending || submitting
+  const disabled = sendPending || uploading || !connected
 
   useEffect(() => {
     const updated = (event: Event) => {
@@ -117,6 +119,8 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
     event.preventDefault()
     if (disabled || busy.current || (!draft.trim() && !images.length)) return
     busy.current = true; setError('')
+    // Keep the saved draft recoverable until delivery succeeds.
+    setSubmitting(true)
     try {
       await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path))
       if (!alive.current) {
@@ -126,19 +130,19 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
       }
       setDraft(''); setImages([])
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
-    finally { busy.current = false }
+    finally { busy.current = false; setSubmitting(false) }
   }
 
   return <LayoutRegion kind="composer"><div className="mak-composer">
     {error && <div className="voice-error" role="alert"><span>{error}</span><button className="desk-icon" aria-label="Dismiss message error" onClick={() => setError('')}><Icon name="close" size={14} /></button></div>}
-    {images.length > 0 && <div className="voice-attachments" aria-label="Attached images">{images.map(image => <div className="voice-attachment" key={image.path}>
+    {!sendPending && images.length > 0 && <div className="voice-attachments" aria-label="Attached images">{images.map(image => <div className="voice-attachment" key={image.path}>
       <ZoomImage src={image.url} alt={image.name} />
       <button className="desk-icon" title={`Remove ${image.name}`} aria-label={`Remove ${image.name}`} disabled={disabled} onClick={() => setImages(previous => previous.filter(item => item.path !== image.path))}><Icon name="close" size={12} /></button>
     </div>)}</div>}
     <form className="voice-compose" onSubmit={send}>
       <input ref={picker} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Choose images for Alpha" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void attach(files) }} />
       <button type="button" title="Attach images" aria-label="Attach images" disabled={disabled} onClick={() => picker.current?.click()}><Icon name="attach" size={17} /></button>
-      <textarea ref={area} value={draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter sends; Shift+Enter adds a line" disabled={disabled}
+      <textarea ref={area} value={sendPending ? '' : draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter sends; Shift+Enter adds a line" disabled={disabled}
         onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' }}
         onDrop={event => { event.preventDefault(); void attach(Array.from(event.dataTransfer.files).filter(file => file.type.startsWith('image/'))) }}
         onPaste={event => { const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (files.length) { event.preventDefault(); void attach(files) } }}
