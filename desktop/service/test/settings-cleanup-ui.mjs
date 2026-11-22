@@ -49,8 +49,8 @@ try {
   await settings.getByLabel('Voice personality').fill('A calm, clear voice that speaks English.');
   await settings.getByRole('button', { name: 'Save personality' }).click();
   await settings.getByRole('tab', { name: 'Updates', exact: true }).click();
-  await expect(settings.getByRole('heading', { name: 'Alpha updates' })).toBeVisible();
-  await expect(settings.getByRole('button', { name: 'Check for updates' })).toBeVisible();
+  await expect(settings.getByRole('heading', { name: 'Release evidence', exact: true })).toBeVisible();
+  await expect(settings.getByRole('button', { name: 'Check for updates', exact: true })).toHaveCount(0);
 
   await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
   await settings.getByLabel('Background color').fill('#152536');
