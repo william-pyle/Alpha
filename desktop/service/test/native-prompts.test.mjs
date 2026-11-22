@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NativePrompts, nativePrompt } from '../native-prompts.mjs';
 import { submissionComposer } from '../terminal-submission.mjs';
-import { insideWindowsRoot, approvedProjectTrust } from '../provider-trust.mjs';
+import { insideWindowsRoot, codexTrustScope } from '../provider-trust.mjs';
 import { Questions } from '../questions.mjs';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
@@ -65,14 +65,17 @@ test('structured native question needs matching source, complete actual options 
   assert.equal(nativePrompt('codex', { ...view, lines: view.lines.map(x => x.replace('add notes', 'clear notes')) }), null);
 });
 
-test('approved trust scope handles case, slash, canonical aliases, renamed checkouts and rejects escapes', async () => {
-  assert.equal(insideWindowsRoot('C:/Projects', 'c:\\PROJECTS\\NewName'), true);
-  for (const candidate of ['C:/Projects2/X', 'C:/Projects/../Other', 'D:/Projects/X', '\\\\server\\Projects\\X', 'relative']) assert.equal(insideWindowsRoot('C:/Projects', candidate), false);
-  const options = { canonical: async value => value, gitRoot: async value => value };
-  assert.deepEqual(await approvedProjectTrust('C:/Projects/NewName', ['C:/Projects'], options), ['-c', 'projects."c:/projects/newname".trust_level="trusted"']);
-  assert.deepEqual(await approvedProjectTrust('C:/Projects/NewName', [], options), []);
-  assert.deepEqual(await approvedProjectTrust('C:/Projects/Link', ['C:/Projects'], { ...options, canonical: async value => value.endsWith('Link') ? 'D:/Private' : value }), []);
-  assert.deepEqual(await approvedProjectTrust('C:/Projects/X', ['C:/Projects'], { ...options, gitRoot: async () => 'C:/' }), []);
+test('Codex folder trust classifies canonical scope for manual review', async () => {
+  const root = 'C:/Projects';
+  const canonical = async value => value;
+  assert.equal(insideWindowsRoot(root, 'c:\\PROJECTS\\NewName'), true);
+  for (const candidate of ['C:/Projects2/X', 'C:/Projects/../Other', 'D:/Projects/X', '\\\\server\\Projects\\X', 'relative', root]) {
+    assert.equal(await codexTrustScope(candidate, root, canonical), 'outside');
+  }
+  assert.equal(await codexTrustScope('C:/Projects/NewName', root, canonical), 'in-scope');
+  assert.equal(await codexTrustScope('C:/Projects/Link', root, async value => value.endsWith('Link') ? 'D:/Private' : value), 'unverified');
+  assert.equal(await codexTrustScope('C:/Projects/Link', root, async () => 'C:/Projects/Alias'), 'unverified');
+  assert.equal(await codexTrustScope('C:/Projects/Missing', root, async () => { throw new Error('ENOENT'); }), 'unverified');
 });
 
 test('native Questions persist acceptance, share identical concurrent answers and reject conflicting ones', async () => {

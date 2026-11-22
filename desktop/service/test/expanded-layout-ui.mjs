@@ -40,7 +40,7 @@ try {
   }
   const auth = { Authorization: `Bearer ${service.token}` };
   const forbidden = await fetch(`${service.origin}/api/threads/${b.id}/search?q=PRIVATE`, { headers: auth }); assert.equal(forbidden.status, 403);
-  const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   await settings(); await page.getByLabel('Conversation text size').selectOption('20'); await page.getByLabel('Conversation line spacing').selectOption('1.8'); await page.getByLabel('Reduce motion', { exact: true }).click(); await expect(page.getByLabel('Reduce motion', { exact: true })).toBeChecked(); await page.getByLabel('Allow layout inspection in this conversation').click(); await expect(page.getByLabel('Allow layout inspection in this conversation')).toBeChecked();
   const coordinator = await service.getCoordinator(a.id);
   const settingsLayout = await coordinator.execute('inspect_alpha_ui', {}); assert.equal(settingsLayout.kind, 'rendered-layout');
@@ -55,7 +55,7 @@ try {
   service.threads.message(a.id, { id: 'summary', role: 'assistant', text: 'FULL DETAILED EVIDENCE stays available', completionSummary: summary });
   await expect(page.getByRole('heading', { name: 'What changed' })).toBeVisible(); await page.getByText('Full report and evidence', { exact: true }).click(); await expect(page.getByText('FULL DETAILED EVIDENCE stays available')).toBeVisible();
   for (const theme of ['light','dark']) {
-    await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await page.getByRole('button', { name: 'Close settings' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await page.getByRole('button', { name: 'Close settings' }).click();
     for (const width of [960,390]) { await page.setViewportSize({ width, height: 600 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.locator('[data-message-id="summary"]').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(repo, `${theme}-${width}.png`) }); }
   }
   await page.setViewportSize({ width: 960, height: 800 });

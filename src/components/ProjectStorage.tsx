@@ -25,10 +25,9 @@ const StorageContext = createContext<StorageContextValue | null>(null)
 const POLL_INTERVAL_MS = 1_500
 
 function rowTitle(row?: ProjectStorageRow) {
-  if (!row || row.status === 'queued' || row.status === 'scanning') return 'Measuring size on disk…'
-  if (row.status === 'error' || row.allocatedBytes === undefined) return row?.error ? `Size on disk unavailable: ${row.error}` : 'Size on disk unavailable'
-  const parts = [`Size on disk: ${formatBytes(row.allocatedBytes)}`]
-  if (row.logicalBytes !== undefined) parts.push(`Logical size: ${formatBytes(row.logicalBytes)}`)
+  if (!row || row.status === 'queued' || row.status === 'scanning') return 'Measuring logical file size…'
+  if (row.status === 'error' || row.logicalBytes === undefined) return row?.error ? `Logical file size unavailable: ${row.error}` : 'Logical file size unavailable'
+  const parts = [`Logical file size: ${formatBytes(row.logicalBytes)}`]
   if (row.skippedLinks) parts.push(`${row.skippedLinks} link${row.skippedLinks === 1 ? '' : 's'} skipped`)
   if (row.errors) parts.push(`${row.errors} read error${row.errors === 1 ? '' : 's'}`)
   return parts.join(' · ')
@@ -38,9 +37,9 @@ function rowTitle(row?: ProjectStorageRow) {
 // eslint-disable-next-line react-refresh/only-export-components
 export function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes < 0) return 'Unavailable'
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  const units = ['B', 'KB', 'MB', 'GB']
   let value = bytes, unit = 0
-  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1 }
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1 }
   const digits = unit === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2
   return `${value.toFixed(digits)} ${units[unit]}`
 }
@@ -126,9 +125,9 @@ export function useProjectStorage(id: string) {
 export function ProjectStorageSize({ id }: { id: string }) {
   const { row, loaded } = useProjectStorage(id)
   const pending = !loaded || row?.status === 'queued' || row?.status === 'scanning'
-  const unavailable = loaded && (!row || row.status === 'error' || row.allocatedBytes === undefined)
+  const unavailable = loaded && (!row || row.status === 'error' || row.logicalBytes === undefined)
   const title = rowTitle(row || (loaded ? { id, status: 'error' } : undefined))
   return <span className={`project-storage-size${pending ? ' measuring' : unavailable ? ' unavailable' : ''}`} title={title} aria-label={title}>
-    {pending ? 'Measuring…' : unavailable ? 'Unavailable' : `${formatBytes(row!.allocatedBytes!)} on disk`}
+    {pending ? 'Measuring…' : unavailable ? 'Unavailable' : `${formatBytes(row!.logicalBytes!)} logical`}
   </span>
 }

@@ -113,7 +113,7 @@ node --input-type=module -e "import { readFile } from 'node:fs/promises'; import
 ```
 
 Write the complete file atomically and update the entity's `updated` date in
-`workspace/workspace.json`. If changing the title of a single-page card, update
+`workspace.json` at the Workspace root. If changing the title of a single-page card, update
 its listing title too. The desktop editor does these registry updates for you.
 Agents that write files directly are responsible for preserving concurrent
 changes; the desktop revision checks cannot intercept an agent's filesystem write.

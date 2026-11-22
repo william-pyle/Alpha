@@ -24,8 +24,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await expect(settings.getByLabel('Dictation provider')).toHaveCount(0);
   await expect(settings.getByLabel('Application theme')).toHaveCount(0);
@@ -70,8 +69,7 @@ try {
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-alpha-theme', selected);
   await expect(page.locator('html')).toHaveCSS('--bg', '#19283a');
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
   await expect(settings.getByLabel('Application theme')).toHaveValue(selected);
   await settings.getByLabel('Workspace theme').selectOption('light');

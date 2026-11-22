@@ -42,7 +42,7 @@ try {
   page.on('request', request => { if (/unwanted\.example|example\.test/.test(request.url())) remote.push(request.url()); });
   await page.goto(service.urls.workspace);
   const pane = page.getByRole('region', { name: 'Alpha conversation', exact: true }), editor = pane.getByRole('textbox', { name: 'Message Alpha' }), picker = pane.locator('[role=tab][aria-selected=true]');
-  const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   const closeSettings = () => page.getByRole('button', { name: 'Close settings' }).click();
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   const notification = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); };
@@ -123,30 +123,36 @@ try {
   checks.push(`Viewer pointer ${viewerPointer.before}->${viewerPointer.after}px, keyboard/reload saved ${viewerHeight}px. Enable/disable persisted; canvas removed and zero pending animation frames. Synthetic camera required explicit start, footer Stop ended track, no capture on reload/re-enable.`);
 
   const q = await service.questions.ask({ text: 'Which design should be applied?', options: ['Compact', 'Roomy'], threadId: b.id, chatName: b.name, sourceId: 'layout-question' });
+  const questionsTab = page.getByRole('tab', { name: 'Questions', exact: true });
+  const questionsRegion = page.getByRole('region', { name: 'Questions', exact: true });
+  const workspaceTab = page.getByRole('tab', { name: 'Workspace', exact: true });
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
   await pane.getByRole('button', { name: /^Attention for Review project decision:/ }).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   const card = page.locator(`[data-question-id="${q.id}"]`); await expect(card.getByRole('textbox')).toBeFocused();
   await card.getByRole('button', { name: 'Roomy', exact: true }).click(); await card.getByRole('button', { name: 'Send answer' }).dblclick();
-  await expect(card).toHaveCount(0); await expect(page.getByRole('region', { name: 'Questions', exact: true })).toHaveCount(0); await expect(editor).toBeFocused();
+  await expect(card).toHaveCount(0); await expect(questionsRegion.locator('.question-card')).toHaveCount(0);
   assert.equal(answers.length, 1); assert.equal(answers[0].threadId, b.id); assert.equal(service.questions.items.find(item => item.id === q.id).status, 'answered');
   await page.reload(); await expect(card).toHaveCount(0); releaseAnswer();
   const one = await service.questions.ask({ text: 'Which first result should be kept?', threadId: a.id, chatName: a.name, sourceId: 'first' });
   const two = await service.questions.ask({ text: 'Which second result should be kept?', threadId: a.id, chatName: a.name, sourceId: 'second' });
   const first = page.locator(`[data-question-id="${one.id}"]`), second = page.locator(`[data-question-id="${two.id}"]`);
+  await questionsTab.click();
   await first.getByRole('textbox').fill('Keep this typed answer');
   await page.route(`**/api/questions/${one.id}/answer`, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Fixture retryable failure"}' }));
   await first.getByRole('button', { name: 'Send answer' }).click(); await expect(first.getByRole('alert')).toContainText('retryable'); await expect(first.getByRole('textbox')).toHaveValue('Keep this typed answer');
-  await page.reload(); await expect(first.getByRole('textbox')).toHaveValue('Keep this typed answer'); await page.unroute(`**/api/questions/${one.id}/answer`);
+  await page.reload(); await questionsTab.click(); await expect(first.getByRole('textbox')).toHaveValue('Keep this typed answer'); await page.unroute(`**/api/questions/${one.id}/answer`);
   let finish; await page.route(`**/api/questions/${one.id}/answer`, async route => { const response = await route.fetch(); finish = () => route.fulfill({ response }); });
   await first.getByRole('button', { name: 'Send answer' }).click(); await expect(first).toHaveCount(0);
   const three = await service.questions.ask({ text: 'Which concurrent result should be kept?', threadId: a.id, chatName: a.name, sourceId: 'third' });
   await expect.poll(() => !!finish).toBe(true); await finish();
-  await expect(second).toBeVisible(); await expect(page.locator(`[data-question-id="${three.id}"]`)).toHaveCount(0);
+  await expect(second).toBeVisible(); await expect(page.locator(`[data-question-id="${three.id}"]`)).toBeVisible();
   await service.questions.answer(two.id, 'Accepted by another client', service.sessions, async () => {}); await expect(second).toHaveCount(0);
   const third = page.locator(`[data-question-id="${three.id}"]`); await third.getByRole('textbox').fill('Final free text'); await third.getByRole('button', { name: 'Send answer' }).click();
-  await expect(page.getByRole('region', { name: 'Questions', exact: true })).toHaveCount(0); await expect(editor).toBeFocused();
+  await expect(questionsRegion.locator('.question-card')).toHaveCount(0);
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true'); await workspaceTab.click();
   assert.equal(requests.at(-1).threadId, a.id); await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
-  checks.push('Questions: options/free text, immediate last-question removal while continuation pending, persisted audit, duplicate prevention, retryable failure/draft reload, multiple pending, event-driven answer, concurrent arrival and cross-thread routing; focus returns to composer.');
+  checks.push('Questions: dedicated tab, options/free text, last-question removal, persisted audit, duplicate prevention, retryable failure/draft reload, concurrent arrival, cross-thread routing and Workspace return.');
 
   await page.locator(`#conversation-tab-${a.id}`).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${a.id}`);
@@ -164,9 +170,10 @@ try {
 
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await closeSettings();
   const quiet = await service.questions.ask({ text: 'Which quiet decision should be kept?', threadId: a.id, sourceId: 'quiet' });
-  await expect(page.locator('.questions-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
   await pane.getByRole('button', { name: /^Attention for Simplify conversation layout:/ }).click();
   await expect(page.locator(`[data-question-id="${quiet.id}"]`)).toBeVisible(); await service.questions.dismiss(quiet.id);
+  await workspaceTab.click();
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).not.toBeChecked(); await closeSettings();
   service.awareness.event({ id: 'review-layout', threadId: a.id, kind: 'review', text: 'Result ready for review; not verified.', source: 'Fixture' });
   await notification(); await expect(page.getByRole('tabpanel', { name: 'Needs attention' })).toContainText('not verified');
@@ -189,7 +196,7 @@ try {
   ca.ask = fixtureAsk;
   await editor.fill('A comfortable draft ready to edit.');
   for (const theme of ['dark', 'light']) {
-    await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click();
     await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await closeSettings();
     for (const viewport of [{ width: 960, height: 1440 }, { width: 960, height: 520 }, { width: 768, height: 600 }, { width: 390, height: 600 }]) {
       await page.setViewportSize(viewport); await expect(editor).toBeVisible();
@@ -207,20 +214,21 @@ try {
   // Viewer and pending Questions together must still leave a usable composer.
   for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 960, height: 520 });
-    await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await closeSettings();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await closeSettings();
     await settings(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await closeSettings();
     await expect(page.locator('.alpha-presence-stage')).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
     await snap(`viewer-${theme}-960x520`);
     const pending = await service.questions.ask({ text: 'Which compact fixture should be reviewed?', threadId: a.id, sourceId: `short-${theme}` });
-    await expect(page.locator(`[data-question-id="${pending.id}"]`)).toBeVisible();
-    const box = await editor.boundingBox(), questionsBox = await page.getByRole('region', { name: 'Questions', exact: true }).boundingBox();
-    assert(box.height >= 60); assert(box.y + box.height <= questionsBox.y + 1);
+    await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+    const box = await editor.boundingBox(); assert(box.height >= 60);
+    await questionsTab.click();
     const compactCard = page.locator(`[data-question-id="${pending.id}"]`);
+    await expect(compactCard).toBeVisible();
     await compactCard.getByRole('textbox').fill('Compact answer');
     await compactCard.getByRole('button', { name: 'Send answer' }).scrollIntoViewIfNeeded();
     await snap(`question-viewer-${theme}-960x520`);
     await compactCard.getByRole('button', { name: 'Send answer' }).click();
-    await expect(compactCard).toHaveCount(0); await expect(editor).toBeFocused();
+    await expect(compactCard).toHaveCount(0); await workspaceTab.click(); await expect(editor).toBeVisible();
     await settings(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).not.toBeChecked(); await closeSettings();
   }
   const menuTab = pane.locator('[role=tab][aria-selected=true]');

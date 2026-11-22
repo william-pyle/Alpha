@@ -45,3 +45,37 @@ Focused workflow checks: `node --test scripts/test/promote-release.test.mjs`.
 These cover exact-SHA success, refusal cases, artifact provenance and integrity,
 public metadata and the no-repeat-suite publication contract. Live artifact
 promotion and installed UI behavior are separate observations.
+
+## Workspace root cutover
+
+For 0.2.24, keep the old layout while 0.2.23 is running. After the authorized
+session checkpoint, record the selected Workspace root, exact continuation IDs,
+and a recoverable copy of the three legacy entries outside either layout. For
+the Alpha Workspace these entries are `workspace/workspace.json`,
+`workspace/workspace.json.previous` and `workspace/_shared`. Check that
+`workspace.json`, `workspace.json.previous` and `_shared` at the root are free.
+Close other writers, including report builders, during the cutover.
+
+The upgraded host takes the single-instance lock, validates both layouts, and
+moves the entries before starting its service. It journals file identities in
+`.alpha/workspace-root-cutover.json`. Matching partial moves resume on the next
+launch. Destination collisions, unexpected file types and changed identities
+stop startup for review. Keep the journal and both locations intact when
+diagnosing a failure. This move requires same-volume hard links for the two
+registry files. Workspaces on volumes without hard-link support need an offline,
+reviewed move before launching the upgraded host.
+
+After launch, verify the installed and running versions separately. Compare the
+registry’s stable project IDs, configured repository associations, six Alpha
+report routes and shared asset resolution. Confirm saved histories and exact
+worker continuation IDs against the checkpoint. Registry formatting or the
+built-in Conversations entry can legitimately change when the service starts.
+
+If rollback requires launching 0.2.23, stop the upgraded host and writers.
+Keep a separate copy of the latest root entries and the cutover journal if
+present. Resolve any conflicting identities before proceeding. With Alpha
+stopped, restore the latest registry, previous copy and shared assets to their
+exact legacy paths. Verify the files and report links before starting the old
+host. Reuse the latest registry so edits made after cutover are retained. Leave
+`projects/` and `.alpha/` conversation state in place. A journal from a
+partially completed cutover requires review before retrying either version.

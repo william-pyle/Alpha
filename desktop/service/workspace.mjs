@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { parseWorkspaceRegistry, workspaceRegistryFile } from './workspace-layout.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { realFile, saveJson, sleep, readJson } from './util.mjs';
@@ -51,10 +52,9 @@ export function metadataPatch(value) {
 }
 
 export class Workspace {
-  constructor(repo, changed = () => {}, stateDir = path.join(repo, '.alpha')) { this.undoFile = path.join(stateDir, 'organization-undo.json'); this.repo = repo; this.file = path.join(repo, 'workspace', 'workspace.json'); this.changed = changed; this.writes = Promise.resolve(); }
+  constructor(repo, changed = () => {}, stateDir = path.join(repo, '.alpha')) { this.undoFile = path.join(stateDir, 'organization-undo.json'); this.repo = repo; this.file = workspaceRegistryFile(repo); this.changed = changed; this.writes = Promise.resolve(); }
   async registry() {
-    const registry = JSON.parse(await readFile(this.file, 'utf8'));
-    if (!Array.isArray(registry.entities)) throw new Error('Workspace registry is not ready.');
+    const registry = parseWorkspaceRegistry(await readFile(this.file, 'utf8'));
     registry.categories = categoriesOf(registry);
     return registry;
   }
@@ -78,11 +78,12 @@ export class Workspace {
   async activity(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new Error('Use a date in YYYY-MM-DD format.');
     const registry = await this.registry();
-    const { stdout = '' } = await execute('git', ['log', `--since=${date}T00:00:00`, `--until=${date}T23:59:59`, '--format=%s', '--name-only', '--max-count=45', '--', 'workspace'], { cwd: this.repo, windowsHide: true, maxBuffer: 128 * 1024 }).catch(() => ({}));
+    const { stdout = '' } = await execute('git', ['log', `--since=${date}T00:00:00`, `--until=${date}T23:59:59`, '--format=%s', '--name-only', '--max-count=45', '--', 'workspace.json', '_shared', 'workspace', 'projects'], { cwd: this.repo, windowsHide: true, maxBuffer: 128 * 1024 }).catch(() => ({}));
     const lines = stdout.split(/\r?\n/).filter(Boolean);
-    const paths = lines.filter(line => line.startsWith('workspace/'));
-    const cards = registry.entities.filter(item => item.created === date || item.updated === date || paths.some(file => file.startsWith(`workspace/${item.folder}/`))).map(brief);
-    return { date, cards, commits: [...new Set(lines.filter(line => !line.startsWith('workspace/')))].slice(0, 15), basis: 'Workspace dates and recorded Git changes; not a complete record of unsaved work.' };
+    const isPath = line => /^(workspace\.json$|(?:workspace|_shared|projects)\/)/.test(line);
+    const paths = lines.filter(isPath);
+    const cards = registry.entities.filter(item => item.created === date || item.updated === date || paths.some(file => file.startsWith(`workspace/${item.folder}/`) || (item.workspacePath && file.startsWith(item.workspacePath + '/')))).map(brief);
+    return { date, cards, commits: [...new Set(lines.filter(line => !isPath(line)))].slice(0, 15), basis: 'Workspace dates and recorded Git changes; not a complete record of unsaved work.' };
   }
   update(id, patch, undoId = null) {
     const operation = this.writes.catch(() => {}).then(async () => {
@@ -95,7 +96,7 @@ export class Workspace {
       if (undoId && !undo) throw Object.assign(new Error('This undo is no longer available.'), { status: 409 });
       for (let attempt = 0; attempt < 6; attempt++) {
         const source = await readFile(this.file, 'utf8');
-        const registry = JSON.parse(source);
+        const registry = parseWorkspaceRegistry(source);
         registry.categories = categoriesOf(registry);
         const entity = registry.entities.find(item => item.id === id);
         if (!entity) throw Object.assign(new Error('Workspace project was not found.'), { status: 404 });
@@ -152,7 +153,7 @@ export class Workspace {
       if (action !== 'delete' && (!categoryName(details.name) || !categoryIcon(details.icon))) throw invalid('Enter a category name and choose an icon.');
       for (let attempt = 0; attempt < 6; attempt++) {
         const source = await readFile(this.file, 'utf8');
-        const registry = JSON.parse(source);
+        const registry = parseWorkspaceRegistry(source);
         if (!Array.isArray(registry.entities)) throw new Error('Workspace registry is not ready.');
         registry.categories = categoriesOf(registry);
         const index = registry.categories.findIndex(item => item.id === id);

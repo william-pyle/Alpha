@@ -35,7 +35,7 @@ try {
   await expect(page.getByRole('textbox', { name: 'Search Workspace' })).toHaveCount(0);
   await expect(page.locator('.mdi-chats')).toBeVisible();
   await expect(page.getByRole('tablist', { name: 'Sidebar' })).toHaveCount(0);
-  const settings = async () => { settingsVisits++; await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tablist', { name: 'Settings sections' }).getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { settingsVisits++; await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tablist', { name: 'Settings sections' }).getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   await settings(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   await expect(page.locator('.alpha-presence-stage')).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
   await settings(); await page.getByRole('button', { name: 'Start camera for eye contact' }).click(); await page.getByRole('button', { name: 'Close settings' }).click();
@@ -65,8 +65,7 @@ try {
   await page.getByRole('menuitem', { name: 'Create project' }).click();
   await expect(page.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await page.getByRole('button', { name: 'Close new project' }).click();
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('tabpanel', { name: 'Settings' })).toBeVisible();
   await page.getByRole('tab', { name: 'Categories' }).click();
   await expect(page.getByRole('heading', { name: 'Project categories' })).toBeVisible();

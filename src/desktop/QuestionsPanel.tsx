@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, onServiceEvent, reportError, selectThread, useDesktop } from './client'
-import { Icon } from './Icons'
+import { api, reportError, selectThread, useDesktop } from './client'
+import { openWorkspaceUtility } from './workspaceUtilities'
 import type { ChatQuestion } from './types'
 
 const draftKey = (id: string) => `alpha.questionDraft.${id}`
 
-function QuestionCard({ question, connected, accepted }: { question: ChatQuestion; connected: boolean; accepted: (id: string) => void }) {
+function QuestionCard({ question, connected }: { question: ChatQuestion; connected: boolean }) {
   const state = useDesktop()
   const openTerminal = async () => {
     const owner = state.threads.find(thread => thread.sessionIds.includes(question.sessionId))
@@ -22,7 +22,7 @@ function QuestionCard({ question, connected, accepted }: { question: ChatQuestio
     inFlight.current = true; setBusy(true); setError('')
     try {
       await api(`/questions/${question.id}/answer`, { answer: draft })
-      localStorage.removeItem(draftKey(question.id)); accepted(question.id)
+      localStorage.removeItem(draftKey(question.id))
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { inFlight.current = false; setBusy(false) }
   }
@@ -33,7 +33,7 @@ function QuestionCard({ question, connected, accepted }: { question: ChatQuestio
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBusy(false) }
   }
-  return <article className="question-card" data-question-id={question.id}>
+  return <article className="question-card" id={'question-card-' + question.id} tabIndex={-1} data-question-id={question.id}>
     <header><strong>{question.chatName}</strong><time>{new Date(question.createdAt).toLocaleString()}</time></header>
     <p>{question.text}</p>
     {question.source === 'native' && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11 }}>{question.context}</pre>}
@@ -47,25 +47,22 @@ function QuestionCard({ question, connected, accepted }: { question: ChatQuestio
 
 export default function QuestionsPanel() {
   const state = useDesktop()
-  const [open, setOpen] = useState(true), [focusedId, setFocusedId] = useState('')
-  const [acceptedIds, setAcceptedIds] = useState<string[]>([])
-  const pending = state.questions.filter(question => question.status === 'pending' && !acceptedIds.includes(question.id))
-  const previous = useRef(pending.length)
+  const pending = state.questions.filter(question => question.status === 'pending')
   useEffect(() => {
-    if (previous.current > 0 && pending.length === 0) { setOpen(false); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[aria-label="Message Alpha"]')?.focus()) }
-    previous.current = pending.length
-  }, [pending.length])
-  useEffect(() => {
-    const reveal = (event: Event) => { setFocusedId((event as CustomEvent<string>).detail); setOpen(true) }
+    const reveal = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail
+      openWorkspaceUtility('questions')
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const target = document.getElementById('question-answer-' + id) || document.getElementById('question-card-' + id)
+        target?.focus()
+      }))
+    }
     window.addEventListener('alpha-open-question', reveal)
     return () => window.removeEventListener('alpha-open-question', reveal)
   }, [])
-  useEffect(() => { if (open && focusedId) document.getElementById(`question-answer-${focusedId}`)?.focus() }, [open, focusedId])
-  useEffect(() => onServiceEvent(event => { if (!state.awareness.settings.quiet && state.awareness.settings.enabled && ['questions', 'connected'].includes(event.type) && event.questions?.length) setOpen(true) }), [state.awareness.settings.quiet, state.awareness.settings.enabled])
-  useEffect(() => { const toggle = () => setOpen(value => !value); window.addEventListener('alpha-toggle-questions', toggle); return () => window.removeEventListener('alpha-toggle-questions', toggle) }, [])
-  if (pending.length === 0) return null
-  return <section className={`questions-panel ${open ? 'is-open' : ''}`} aria-label="Questions">
-    <button className="questions-toggle" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}><span><Icon name="help" size={15} />Questions {pending.length > 0 && <b>{pending.length}</b>}</span><Icon name={open ? 'down' : 'up'} size={15} /></button>
-    {open && <div className="questions-list">{pending.slice(focusedId && pending.some(q => q.id === focusedId) ? pending.findIndex(q => q.id === focusedId) : 0).slice(0, 1).map(question => <QuestionCard key={question.id} question={question} connected={state.connected} accepted={id => { setAcceptedIds(current => [...current, id]); setFocusedId('') }} />)}</div>}
+  return <section className="utility-document questions-panel" aria-label="Questions">
+    <header><h1>Questions</h1></header>
+    {!pending.length && <p>No pending questions.</p>}
+    <div className="questions-list">{pending.map(question => <QuestionCard key={question.id} question={question} connected={state.connected} />)}</div>
   </section>
 }

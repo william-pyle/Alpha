@@ -16,6 +16,8 @@ export default function ImportantEvents({ panel = false }: { panel?: boolean }) 
   const navigate = async (item: typeof items[number]) => {
     if (item.source === 'Conversation deletion recovery') {
       openWorkspaceUtility('conversation-history')
+    } else if (item.source === 'Codex folder trust' && item.questionId) {
+      window.dispatchEvent(new CustomEvent('alpha-open-question', { detail: item.questionId }))
     } else if (item.threadId) {
       await selectThread(item.threadId)
       // Validate the worker against the event's origin, never the selected worker.
@@ -43,7 +45,7 @@ export default function ImportantEvents({ panel = false }: { panel?: boolean }) 
       {items.map(item => {
         const origin = state.threads.find(thread => thread.id === item.threadId)
         const { heading } = attentionLabels[item.kind]
-        const destination = item.source === 'Conversation deletion recovery' ? 'Open conversation history' : item.threadId ? 'Open originating conversation' : 'Open Alpha health'
+        const destination = item.source === 'Conversation deletion recovery' ? 'Open conversation history' : item.source === 'Codex folder trust' ? 'Open Questions' : item.threadId ? 'Open originating conversation' : 'Open Alpha health'
         return <article key={item.id} data-event-id={item.id}>
           <strong>{heading}</strong>
           <small>{origin?.name || 'Alpha'}{origin?.archived ? ' · History' : ''}</small>

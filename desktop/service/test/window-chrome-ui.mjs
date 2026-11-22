@@ -16,6 +16,16 @@ try {
   browser = await launchBrowser(); const page = await browser.newPage({ viewport: { width: 960, height: 800 } });
   await page.goto(service.urls.workspace);
   await expect(page.locator('.mdi-menu-bar')).toHaveCount(1); await expect(page.getByRole('button', { name: 'Maximize window', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tools', exact: true })).toHaveCount(0);
+  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  const minimize = page.getByRole('button', { name: 'Minimize window', exact: true });
+  await expect(settings).toHaveText('…');
+  const [settingsBounds, minimizeBounds] = await Promise.all([settings.boundingBox(), minimize.boundingBox()]);
+  assert.ok(settingsBounds && minimizeBounds && settingsBounds.x + settingsBounds.width <= minimizeBounds.x + 1);
+  await settings.press('Enter');
+  await expect(page.getByRole('tabpanel', { name: 'Settings', exact: true })).toBeVisible();
+  assert.deepEqual(commands.filter(event => event.type === 'window'), []);
+  await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'Maximize window', exact: true }).click(); assert.equal(commands.at(-1).action, 'toggle-maximize');
   // The icon follows observed host state, never the requested action alone.
   await expect(page.getByRole('button', { name: 'Maximize window', exact: true })).toBeVisible(); update(true);
@@ -29,8 +39,8 @@ try {
   const count = commands.length; await page.getByRole('button', { name: 'File', exact: true }).click(); assert.equal(commands.length, count); await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+Space'); await expect.poll(() => commands.at(-1).action).toBe('system-menu');
   for (const theme of ['dark', 'light']) {
-    await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await page.getByRole('button', { name: 'Close settings' }).click();
-    for (const width of [960, 390]) { await page.setViewportSize({ width, height: 700 }); await expect(page.getByRole('button', { name: 'Close window', exact: true })).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.screenshot({ path: path.join(repo, `${theme}-${width}.png`) }); }
+    await settings.click(); await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption(theme); await page.getByRole('button', { name: 'Close settings' }).click();
+    for (const width of [960, 390]) { await page.setViewportSize({ width, height: 700 }); await expect(page.getByRole('button', { name: 'Close window', exact: true })).toBeVisible(); await expect(settings).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await page.screenshot({ path: path.join(repo, `${theme}-${width}.png`) }); }
   }
   await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, checks: ['Single existing top bar; native command dispatch; observed-state icon/tooltip; pointer drag/double-click; menu clicks not dragging; keyboard system menu; narrow light/dark'], commands: commands.filter(event => event.type === 'window').map(event => event.action) }, null, 2));
   console.log(`Window chrome browser regression passed: ${repo}`);

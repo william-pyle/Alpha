@@ -10,7 +10,24 @@ await mkdir('.test-output', { recursive: true });
 const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-agent-center-'));
 await mkdir(path.join(repo, 'workspace'));
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'alpha', title: 'Alpha', created: '2026-11-16', folder: 'alpha', steps: [] }, { id: 'mooseville', title: 'Mooseville', created: '2026-11-16', folder: 'excluded', steps: [] }] }));
-const service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
+const updateVersion = '99.9.0', updateBase = `https://github.com/william-pyle/Alpha/releases/download/v${updateVersion}`;
+const manifestUrl = `${updateBase}/alpha-update.json`, assetUrl = `${updateBase}/Alpha-${updateVersion}-windows-x64.msi`;
+const updateRequests = [], originalFetch = globalThis.fetch;
+globalThis.fetch = (url, options) => {
+  if (url === 'https://api.github.com/repos/william-pyle/Alpha/releases/latest') {
+    updateRequests.push('release');
+    return Response.json({ tag_name: `v${updateVersion}`, assets: [{ name: 'alpha-update.json', browser_download_url: manifestUrl }] });
+  }
+  if (url === manifestUrl) {
+    updateRequests.push('manifest');
+    return Response.json({ version: updateVersion, platform: 'windows-x64', url: assetUrl, bytes: 1200, sha256: 'a'.repeat(64) });
+  }
+  if (url === assetUrl) throw new Error('Fixture must not download the update installer');
+  return originalFetch(url, options);
+};
+let service;
+try { service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); }
+finally { globalThis.fetch = originalFetch; }
 const calls = [];
 service.coordinator.ask = async data => { calls.push(data); return { ...data, status: 'completed', result: 'Applied the requested choice.', at: new Date().toISOString() }; };
 const request = async (route, data) => {
@@ -29,11 +46,12 @@ try {
   assert.equal(service.sessions.get(session.id).projectId, 'conversations');
   await expect(questions.getByText('Which card or project should I track Unassigned Work under?')).toHaveCount(0);
   const question = await service.questions.ask({ text: 'Which layout should I use for the test?', options: ['Compact', 'Spacious'], sourceId: 'layout', context: 'Improve the layout.' });
+  await page.getByRole('tab', { name: 'Questions', exact: true }).click();
   await questions.getByRole('button', { name: 'Compact', exact: true }).click();
   await questions.getByRole('button', { name: 'Send answer' }).click();
   await expect.poll(() => service.questions.items.find(item => item.id === question.id).status).toBe('answered');
   await expect.poll(() => calls.at(-1)?.text || '').toMatch(/User's answer: Compact/);
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Common agents' }).click();
   const dialog = page.getByRole('tabpanel', { name: 'Common agents' });
   await expect(dialog.getByRole('heading', { name: 'Common agents' })).toBeVisible();
@@ -65,7 +83,7 @@ try {
   assert.match(calls.at(-1).text, /common agent build-verification/);
   await page.screenshot({ path: path.join(repo, 'agents.png') });
   await service.health.report({ area: 'Fixture operation', symptom: 'Repeated delays observed in the fixture', proposal: 'Inspect the recorded delay before redesigning this request.' });
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Alpha health', exact: true }).click();
   const health = page.getByRole('tabpanel', { name: 'Alpha health', exact: true });
   await expect(health.getByText('Repeated delays observed in the fixture')).toBeVisible();
@@ -74,16 +92,29 @@ try {
   await page.getByRole('button', { name: 'Close Alpha health', exact: true }).click();
   const target = service.sessions.make({ id: 'restart-target', nativeId: 'native-target', agent: 'codex', name: 'Restart Target', cwd: repo, open: true, status: 'stopped', createdAt: new Date().toISOString() });
   service.sessions.items.set(target.id, target); service.sessions.changed(target);
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await settings.getByRole('tab', { name: 'Updates', exact: true }).click();
-  await settings.getByText('Resume work after restarting', { exact: true }).click();
-  await settings.getByLabel('Conversation to resume').selectOption(target.id);
-  await settings.getByLabel('Restart note').fill('Read the project checkpoint and continue the remaining authorized work.');
-  await settings.getByRole('button', { name: 'Save restart note' }).click();
+  await expect(settings.getByRole('heading', { name: 'Release evidence' })).toBeVisible();
+  await expect(settings.getByRole('button', { name: 'Check for Updates', exact: true })).toHaveCount(0);
+  assert.deepEqual(updateRequests, []);
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await page.screenshot({ path: path.join(repo, 'check-for-updates-menu.png') });
+  await page.getByRole('menuitem', { name: 'Check for Updates', exact: true }).click();
+  const updates = page.getByRole('tabpanel', { name: 'Check for Updates', exact: true });
+  await expect(updates).toBeVisible();
+  await expect(updates.getByText(`Update available: Alpha ${updateVersion}.`, { exact: true })).toBeVisible();
+  await expect(updates.getByRole('button', { name: 'Download update', exact: true })).toBeVisible();
+  await expect(updates.getByRole('button', { name: 'Restart and install', exact: true })).toHaveCount(0);
+  assert.deepEqual(updateRequests, ['release', 'manifest']);
+  await expect(page.locator('.alpha-update-notice')).toHaveCount(0);
+  await page.screenshot({ path: path.join(repo, 'check-for-updates-tab.png') });
+  await updates.getByText('Resume work after restarting', { exact: true }).click();
+  await updates.getByLabel('Conversation to resume').selectOption(target.id);
+  await updates.getByLabel('Restart note').fill('Read the project checkpoint and continue the remaining authorized work.');
+  await updates.getByRole('button', { name: 'Save restart note' }).click();
   await expect.poll(() => service.restartNotes.items[0]?.status).toBe('prepared');
-  await settings.getByRole('button', { name: 'Cancel restart note' }).click();
+  await updates.getByRole('button', { name: 'Cancel restart note' }).click();
   await expect.poll(() => service.restartNotes.items[0]?.status).toBe('cancelled');
   assert.deepEqual(errors, []);
   console.log(`Agent center passed project questions, Alpha answers, exclusion, role revision/rollback/run, health and restart-note UI. Screenshot: ${path.join(repo, 'agents.png')}`);

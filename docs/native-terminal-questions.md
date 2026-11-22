@@ -1,6 +1,6 @@
 # Native Questions and dispatch
 
-These changes target Alpha 0.2.21. Source and fixture checks do not change an
+The native prompt adapter began in Alpha 0.2.21. Source and fixture checks do not change an
 already running service or establish that an installed UI works. Publication,
 installation and live provider observations are separate release evidence.
 
@@ -22,8 +22,8 @@ Each answer is persisted as an intent, revalidated, and delivered once. Trust
 selection and Enter confirmation have separate validation. A stable next supported
 prompt or native composer proves a transition; a blank redraw does not. An uncertain
 delivery stays pending and is never replayed, including after service restart.
-Questions displays one item at a time and hides when the verified pending list is
-empty. Native fallback opens the originating terminal without unlocking it.
+Starting in 0.2.24, the Questions tab shows all pending items. Its count and list
+update when answers are verified. Native fallback opens the originating terminal without unlocking it.
 
 Only the recognized optional update **Skip** uses an automatic key under the
 owner's active-work preference. It sends `2`, with no trailing Enter. Install,
@@ -46,14 +46,20 @@ Codex stores trust by canonical project/repository path, with Windows case foldi
 and canonical/original lookup spellings; a renamed checkout is a new path, and a
 wildcard lesson is not a provider trust entry.
 
-An explicit Settings option supports the owner's approved `C:/Projects` scope for
-future Codex launches. It supplies a provider-supported exact `projects.<path>`
-configuration entry only after checking canonical cwd and repository trust target.
-Sibling prefixes, traversal, other drives, UNC locations and junction escapes are
-excluded. Linked worktrees check their common repository root. It neither rewrites
-the provider configuration file nor changes permission flags. The opt-in is not
-inferred from a lesson, and this task did not enable it in live settings. Without
-that opt-in, a user's selected Trust choice follows the provider's own persistence.
+In 0.2.24 the explicit Settings option for `C:/Projects` enables manual review
+notifications. A recognized folder-trust prompt for a canonical candidate, or for
+a path that could not be verified, links to its exact question in Needs attention.
+Sibling prefixes, traversal, other drives and UNC locations are out of scope.
+Junction escapes and unavailable paths require verification. The text detector
+is used only to route a manual decision.
+
+A safe automatic flow would require a provider-supported startup event or a
+per-launch policy that verifies the exact repository trust target, respects an
+explicit trust denial and verifies effective permissions before loading project
+configuration. Codex documents a per-project trust setting, but this setting can
+enable project configuration. Alpha has no verified pre-launch comparison that
+guarantees the selected permissions remain in effect. The prior CLI override is
+removed, and the native confirmation remains manual.
 
 Evidence was checked against installed `codex-cli 0.169.1` and its tagged sources:
 [update keys](https://github.com/openai/codex/blob/rust-v0.169.1/codex-rs/tui/src/update_prompt.rs),

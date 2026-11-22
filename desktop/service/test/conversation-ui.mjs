@@ -39,7 +39,7 @@ try {
   await page.route('**/api/transcribe', route => route.fulfill({ contentType: 'application/json', body: '{"text":"Voice hello"}' }));
   await page.goto(service.urls.workspace);
   const pane = page.getByRole('region', { name: 'Alpha conversation', exact: true }), editor = pane.getByRole('textbox', { name: 'Message Alpha' }), picker = pane.locator('[role=tab][aria-selected=true]');
-  const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   await expect(pane).toBeVisible(); await expect(editor).toHaveCount(1); await expect(page.locator('.chat-composer')).toHaveCount(0);
   const inputRoute = '**/api/threads/*/input';

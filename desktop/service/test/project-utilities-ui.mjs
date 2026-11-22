@@ -31,6 +31,7 @@ const request = async (route, data = {}) => {
   return response.json();
 };
 const open = async (menu, title) => { await page.getByRole('button', { name: menu, exact: true }).click(); await page.getByRole('menuitem', { name: title, exact: true }).click(); };
+const openSettings = () => page.getByRole('button', { name: 'Settings', exact: true }).click();
 const toolTitles = [["What I've learned", 'learned-preferences'], ['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings', 'settings'], ['Conversation history', 'conversation-history'], ['Needs attention', 'needs-attention']];
 const panel = title => page.getByRole('tabpanel', { name: title, exact: true });
 const capture = async name => { const file = `${name}.png`; await page.screenshot({ path: path.join(repo, file) }); screenshots.push(file); };
@@ -68,7 +69,7 @@ try {
   await inspectReport('report-full-height-dark-1440');
   await page.setViewportSize({ width: 960, height: 720 });
   await inspectReport('report-full-height-dark-960');
-  await open('Tools', 'Settings');
+  await openSettings();
   if (!previewOnly) await expect(page.locator('.mdi-app-view')).toBeHidden();
   await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Legacy report', exact: true }).click();
   await inspectReport('report-restored-after-utility-dark-960');
@@ -203,18 +204,18 @@ try {
     checks.push('Canonical workspace migration requires the exact project ID and keeps report bytes and route filenames.');
   }
   await migration.getByRole('button', { name: 'Close', exact: true }).last().click();
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await capture('tools-menu-dark-1440');
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await capture('view-menu-dark-1440');
   await page.keyboard.press('Escape');
   for (const [title, id] of toolTitles) {
-    await open(['conversation-history', 'needs-attention'].includes(id) ? 'View' : 'Tools', title);
+    if (id === 'settings') await openSettings(); else await open('View', title);
     await panel(title).waitFor();
     await capture(`${id}-dark-1440`);
   }
   await request('/settings', { workspaceTheme: 'light' });
   await page.setViewportSize({ width: 960, height: 720 });
-  await open('Tools', 'Settings'); await capture('settings-light-960');
-  await open('Tools', "What I've learned"); await capture('learned-light-960');
+  await openSettings(); await capture('settings-light-960');
+  await open('View', "What I've learned"); await capture('learned-light-960');
   const statusAttention = page.locator('.mdi-statusbar').getByRole('button', { name: /^Needs attention:/ });
   if (previewOnly) {
     service.awareness.event({ id: 'attention-preview', threadId: b.id, kind: 'attention', text: 'A worker is waiting for input.', source: 'Fixture' });
@@ -231,7 +232,7 @@ try {
     await request('/settings', { workspaceTheme: 'dark' });
     const editor = page.getByRole('textbox', { name: 'Message Alpha' });
     for (const [title, id] of toolTitles) {
-      await open(['conversation-history', 'needs-attention'].includes(id) ? 'View' : 'Tools', title);
+      if (id === 'settings') await openSettings(); else await open('View', title);
       await expect(panel(title)).toBeVisible();
       await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
       await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -240,31 +241,31 @@ try {
       assert.equal(service.threads.get(a.id).projectId, 'fixture');
     }
     checks.push('Six singleton Workspace tabs preserve the selected conversation, project and draft; no utility dialogs.');
-    await open('Tools', "What I've learned");
+    await open('View', "What I've learned");
     await page.getByLabel('What should I do differently?').fill('Unsaved lesson draft stays while switching tools.');
-    await open('Tools', 'Settings');
-    await open('Tools', "What I've learned");
+    await openSettings();
+    await open('View', "What I've learned");
     await expect(page.getByLabel('What should I do differently?')).toHaveValue('Unsaved lesson draft stays while switching tools.');
-    await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'), 'utf8')).utilityTabs?.length).toBe(6);
+    await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'), 'utf8')).utilityTabs?.filter(id => id !== 'questions').length).toBe(6);
     await page.reload();
     await expect(panel("What I've learned")).toBeVisible();
     for (const [title] of toolTitles) await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
     checks.push('Open utility tabs and active utility persist on reload; unsaved edits remain while tabs switch.');
     const file = page.getByRole('button', { name: 'File', exact: true });
-    const tools = page.getByRole('button', { name: 'Tools', exact: true });
-    await file.click(); await tools.click();
+    const view = page.getByRole('button', { name: 'View', exact: true });
+    await file.click(); await view.click();
     await expect(page.locator('.mdi-menu-popup')).toHaveCount(1);
-    await expect(page.getByRole('menu', { name: 'Tools', exact: true })).toBeVisible();
+    await expect(page.getByRole('menu', { name: 'View', exact: true })).toBeVisible();
     await editor.click(); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
-    await tools.click(); await editor.focus(); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
-    await tools.click(); await page.evaluate(() => dispatchEvent(new Event('blur'))); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
-    await tools.click(); service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: false, maximized: false, minimized: false } });
+    await view.click(); await editor.focus(); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    await view.click(); await page.evaluate(() => dispatchEvent(new Event('blur'))); await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
+    await view.click(); service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: false, maximized: false, minimized: false } });
     await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
     service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: true, maximized: false, minimized: false } });
-    await tools.focus(); await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('menuitem', { name: "What I've learned", exact: true })).toBeFocused();
-    await page.keyboard.press('End'); await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
-    await page.keyboard.press('Escape'); await expect(tools).toBeFocused();
+    await view.focus(); await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Workspace', exact: true })).toBeFocused();
+    await page.keyboard.press('End'); await expect(page.getByRole('menuitem', { name: 'Alpha health', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape'); await expect(view).toBeFocused();
     await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
     checks.push('Exclusive menus dismiss outside pointer/focus/DOM blur/native deactivation; arrows, End and Escape preserve keyboard access.');
     await file.click(); await expect(page.getByRole('menuitem', { name: /Open file|Close document/ })).toHaveCount(0); await page.keyboard.press('Escape');

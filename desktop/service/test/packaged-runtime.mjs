@@ -66,7 +66,7 @@ try {
   lines.close();
 }
 assert.equal(resolve(),nextRepo);
-assert.deepEqual(JSON.parse(await readFile(path.join(nextRepo,'workspace/workspace.json'),'utf8')),JSON.parse(await readFile(path.join(repo,'workspace/workspace.json'),'utf8')));
+assert.deepEqual(JSON.parse(await readFile(path.join(nextRepo,'workspace.json'),'utf8')),JSON.parse(await readFile(path.join(repo,'workspace.json'),'utf8')));
 assert.equal(JSON.parse(await readFile(path.join(nextRepo,'.alpha/sessions.json'),'utf8'))[0].cwd,nextRepo);
 const result=JSON.parse(await readFile('.test-output/packaged-runtime-result.json','utf8'));
 result.checks.push('Bundled startup selection and deferred Workspace copy preserve cards, history and original files');

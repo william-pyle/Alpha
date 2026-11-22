@@ -6,9 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.23**, with
-project disk usage, build cleanup and explicit local deletion controls.
-See [release notes](release-notes/v0.2.23.md).
+knowledge into one Windows desktop window. This source targets **0.2.24**.
+See the [0.2.24 release notes](release-notes/v0.2.24.md).
 
 ## What you can do
 
@@ -29,10 +28,10 @@ installation and native acceptance remain separate verification steps.
 
 ### Disk space and deletion
 
-Each project card shows its canonical project folder's size on disk. Windows
-measures allocated bytes, accounts for compression and counts each hardlinked
-file once within that project. Measurements run in the background and are cached
-for 15 minutes; right-click **Refresh size on disk** for a fresh measurement.
+Each project card shows logical file size in decimal units. The Windows scan
+counts the uncompressed length of each regular-file entry, including each
+hardlinked filename. Measurements run in the background and are cached
+for 15 minutes; right-click **Refresh file size** for a fresh measurement.
 Linked folders are skipped. A failed scan displays **Unavailable**, never zero.
 
 Right-click **Clear build folders** to review generated output before removing
@@ -50,7 +49,8 @@ build recreates its output.
 existing conversation histories remain. Built-in Conversations, running Alpha,
 active workers, shared project paths, foreign repositories and linked Git
 worktrees are protected. A locked deletion remains visible for retry and records
-its remaining files in a local recovery journal.
+its remaining files in a local recovery journal. The delete preview measures the
+same project root as the card. Disk space freed may differ.
 
 Use **Delete conversation** from a conversation's context menu or
 **Conversation history** to remove its Alpha history, draft and local worker
@@ -109,9 +109,9 @@ launchers. Their accounts and provider data remain with their own tools.
 
 A fresh installation lets you choose a Workspace folder and defaults to
 `Documents\Alpha`. An upgrade keeps your existing choice. You can change the
-location under **Tools → Settings → General → Workspace location**. Choose
+location under **… → General → Workspace location**. Choose
 **Copy current Workspace** for a new or empty folder or **Open existing
-Workspace** for a folder with `workspace/workspace.json`. Save the location and
+Workspace** for a folder with `workspace.json` at its root. Alpha upgrades the legacy layout on startup. Save the location and
 apply it on Alpha's next normal launch. A copy keeps the original folder.
 
 ## Use Alpha
@@ -129,11 +129,11 @@ history remain intact; **Load earlier native conversation** imports verified use
 messages and final replies. New native launchers are under **New conversation ?
 Advanced launchers**. Their existing approval settings still apply.
 
-Workspace stays open as a document tab. Use **File → Create project** for Gallery or Research content and **Help → Open Help** for the built-in guide. Close documents using their tab controls. **Tools → Settings** contains General, Speech-to-text,
-Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens the archive and controls the conversation sidebar.
+Workspace and Questions stay available as document tabs. Questions collects pending items for their originating conversations. Use **File → Create project** for Gallery or Research content and **Help → Open Help** for the built-in guide. Close documents using their tab controls. The **…** beside the window controls opens Settings, which contains General, Speech-to-text,
+Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens Conversation history, Needs attention, Questions, learned preferences, common agents and Alpha health.
 
 Alpha checks GitHub shortly after startup and every six hours. To check now,
-open **Settings → Updates**. Choose **Download update**, then
+choose **Help → Check for Updates**. Choose **Download update**, then
 **Restart and install** when ready. Alpha verifies the installer checksum and
 warns about active terminals before restarting. Closing the app alone does not
 install a downloaded update.
@@ -223,7 +223,7 @@ state and **Launch** controls. Alpha stops only processes it owns and identifies
 externally observed services remain visible without being claimed as managed.
 Tool definitions and project-specific commands stay in the Workspace registry.
 
-In **Settings → Updates → Resume work after restarting**, save a note for an
+In **Help → Check for Updates → Resume work after restarting**, save a note for an
 existing Codex conversation. On the next launch, Alpha resumes that exact native
 conversation with the note once. Status distinguishes dispatch, observed resume
 and a completed reply. An uncertain launch does not repeatedly replay the note.
@@ -249,7 +249,7 @@ Face tracking holds the last head direction through brief missed camera
 detections, then returns gently toward center if the face remains out of view.
 New detections cannot snap the head to a distant position. The camera-driven
 turn range is smaller, reducing overshoot when the viewer moves. The active
-installation can update through Settings; live laptop review follows that update.
+installation can update through Help → Check for Updates; live laptop review follows that update.
 
 ## 0.2.12
 

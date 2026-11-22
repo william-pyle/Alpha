@@ -41,7 +41,9 @@ test('authenticated storage/cleanup/deletion routes preserve other projects and 
   const cleaned = await request('/workspace/projects/sample/build-cleanup', { confirmation: 'sample', previewToken: plan.value.previewToken });
   assert.equal(cleaned.response.status, 200); assert.deepEqual(cleaned.value.removed, ['github/target']);
   assert.equal(await lstat(path.join(github, 'target')).catch(() => null), null);
-  assert.equal((await request('/workspace/projects/sample/deletion')).value.blockedReason, undefined);
+  const deletion = (await request('/workspace/projects/sample/deletion')).value;
+  assert.equal(deletion.blockedReason, undefined);
+  assert.equal(deletion.logicalBytes, state.value.projects[0].logicalBytes);
   const removed = await request('/workspace/projects/sample/remove', { confirmation: 'sample', scope: 'delete-files' });
   assert.equal(removed.response.status, 200); assert.equal(await lstat(root).catch(() => null), null);
   assert.equal(await readFile(path.join(repo, 'projects/other/workspace/report.html'), 'utf8'), 'other project');

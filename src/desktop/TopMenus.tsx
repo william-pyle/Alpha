@@ -5,9 +5,8 @@ import { Nose } from './Icons'
 
 const menus: Record<string, Array<[string, string]>> = {
   File: [['New conversation', 'new-conversation'], ['Create project', 'new-card']],
-  View: [['Workspace', 'workspace'], ['Conversation history', 'conversation-history'], ['Needs attention', 'needs-attention'], ['Questions', 'questions']],
-  Tools: [["What I've learned", 'learned-preferences'], ['Common agents', 'common-agents'], ['Alpha health', 'health'], ['Settings', 'settings']],
-  Help: [['Open Help', 'help']],
+  View: [['Workspace', 'workspace'], ['Conversation history', 'conversation-history'], ['Needs attention', 'needs-attention'], ['Questions', 'questions'], ["What I've learned", 'learned-preferences'], ['Common agents', 'common-agents'], ['Alpha health', 'health']],
+  Help: [['Open Help', 'help'], ['Check for Updates', 'check-for-updates']],
 }
 const labels = Object.keys(menus)
 
@@ -98,6 +97,6 @@ export default function TopMenus({ run }: { run: (action: string) => void }) {
         }}>Undo last organization change</button>}
       </div>}
     </div>)}
-    <WindowControls />
+    <WindowControls openSettings={() => run('settings')} />
   </div>
 }

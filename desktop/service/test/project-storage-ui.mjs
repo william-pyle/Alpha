@@ -9,12 +9,13 @@ import { launchBrowser } from './browser.mjs';
 
 await mkdir('.test-output', { recursive: true });
 const repo = await mkdtemp(path.join(process.env.RUNNER_TEMP || tmpdir(), 'alpha-project-storage-ui-'));
+const repositoryUrl = 'https://github.com/william-pyle/fixture-repository';
 await mkdir(path.join(repo, 'workspace'), { recursive: true });
 await mkdir(path.join(repo, '.alpha'), { recursive: true });
 const entities = [
-  { id: 'fixture', title: 'Storage fixture', folder: 'fixture', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: true, steps: [] },
-  { id: 'blocked', title: 'Active worker fixture', folder: 'blocked', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: false, steps: [] },
-  { id: 'failed', title: 'Failed measurement fixture', folder: 'failed', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: false, steps: [] },
+  { id: 'fixture', title: 'Storage fixture', folder: 'fixture', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: true, steps: [], projectRepositoryUrl: repositoryUrl },
+  { id: 'blocked', title: 'Active worker fixture', folder: 'blocked', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: false, steps: [], sourceRepositoryUrl: repositoryUrl },
+  { id: 'failed', title: 'Failed measurement fixture', folder: 'failed', status: 'active', category: 'research', created: '2026-11-21', updated: '2026-11-21', pinned: false, steps: [], projectRepositoryUrl: 'https://github.com.example/owner/repo' },
 ];
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities }));
 await writeFile(path.join(repo, '.alpha/settings.json'), JSON.stringify({ speakReplies: false, viewerEnabled: false }));
@@ -24,6 +25,7 @@ let browser, page;
 try {
   browser = await launchBrowser();
   page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await page.context().route(repositoryUrl, route => route.fulfill({ body: 'GitHub repository fixture' }));
   page.setDefaultTimeout(12_000);
   await page.route('**/api/workspace/storage', async route => {
     calls.inventory += 1;
@@ -51,7 +53,7 @@ try {
     const blocked = route.request().url().includes('/blocked/');
     const retry = route.request().url().includes('/failed/');
     const id = blocked ? 'blocked' : retry ? 'failed' : 'fixture';
-    return route.fulfill({ json: { id, root: path.join(repo, `projects/${id}`), ...(blocked ? { blockedReason: 'Stop the active fixture worker before deleting local files.' } : {}), ...(retry ? { retry: true } : {}) } });
+    return route.fulfill({ json: { id, root: path.join(repo, `projects/${id}`), ...(id === 'fixture' ? { logicalBytes: 1_200_000_000 } : {}), ...(blocked ? { blockedReason: 'Stop the active fixture worker before deleting local files.' } : {}), ...(retry ? { retry: true } : {}) } });
   });
   await page.route('**/api/workspace/projects/*/remove', async route => {
     calls.remove.push(route.request().postDataJSON());
@@ -63,12 +65,24 @@ try {
   const blocked = page.locator('.entity-card-wrap[data-card="blocked"]');
   const failed = page.locator('.entity-card-wrap[data-card="failed"]');
   await expect(fixture.getByText('Measuring…', { exact: true })).toBeVisible();
-  await expect(fixture.getByText('1.50 GiB on disk', { exact: true })).toBeVisible();
-  await expect(fixture.locator('.project-storage-size')).toHaveAttribute('title', /Logical size: 2.00 GiB/);
-  await expect(blocked.getByText('12.0 MiB on disk', { exact: true })).toBeVisible();
+  await expect(fixture.getByText('2.15 GB logical', { exact: true })).toBeVisible();
+  await expect(fixture.locator('.project-storage-size')).toHaveAttribute('title', /Logical file size: 2.15 GB/i);
+  await expect(blocked.getByText('13.0 MB logical', { exact: true })).toBeVisible();
   await expect(failed.getByText('Unavailable', { exact: true })).toBeVisible();
   await expect(failed.locator('.project-storage-size')).toHaveAttribute('title', /Fixture read failed/);
   await expect(page.locator('.entity-card-wrap[data-card="conversations"]').getByText('Unavailable', { exact: true })).toBeVisible();
+  const github = fixture.getByRole('link', { name: 'Open GitHub repository', exact: true });
+  await expect(github).toHaveAttribute('href', repositoryUrl);
+  await expect(blocked.getByRole('link', { name: 'Open GitHub repository' })).toHaveCount(0);
+  await expect(failed.getByRole('link', { name: 'Open GitHub repository' })).toHaveCount(0);
+  const indicator = fixture.locator('button.entity-status-button');
+  const [githubBounds, indicatorBounds] = await Promise.all([github.boundingBox(), indicator.boundingBox()]);
+  assert.ok(githubBounds && indicatorBounds && githubBounds.x + githubBounds.width <= indicatorBounds.x + 1);
+  const workspaceUrl = page.url();
+  const [popup] = await Promise.all([page.waitForEvent('popup'), github.press('Enter')]);
+  await expect(popup).toHaveURL(repositoryUrl);
+  await popup.close();
+  await expect(page).toHaveURL(workspaceUrl);
   assert.ok(calls.inventory >= 2, 'Storage inventory should poll while a row is scanning.');
   const beforeFocus = calls.inventory;
   await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus')); });
@@ -81,8 +95,8 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await fixture.click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Refresh size on disk', exact: true }).click();
-  await expect(fixture.getByText('1.00 GiB on disk', { exact: true })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Refresh file size', exact: true }).click();
+  await expect(fixture.getByText('1.20 GB logical', { exact: true })).toBeVisible();
   assert.equal(calls.refresh.length, 1);
 
   await fixture.click({ button: 'right' });
@@ -104,7 +118,7 @@ try {
   await expect(cleanup.getByText(/Contains a nested Git repository/)).toBeVisible();
   await page.screenshot({ path: path.join(repo, 'build-cleanup-preserved.png') });
   await cleanupButton.click();
-  await expect(cleanup.getByText(/Removed 768 MiB of generated file data.*Disk usage is being refreshed/)).toBeVisible();
+  await expect(cleanup.getByText(/Removed 805 MB of generated file data.*Project file size is being refreshed/)).toBeVisible();
   assert.deepEqual(calls.cleanup, [{ confirmation: 'fixture', previewToken: 'fixture-preview-token' }]);
   await cleanup.getByRole('button', { name: 'Close', exact: true }).click();
 
@@ -140,6 +154,8 @@ try {
   await deletion.getByRole('radio', { name: /Delete local project files/ }).click();
   await expect(deletion.getByText(/GitHub repository is never deleted/)).toBeVisible();
   await expect(deletion.getByText(new RegExp('projects[\\\\/]fixture'))).toBeVisible();
+  await expect(deletion.getByText(/logical file size: 1\.20 GB/i)).toBeVisible();
+  await expect(deletion.getByText(/disk space freed/i)).toBeVisible();
   const deleteButton = deletion.getByRole('button', { name: 'Delete local files and project', exact: true });
   await expect(deleteButton).toBeDisabled();
   await deletion.getByRole('textbox', { name: 'Confirm project ID', exact: true }).fill('wrong');

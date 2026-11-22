@@ -66,6 +66,7 @@ Function AlphaWorkspacePageLeave
     MessageBox MB_ICONEXCLAMATION "Choose a dedicated folder using its full path."
     Abort
   ${EndIf}
+  IfFileExists "$AlphaWorkspacePath\workspace.json" alpha_workspace_valid
   IfFileExists "$AlphaWorkspacePath\workspace\workspace.json" alpha_workspace_valid
   FindFirst $0 $1 "$AlphaWorkspacePath\*"
   alpha_workspace_scan:

@@ -1,6 +1,6 @@
 [package]
 name = "alpha-desktop"
-version = "0.2.23"
+version = "0.2.24"
 description = "Alpha workspace and independent agent terminals"
 authors = ["Alpha Workspace contributors"]
 edition = "2021"

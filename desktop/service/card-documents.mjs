@@ -4,6 +4,7 @@ import path from 'node:path';
 import { CARD_FORMAT, CARD_VERSION, CARD_MAX_BYTES, cardTemplates, localCardPath, validateCard } from './card-schema.mjs';
 import { realFile, saveJson, within } from './util.mjs';
 import { localDay } from './workspace.mjs';
+import { parseWorkspaceRegistry } from './workspace-layout.mjs';
 import { ensureProjectWorkspace, projectWorkspaceDirectory } from './project-layout.mjs';
 
 const hash = source => createHash('sha256').update(source).digest('hex');
@@ -41,7 +42,7 @@ export class CardDocuments {
   }
   async registryChange(update) {
     for (let attempt = 0; attempt < 6; attempt++) {
-      const source = await readFile(this.workspace.file, 'utf8'), registry = JSON.parse(source);
+      const source = await readFile(this.workspace.file, 'utf8'), registry = parseWorkspaceRegistry(source);
       if (!Array.isArray(registry.entities)) fail('Workspace registry is not ready.');
       update(registry);
       try {

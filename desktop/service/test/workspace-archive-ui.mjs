@@ -66,7 +66,7 @@ try {
   await page.reload(); await openWorkspace(); await expect(category).toHaveValue('engineering'); await expect(search).toHaveValue('done');
   await scope.focus(); await page.keyboard.press('Tab'); await expect(category).toBeFocused(); await page.keyboard.press('Tab'); await expect(search).toBeFocused();
   await page.getByRole('button', { name: 'Clear project search' }).click(); await category.selectOption(''); await scope.selectOption('all');
-  await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('Show Archived group in Workspace')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Theme', exact: true }).click(); await page.getByLabel('Workspace theme', { exact: true }).selectOption('light'); await page.getByRole('button', { name: 'Close settings' }).click();
   for (const width of [960, 390]) { await page.setViewportSize({ width, height: 800 }); await expect(scope).toBeVisible(); await expect(category).toBeVisible(); await expect(search).toBeVisible(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false); await snap(`archive-all-light-${width}`); }

@@ -1,6 +1,6 @@
 # Authoring a Workspace project
 
-1. Read the current registry and reuse the relevant project.
+1. Read `workspace.json` at the Workspace root and reuse the relevant project.
 2. Reuse the stable project ID at `projects/<id>`. Keep exactly one canonical
    Workspace folder at `projects/<id>/workspace`; do not create dated workspaces
    or another project entry for the same project. An optional owned working
@@ -40,5 +40,6 @@ New HTML reports can begin with:
 </html>
 ```
 
-The relative paths above assume a folder immediately inside `workspace/`.
-Adjust them for nested reports. All sample pages follow the same shared style.
+Alpha resolves these historical shared asset URLs from the Workspace root’s
+`_shared/`. For standalone files, copy the needed templates into the report
+folder and link to them directly.

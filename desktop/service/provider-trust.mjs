@@ -1,10 +1,6 @@
 import path from 'node:path';
 import { realpath } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 
-const exec = promisify(execFile);
-// No glob/prefix comparison: C:\Projects2 and junction escapes are outside.
 export function insideWindowsRoot(root, candidate) {
   if (!path.win32.isAbsolute(root) || !path.win32.isAbsolute(candidate)) return false;
   const normalize = value => path.win32.normalize(value.replace(/^\\\\\?\\/, '')).toLowerCase();
@@ -12,23 +8,14 @@ export function insideWindowsRoot(root, candidate) {
   return relative === '' || (!relative.startsWith('..\\') && relative !== '..' && !path.win32.isAbsolute(relative));
 }
 
-export async function approvedProjectTrust(cwd, roots, { canonical = realpath, gitRoot = async directory => {
+// Folder trust can activate project-scoped configuration, including permission
+// defaults. Until Codex exposes a way to verify the effective settings and honor
+// an existing trust denial before launch, classify scope for a manual review only.
+export async function codexTrustScope(cwd, configuredRoot, canonical = realpath) {
+  if (!insideWindowsRoot(configuredRoot, cwd) || path.win32.relative(configuredRoot, cwd) === '') return 'outside';
   try {
-    const common = (await exec('git', ['-C', directory, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { windowsHide: true })).stdout.trim();
-    return path.basename(common) === '.git' ? path.dirname(common) : (await exec('git', ['-C', directory, 'rev-parse', '--show-toplevel'], { windowsHide: true })).stdout.trim();
-  }
-  catch { return directory; }
-} } = {}) {
-  if (!Array.isArray(roots) || !roots.length) return [];
-  const actual = await canonical(cwd);
-  const target = await canonical(await gitRoot(actual));
-  for (const root of roots) {
-    const resolved = await canonical(root);
-    if (!insideWindowsRoot(root, resolved) || !insideWindowsRoot(root, cwd) || !insideWindowsRoot(resolved, actual) || !insideWindowsRoot(resolved, target)) continue;
-    // Provider-supported exact project entry; no wildcard, global bypass,
-    // config-file rewrite, permission flag or transfer from an old checkout.
-    const key = target.replace(/^\\\\\?\\/, '').replaceAll('\\', '/').toLowerCase();
-    return ['-c', `projects.${JSON.stringify(key)}.trust_level="trusted"`];
-  }
-  return [];
+    const [root, actual] = await Promise.all([canonical(configuredRoot), canonical(cwd)]);
+    if (!insideWindowsRoot(configuredRoot, root) || path.win32.relative(configuredRoot, root) !== '') return 'unverified';
+    return insideWindowsRoot(root, actual) && path.win32.relative(root, actual) !== '' ? 'in-scope' : 'unverified';
+  } catch { return 'unverified'; }
 }

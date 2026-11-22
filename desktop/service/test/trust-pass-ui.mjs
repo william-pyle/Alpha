@@ -32,7 +32,7 @@ try {
   const picker = pane.locator('[role=tab][aria-selected=true]');
   const editor = pane.getByRole('textbox', { name: 'Message Alpha' });
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
-  const settings = async () => { await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
+  const settings = async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
   await editor.fill('Measure the response'); await editor.press('Enter');
   await expect(page.locator('.status-runtime')).toContainText('waiting for provider');
   await ca.message({ method: 'item/agentMessage/delta', params: { threadId: 'provider-fixture', delta: 'Fixture streaming response' } });
@@ -62,10 +62,10 @@ try {
   await expect(attentionQuestion).toHaveCount(0);
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   const quietOne = await service.questions.ask({ text: 'Which quiet fixture should be reviewed?', sourceId: 'quiet-one', threadId: b.id, chatName: b.name });
-  const questionsPanel = page.getByRole('region', { name: 'Questions', exact: true });
-  await expect(questionsPanel.locator('.questions-toggle')).toHaveAttribute('aria-expanded', 'false');
+  const questionsTab = page.getByRole('tab', { name: 'Questions', exact: true });
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
   const quietTwo = await service.questions.ask({ text: 'Which second quiet fixture should be reviewed?', sourceId: 'quiet-two', threadId: b.id, chatName: b.name });
-  await expect(questionsPanel.locator('.questions-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
   await service.questions.dismiss(quietOne.id); await service.questions.dismiss(quietTwo.id);
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).not.toBeChecked();
   await page.getByLabel('Enable awareness', { exact: true }).click(); await expect(page.getByLabel('Enable awareness', { exact: true })).not.toBeChecked();
@@ -116,7 +116,7 @@ try {
   await page.screenshot({ path: path.join(repo, 'conversation-metadata.png') });
   checks.push('Purpose-derived title, no guessed project, project Question answered while another thread selected, explicit metadata edit and draft');
 
-  await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Common agents', exact: true }).click();
+  await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Common agents', exact: true }).click();
   const workshop = page.getByRole('tabpanel', { name: 'Common agents' });
   const task = workshop.locator('.agent-run').filter({ hasText: run.id });
   await expect(task).toContainText('Turn completed; result not yet accepted');

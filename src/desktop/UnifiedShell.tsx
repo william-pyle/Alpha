@@ -5,6 +5,7 @@ import { parseHash } from '../lib/route'
 import { api, reportError, setPreview, useDesktop } from './client'
 import { FilePreview } from './FilesRail'
 import QuestionsPanel from './QuestionsPanel'
+import Updates from './Updates'
 import SettingsDialog from './SettingsDialog'
 import NewCard from '../components/NewCard'
 import useUiInspection from './useUiInspection'
@@ -25,16 +26,17 @@ import './unified.css'
 
 type DocumentTab = { id: string; title: string; kind: 'workspace' | 'entity' | 'file' | 'utility'; utility?: WorkspaceUtility; route?: string; preview?: Preview }
 const home: DocumentTab = { id: 'workspace', title: 'Workspace', kind: 'workspace' }
+const questions: DocumentTab = { id: 'utility:questions', title: 'Questions', kind: 'utility', utility: 'questions' }
 
 export default function UnifiedShell() {
   useUiInspection()
   const state = useDesktop()
   const { workspace } = useWorkspace()
   const [restored] = useState(() => {
-    const tools = [...new Set(state.settings.utilityTabs || [])].filter(isWorkspaceUtility)
-    return { tools, active: isWorkspaceUtility(state.settings.activeUtilityTab) && tools.includes(state.settings.activeUtilityTab) ? state.settings.activeUtilityTab : null }
+    const tools = [...new Set(state.settings.utilityTabs || [])].filter(isWorkspaceUtility).filter(utility => utility !== 'questions')
+    return { tools, active: isWorkspaceUtility(state.settings.activeUtilityTab) && (state.settings.activeUtilityTab === 'questions' || tools.includes(state.settings.activeUtilityTab)) ? state.settings.activeUtilityTab : null }
   })
-  const [tabs, setTabs] = useState<DocumentTab[]>(() => [home, ...restored.tools.map(utility => ({ id: `utility:${utility}`, kind: 'utility' as const, utility, title: workspaceUtilities[utility] }))])
+  const [tabs, setTabs] = useState<DocumentTab[]>(() => [home, questions, ...restored.tools.map(utility => ({ id: `utility:${utility}`, kind: 'utility' as const, utility, title: workspaceUtilities[utility] }))])
   const [active, setActive] = useState(() => restored.active ? `utility:${restored.active}` : 'workspace')
   const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 500)
   const drag = useRef<{ x: number; width: number } | null>(null)
@@ -70,6 +72,7 @@ export default function UnifiedShell() {
   const tabIcon = (tab: DocumentTab) => {
     if (tab.kind === 'workspace') return <Icon name="workspace" size={14} />
     if (tab.kind === 'file') return <Icon name="files" size={14} />
+    if (tab.utility === 'questions') return <Icon name="help" size={14} />
     if (tab.kind === 'utility') return <Icon name="settings" size={14} />
     const entity = workspace?.entities.find(item => item.id === tab.id.slice(7))
     if (entity?.icon) return <img className="mdi-card-tab-icon" src={contentUrl(`/workspace/${entity.folder}/${entity.icon}`)} alt="" />
@@ -85,7 +88,7 @@ export default function UnifiedShell() {
     window.dispatchEvent(new HashChangeEvent('hashchange'))
   }
   const close = (tab: DocumentTab) => {
-    if (tab.kind === 'workspace') return
+    if (tab.kind === 'workspace' || tab.utility === 'questions') return
     setTabs(current => current.filter(item => item.id !== tab.id))
     if (tab.kind === 'utility') {
       const route = parseHash()
@@ -118,11 +121,15 @@ export default function UnifiedShell() {
     return () => clearTimeout(timer)
   }, [utilityIds, active])
   const run = (action: string) => {
+    if (action === 'check-for-updates') {
+      openTool(action)
+      void api('/updates/check', {}).catch(reportError)
+      return
+    }
     if (isWorkspaceUtility(action)) { openWorkspaceUtility(action); return }
     if (action === 'new-conversation') window.dispatchEvent(new Event('alpha-new-conversation'))
     if (action === 'new-card') window.dispatchEvent(new Event('alpha-new-card'))
     if (action === 'workspace') choose(home)
-    if (action === 'questions') window.dispatchEvent(new Event('alpha-toggle-questions'))
     if (action === 'help') void openHelp()
   }
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -148,10 +155,10 @@ export default function UnifiedShell() {
     <div className="mdi-body">
       <aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><ThreadConversations /></aside>
       {<div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} />}
-      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span></button>{tab.kind !== 'workspace' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{tabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} />}{tab.utility === 'learned-preferences' && <LearningPanel onClose={() => close(tab)} />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" onClose={() => close(tab)} />}{tab.utility === 'health' && <AgentCenter initialTab="Health" onClose={() => close(tab)} />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
+      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span>{tab.utility === 'questions' && state.questions.length > 0 && <span className="mdi-questions-count" aria-hidden="true" title={state.questions.length + ' pending questions'}>{state.questions.length}</span>}</button>{tab.kind !== 'workspace' && tab.utility !== 'questions' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{tabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} />}{tab.utility === 'learned-preferences' && <LearningPanel onClose={() => close(tab)} />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" onClose={() => close(tab)} />}{tab.utility === 'health' && <AgentCenter initialTab="Health" onClose={() => close(tab)} />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}{tab.utility === 'questions' && <QuestionsPanel />}{tab.utility === 'check-for-updates' && <div className="settings-scroll"><Updates /></div>}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
     </div>
-    <QuestionsPanel />
     <NewCard hideTrigger />
     <ConversationStatus />
+    <Updates compact hidden={activeTab.utility === 'check-for-updates'} />
   </div>
 }

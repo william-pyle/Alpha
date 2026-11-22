@@ -1,3 +1,4 @@
+import { codexTrustScope } from './provider-trust.mjs';
 import { submissionHash } from './terminal-submission.mjs';
 import http from 'node:http';
 import { completionSummary } from './completion-summary.mjs';
@@ -82,7 +83,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const settingsPath = path.join(stateDir, 'settings.json');
   const savedSettings = await readJson(settingsPath, null);
   let settings = { defaultAgent: 'codex', defaultBypass: false, coordinatorModel: environment.ALPHA_COORDINATOR_MODEL?.trim() || null, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', appTheme: 'alpha', coordinatorEffort: 'medium', voiceName: 'cedar', voiceStyle: defaultVoiceStyle, conversationStyle: defaultConversationStyle, speakReplies: true, speechVoice: '', ...savedSettings };
-  sessions.approvedTrustRoots = () => settings.trustProjectsScope === true ? ['C:/Projects'] : [];
   if (!['codex', 'claude', 'shell', 'gitbash'].includes(settings.defaultAgent)) settings.defaultAgent = 'codex';
   settings.themeProfiles = validThemeProfiles(settings.themeProfiles);
   if (![...builtInThemeIds, ...settings.themeProfiles.map(item => item.id)].includes(settings.appTheme)) settings.appTheme = 'alpha';
@@ -476,7 +476,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   sessions.on('session', session => {
     threads.observe(session);
     if (session.submission?.acceptance === 'observed') awareness.resolve(item => item.id === `submission:${session.id}:${session.submission.taskId}`);
-    if (session.activity !== 'waiting') awareness.resolve(item => item.kind === 'attention' && item.sessionId === session.id);
+    if (session.activity !== 'waiting') awareness.resolve(item => item.kind === 'attention' && item.source !== 'Codex folder trust' && item.sessionId === session.id);
     broadcast('session', { session }); integrations.publish('session', { event: session.status, session }).catch(() => {});
     if (session.open && session.projectPending) void registry().then(registry => {
       const current = sessions.get(session.id);
@@ -496,6 +496,15 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (!state.prompt && !sessions.prompts.active.has(session.id) && sessions.prompts.ready(session, await sessions.promptView(session))) await questions.nativeTransition(session.id);
         if (state.prompt && !sessions.prompts.active.has(session.id)) {
           const question = await questions.captureNative(session, state, sessions.prompts.binding(state));
+          if (state.prompt.kind === 'trust' && settings.trustProjectsScope === true && process.platform === 'win32') {
+            const scope = await codexTrustScope(session.cwd, 'C:/Projects');
+            if (scope !== 'outside') awareness.event({
+              id: 'trust-review:' + question.id, kind: 'attention', source: 'Codex folder trust',
+              threadId: question.threadId || threads.owner(session.id)?.id, sessionId: session.id, questionId: question.id,
+              text: scope === 'unverified' ? 'Codex folder trust needs manual review. Alpha could not verify the folder under C:/Projects.' : 'Codex folder trust needs manual review. Project configuration can change effective permissions.',
+              at: question.createdAt,
+            });
+          }
           // The owner's active-work preference permits only this known Skip.
           // Never install, suppress future versions, or answer security prompts.
           if (state.prompt.kind === 'update' && !question.receipt?.intentAt) {
@@ -546,7 +555,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     }
     threads.publish();
     const pending = new Set(items.map(item => `question:${item.id}`));
-    awareness.resolve(item => item.kind === 'question' && !pending.has(item.id));
+    awareness.resolve(item => item.questionId && !pending.has('question:' + item.questionId));
     for (const item of items) awareness.event({ id: `question:${item.id}`, threadId: item.threadId || threads.owner(item.sessionId)?.id, questionId: item.id, kind: 'question', text: 'A decision is waiting in Questions.', source: 'Questions', at: item.createdAt });
   };
   questions.on('changed', reconcileQuestions);
@@ -999,8 +1008,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         if (method === 'POST' && url.pathname === '/api/settings') {
           if (inventory().some(item => item.id === data.defaultAgent)) settings.defaultAgent = data.defaultAgent;
-          const utilityIds = ['learned-preferences', 'common-agents', 'health', 'settings', 'conversation-history', 'needs-attention'];
-          if (Array.isArray(data.utilityTabs) && data.utilityTabs.length <= 6 && data.utilityTabs.every(id => utilityIds.includes(id))) settings.utilityTabs = [...new Set(data.utilityTabs)];
+          const utilityIds = ['learned-preferences', 'common-agents', 'health', 'settings', 'conversation-history', 'needs-attention', 'questions', 'check-for-updates'];
+          if (Array.isArray(data.utilityTabs) && data.utilityTabs.length <= utilityIds.length && data.utilityTabs.every(id => utilityIds.includes(id))) settings.utilityTabs = [...new Set(data.utilityTabs)];
           if (data.activeUtilityTab === null || utilityIds.includes(data.activeUtilityTab)) settings.activeUtilityTab = data.activeUtilityTab;
           if (typeof data.trustProjectsScope === 'boolean') settings.trustProjectsScope = data.trustProjectsScope;
           if (typeof data.defaultBypass === 'boolean') settings.defaultBypass = data.defaultBypass;
@@ -1148,7 +1157,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     ws.on('error', () => {});
   });
   let watcher;
-  try { watcher = watch(path.join(repo, 'workspace', 'workspace.json'), () => broadcast('workspace-changed', {})); watcher.on('error', () => {}); } catch { /* Registry may be created after first setup. */ }
+  try { watcher = watch(path.dirname(workspace.file), (_event, name) => { if (!name || name === path.basename(workspace.file)) broadcast('workspace-changed', {}); }); watcher.on('error', () => {}); } catch { /* Registry may be created after first setup. */ }
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   if (checkUpdates) updates.start();
   return {

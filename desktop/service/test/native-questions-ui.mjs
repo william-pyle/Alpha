@@ -11,16 +11,18 @@ await mkdir('.test-output', { recursive: true });
 const root = await mkdtemp(path.join(process.env.RUNNER_TEMP || isolatedTmpdir(), 'alpha-native-questions-ui-'));
 await mkdir(path.join(root, 'workspace')); await mkdir(path.join(root, '.alpha'));
 await writeFile(path.join(root, 'workspace/workspace.json'), JSON.stringify({ entities: [] }));
+await writeFile(path.join(root, '.alpha/settings.json'), '{"trustProjectsScope":true}');
 const service = await createService({ repo: root, uiDir: path.resolve('dist'), restoreSessions: false, checkUpdates: false, mcpOptions: { home: root, env: {} } });
 const browser = await launchBrowser();
 const writes = [], all = [];
-const screen = session => `Trust this folder? Codex can read, edit, and run files here.\r\nC:\\Projects\\${session.name}\r\n› 1. Trust and continue\r\n  2. Quit\r\nenter continue · esc quit`;
+const screen = session => `Trust this folder? Codex can read, edit, and run files here.\r\n${session.cwd}\r\n› 1. Trust and continue\r\n  2. Quit\r\nenter continue · esc quit`;
 const paint = async (session, value) => { await new Promise(resolve => session.terminal.write('\x1b[2J\x1b[H' + value, resolve)); service.sessions.detectPrompt(session); };
 const capture = async session => { const state = await service.sessions.prompts.inspect(session); return service.questions.captureNative(session, state, service.sessions.prompts.binding(state)); };
 try {
   for (const name of ['First', 'Second']) {
     const thread = service.threads.create({ name, projectId: 'fixture' });
-    const session = service.sessions.make({ id: name, agent: 'codex', name, nativeId: `native-${name}`, alphaThreadId: thread.id, status: 'running', open: true, startedAt: Date.now() - 5000, cols: 100, rows: 24 });
+    const cwd = path.win32.join(name === 'First' ? 'C:/Projects' : 'C:/Projects-lookalike', path.basename(root), name);
+    const session = service.sessions.make({ id: name, agent: 'codex', name, cwd, nativeId: `native-${name}`, alphaThreadId: thread.id, status: 'running', open: true, startedAt: Date.now() - 5000, cols: 100, rows: 24 });
     service.sessions.items.set(session.id, session); await service.sessions.hydrate(session); all.push(session);
     service.threads.observe(session);
     session.process = { resize() {}, write(key) {
@@ -31,31 +33,54 @@ try {
   }
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto(service.urls.workspace);
+  const documents = page.getByRole('tablist', { name: 'Documents', exact: true });
+  const questionsTab = documents.getByRole('tab', { name: 'Questions', exact: true });
+  const workspaceTab = documents.getByRole('tab', { name: 'Workspace', exact: true });
   const panel = page.getByRole('region', { name: 'Questions', exact: true });
-  await expect(panel.locator('.question-card')).toHaveCount(1);
-  await expect(panel.locator('header strong')).toHaveText('First');
+  await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+  await expect(panel).toBeHidden();
+  await expect(questionsTab.locator('.mdi-questions-count')).toHaveText('2');
+  if (process.platform === 'win32') {
+    for (const session of all) service.sessions.emit('prompt-check', { id: session.id });
+    await page.getByRole('button', { name: 'View', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click();
+    const attention = page.getByRole('tabpanel', { name: 'Needs attention', exact: true });
+    await expect(attention.getByText(/Alpha could not verify the folder under C:\/Projects/i)).toHaveCount(1);
+    assert.deepEqual(writes, [], 'Unverified and lookalike paths require manual action');
+    await attention.getByRole('button', { name: 'Open Questions', exact: true }).click();
+    await expect(panel.locator('.question-card').filter({ hasText: 'First' })).toBeFocused();
+    await workspaceTab.click();
+  }
+  await questionsTab.press('Enter');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(panel.locator('.question-card')).toHaveCount(2);
+  const first = panel.locator('.question-card').filter({ has: page.locator('header strong', { hasText: /^First$/ }) });
+  const second = panel.locator('.question-card').filter({ has: page.locator('header strong', { hasText: /^Second$/ }) });
   await expect(panel.getByRole('textbox')).toHaveCount(0);
-  await panel.getByRole('button', { name: 'Open terminal', exact: true }).click();
+  await first.getByRole('button', { name: 'Open terminal', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Enable terminal controls', exact: true })).toHaveAttribute('aria-pressed', 'false');
   assert.equal(service.threads.owner('First').viewMode, 'terminal'); assert.deepEqual(writes, []);
   await page.screenshot({ path: path.join(root, 'questions-wide.png') });
-  await panel.getByRole('button', { name: 'Trust and continue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Send answer', exact: true }).click();
-  await expect(panel.locator('header strong')).toHaveText('Second');
+  await first.getByRole('button', { name: 'Trust and continue', exact: true }).click();
+  await first.getByRole('button', { name: 'Send answer', exact: true }).click();
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+  await expect(questionsTab.locator('.mdi-questions-count')).toHaveText('1');
   assert.deepEqual(writes, [['First', '1'], ['First', '\r']]);
   assert.equal(service.questions.items.find(item => item.sessionId === 'First').delivery, 'observed');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(root, 'questions-narrow.png') });
   // A new disclosure after the UI displays a choice must reject that choice.
   await paint(all[1], screen(all[1]).replace('Second', 'Changed'));
-  await panel.getByRole('button', { name: 'Trust and continue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Send answer', exact: true }).click();
+  await second.getByRole('button', { name: 'Trust and continue', exact: true }).click();
+  await second.getByRole('button', { name: 'Send answer', exact: true }).click();
   await expect(panel.getByRole('alert')).toContainText('prompt changed');
   assert.equal(writes.length, 2);
   await capture(all[1]);
-  await panel.getByRole('button', { name: 'Trust and continue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Send answer', exact: true }).click();
-  await expect(panel).toHaveCount(0);
+  await second.getByRole('button', { name: 'Trust and continue', exact: true }).click();
+  await second.getByRole('button', { name: 'Send answer', exact: true }).click();
+  await expect(panel.locator('.question-card')).toHaveCount(0);
+  await expect(questionsTab.locator('.mdi-questions-count')).toHaveCount(0);
   assert.deepEqual(writes.slice(2), [['Second', '1'], ['Second', '\r']]);
   await page.screenshot({ path: path.join(root, 'questions-resolved.png') });
   // A queued async reply must remain visible until a later exact acceptance,
@@ -75,7 +100,8 @@ try {
   assert.ok(replyPayload.includes(asyncQuestion.asyncQuestion.id.replaceAll('"', '\\"')));
   session.submissions = [{ taskId: replyTask, hash: asyncQuestion.answerIntent.hash, acceptedAt: Date.now(), acceptance: 'observed' }];
   service.sessions.emit('task-input', { session, text: replyPayload });
-  await expect(panel).toHaveCount(0); assert.equal(sends, 1);
+  await expect(panel.locator('.question-card')).toHaveCount(0); assert.equal(sends, 1);
+  await workspaceTab.click(); await expect(panel).toBeHidden();
   service.sessions.input = originalInput;
-  console.log(JSON.stringify({ passed: true, root, checks: ['one at a time', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'autohide', 'wide/narrow'] }));
+  console.log(JSON.stringify({ passed: true, root, checks: ['pending Questions stay in a dedicated tab', 'keyboard tab selection', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'answered cards cleared', 'Workspace return', 'wide/narrow'] }));
 } finally { for (const session of all) session.process = null; await browser.close(); await service.close(); }

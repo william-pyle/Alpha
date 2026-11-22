@@ -26,7 +26,7 @@ if (!native) service.speech.speak = async (text, voice, threadId) => {
 };
 try {
   browser = await launchBrowser(); const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await page.goto(service.urls.workspace); await page.getByRole('button', { name: 'Tools', exact: true }).click(); await page.getByRole('menuitem', { name: 'Settings' }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
+  await page.goto(service.urls.workspace); await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); await page.getByLabel('Enable 3D viewer').click(); await expect(page.getByLabel('Enable 3D viewer')).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   const face = page.locator('.alpha-presence-stage');
   await expect(face).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
   await expect(face).toHaveAttribute('data-mouth-opening', '0.000');

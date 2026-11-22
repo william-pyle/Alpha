@@ -4,19 +4,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expandHome, readJson, saveJson, within } from './util.mjs';
 import { assertPrivateWorkspaceRoot, assertSafePath, safeProjectPaths } from './project-layout.mjs';
+import { parseWorkspaceRegistry, workspaceRegistryFile, validateWorkspaceLayout, cutoverWorkspaceLayout } from './workspace-layout.mjs';
 
 const exists = file => access(file).then(() => true, () => false);
 const missing = error => { if (error.code !== 'ENOENT') throw error; return null; };
-const folders = ['workspace', 'projects', 'knowledge', 'processes', 'inbox'];
-const registryFile = root => path.join(root, 'workspace/workspace.json');
+const folders = ['_shared', 'projects', 'knowledge', 'processes', 'inbox'];
 const copyExcluded = name => name === path.join('.alpha', 'runtime.json') || name === path.join('.alpha', 'updates');
 const copyDeferred = reason => new Error(`Copy current Workspace is deferred: ${reason} Use the project's reviewed migration flow or open the existing Workspace. No checkout is copied or moved.`);
 
 async function assertCopyableWorkspace(root) {
   await assertPrivateWorkspaceRoot(root);
-  await assertSafePath(root, registryFile(root));
-  const registry = JSON.parse((await readFile(registryFile(root), 'utf8')).replace(/^\uFEFF/, ''));
-  if (!registry || !Array.isArray(registry.entities)) throw copyDeferred('the project registry could not be verified.');
+  await assertSafePath(root, workspaceRegistryFile(root));
+  const registry = parseWorkspaceRegistry(await readFile(workspaceRegistryFile(root), 'utf8'));
   const hasCheckout = record => [record.checkoutPath, record.workingCheckout, record.sourceCheckout, record.applicationRoot, record.source?.checkout, record.development?.sourceFolder, record.projectRepositoryUrl].some(value => typeof value === 'string' && value.trim());
   for (const project of registry.entities) {
     if (!project || typeof project !== 'object') throw copyDeferred('a project record could not be verified.');
@@ -73,22 +72,16 @@ export async function canonicalFolder(value) {
   if (!(await lstat(actual)).isDirectory()) throw new Error('The Workspace path must be a folder.');
   return path.join(actual, ...suffix);
 }
-async function validWorkspace(root) {
-  const file = registryFile(root);
-  const registry = JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
-  if (!registry || !Array.isArray(registry.entities)) throw new Error('The selected folder has an invalid Workspace registry.');
-  return root;
-}
 async function emptyDestination(root) {
   const info = await lstat(root).catch(missing);
   if (info && (!info.isDirectory() || (await readdir(root)).length)) throw new Error('Choose a new or empty folder. Existing files will not be overwritten.');
 }
 async function initialize(root) {
-  if (await exists(registryFile(root))) return validWorkspace(root);
+  if (await exists(workspaceRegistryFile(root))) return validateWorkspaceLayout(root);
   await emptyDestination(root);
   for (const folder of folders) await mkdir(path.join(root, folder), { recursive: true });
   // Never replace a registry created by another process.
-  await writeFile(registryFile(root), '{"entities":[]}\n', { flag: 'wx' });
+  await writeFile(path.join(root, 'workspace.json'), '{"entities":[]}\n', { flag: 'wx' });
   return root;
 }
 async function checkedTarget(value, protectedRoots = []) {
@@ -104,8 +97,8 @@ async function validateChange(from, target, mode, protectedRoots) {
   if (!['copy', 'existing'].includes(mode)) throw new Error('Choose Copy current Workspace or Open existing Workspace.');
   const source = await canonicalFolder(from), destination = await checkedTarget(target, protectedRoots);
   if (within(source, destination) || within(destination, source)) throw new Error('Choose a separate folder, outside the current Workspace and its parents.');
-  if (mode === 'copy') { await validWorkspace(source); await assertCopyableWorkspace(source); await emptyDestination(destination); }
-  else await validWorkspace(destination).catch(() => { throw new Error('Select the Workspace root containing workspace/workspace.json.'); });
+  if (mode === 'copy') { await validateWorkspaceLayout(source); await assertCopyableWorkspace(source); await emptyDestination(destination); }
+  else await validateWorkspaceLayout(destination);
   return { source, destination, mode };
 }
 async function copyTree(source, destination, relative = '') {
@@ -142,9 +135,10 @@ async function copyWorkspace(source, destination) {
   try {
     await copyTree(source, stage);
     await rebaseReferences(stage, source, destination);
-    await validWorkspace(stage);
+    await validateWorkspaceLayout(stage);
     await assertCopyableWorkspace(source);
     await assertCopyableWorkspace(stage);
+    await cutoverWorkspaceLayout(stage);
     await assertPrivateWorkspaceRoot(destination);
     await emptyDestination(destination);
     if (await exists(destination)) await rmdir(destination); // Empty only; never recursive.
@@ -168,7 +162,7 @@ export async function resolveWorkspace({ configDir, defaultRoot, legacyRoot, sup
     if (saved !== pending.source && !(pending.completed && saved === pending.destination)) throw new Error('The saved Workspace changed after this location request. Choose the Workspace again in Settings.');
     // A successful copy with a failed final config write can be retried safely.
     if (pending.completed === true) {
-      selected = await validWorkspace(await checkedTarget(pending.destination, blocked));
+      selected = await validateWorkspaceLayout(await checkedTarget(pending.destination, blocked));
       if (pending.mode === 'copy') await assertCopyableWorkspace(selected);
     }
     else {
@@ -179,11 +173,13 @@ export async function resolveWorkspace({ configDir, defaultRoot, legacyRoot, sup
     }
   } else if (saved) {
     // Keep older AppData workspaces and never silently replace an unavailable one.
-    selected = await validWorkspace(await canonicalFolder(saved)).catch(() => { throw new Error('The saved Workspace is unavailable. Reconnect its drive or select another Workspace.'); });
+    selected = await canonicalFolder(saved);
+    if (!await lstat(selected).catch(missing)) throw new Error('The saved Workspace is unavailable. Reconnect its drive or select another Workspace.');
   } else {
-    if (legacyRoot && await exists(registryFile(legacyRoot))) selected = await validWorkspace(await canonicalFolder(legacyRoot));
+    if (legacyRoot && await exists(workspaceRegistryFile(legacyRoot))) selected = await validateWorkspaceLayout(await canonicalFolder(legacyRoot));
     else selected = await initialize(await checkedTarget(defaultRoot, blocked));
   }
+  await cutoverWorkspaceLayout(selected);
   await saveJson(config, selected);
   await unlink(pendingFile).catch(missing);
   return selected;

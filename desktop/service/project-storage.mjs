@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { lstat, readdir, readFile, mkdir, rename, rm } from 'node:fs/promises';
-import { safeProjectPaths, assertSafePath, assertPrivateWorkspaceRoot, CONVERSATIONS_PROJECT } from './project-layout.mjs';
+import { safeProjectPaths, projectWorkspaceDirectory, assertSafePath, assertPrivateWorkspaceRoot, CONVERSATIONS_PROJECT } from './project-layout.mjs';
 import { readJson, saveJson, within } from './util.mjs';
 
 const fail = (message, status = 409) => { throw Object.assign(new Error(message), { status }); };
@@ -67,7 +67,9 @@ export class ProjectStorage {
     const id = this.queue.shift(); if (!id) return;
     this.running++; const scanning = { id, status: 'scanning' }; this.values.set(id, scanning);
     try {
-      const root = safeProjectPaths(this.repo, id).root;
+      const project = await this.projects.get(id);
+      const root = project.workspacePath ? safeProjectPaths(this.repo, id).root : await projectWorkspaceDirectory(this.repo, project);
+      if (root === path.join(this.repo, 'workspace')) fail('This legacy project shares its folder with other Workspace content.');
       await assertSafePath(this.repo, root);
       const { allocatedBytes, logicalBytes, files, skippedLinks, errors } = await this.measure(root);
       if (this.values.get(id) === scanning) this.values.set(id, { id, status: errors ? 'error' : 'ready', allocatedBytes, logicalBytes, files, skippedLinks, errors, measuredAt: new Date().toISOString(), ...(errors ? { error: `Measurement was incomplete (${errors} unreadable entries). Retry when disk access is available.` } : {}) });
@@ -243,7 +245,9 @@ export class ProjectStorage {
     try {
       const project = await this.projects.get(id);
       if (project.deletionPending) { await this.pendingDeletion(id, project); return { id, root, retry: true }; }
-      await this.validateRoot(id, true); await this.verifyDeletion(id, root); return { id, root };
+      await this.validateRoot(id, true); await this.verifyDeletion(id, root);
+      const size = await this.measure(root).catch(() => null);
+      return { id, root, ...(size && !size.errors ? { logicalBytes: size.logicalBytes, skippedLinks: size.skippedLinks } : {}) };
     }
     catch (error) { return { id, root, blockedReason: error.message }; }
   }

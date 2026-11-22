@@ -11,7 +11,7 @@ line. Pasted or dropped images are saved in the Workspace inbox and added to
 the draft. The shared Questions section routes answers to the chat that asked.
 
 Project categories are stored in the selected Workspace's
-`workspace/workspace.json` as stable IDs with names and icons. Settings
+`workspace.json` at the Workspace root as stable IDs with names and icons. Settings
 contains General, Speech-to-text, Voice, Updates, Theme, MCP, Categories and
 Skills. Workspace location remains under General. Theme supports editing the
 bundled themes and creating saved color themes with bundled artwork.

@@ -1,6 +1,5 @@
 import { TerminalSubmissions, submissionComposer } from './terminal-submission.mjs';
 import { NativePrompts } from './native-prompts.mjs';
-import { approvedProjectTrust } from './provider-trust.mjs';
 import { deliveredTask, workerEvent } from './worker-evidence.mjs';
 import { EventEmitter } from 'node:events';
 import { startupPrompt } from './prompt-state.mjs';
@@ -176,8 +175,7 @@ export class Sessions extends EventEmitter {
     const initialPrompt = await this.restartNotes?.claim(session, resumeId);
     let command;
     try {
-      const trustArgs = session.agent === 'codex' && process.platform === 'win32' ? await approvedProjectTrust(session.cwd, this.approvedTrustRoots?.() || []) : [];
-      command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt, trustArgs });
+      command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt });
     }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;

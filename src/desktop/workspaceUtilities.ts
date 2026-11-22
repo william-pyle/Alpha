@@ -3,6 +3,8 @@ export const workspaceUtilities = {
   'common-agents': 'Common agents',
   health: 'Alpha health',
   settings: 'Settings',
+  questions: 'Questions',
+  'check-for-updates': 'Check for Updates',
   'conversation-history': 'Conversation history',
   'needs-attention': 'Needs attention',
 } as const

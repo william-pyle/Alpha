@@ -8,10 +8,10 @@ import assert from 'node:assert/strict';
 if(process.platform!=='win32') { console.log('NSIS Workspace harness: Windows only.'); process.exit(0); }
 const makensis=path.join(process.env.LOCALAPPDATA || path.join(os.homedir(),'AppData/Local'),'tauri/NSIS/makensis.exe');
 await access(makensis);
-await mkdir('.test-output',{recursive:true});const root=await realpath(await mkdtemp(path.resolve('.test-output/installer-workspace-')));
+await mkdir('.test-output',{recursive:true});const root=await realpath(await mkdtemp(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'alpha-installer-workspace-')));
 const app=path.join(root,'app'), config=path.join(root,'config'), standard=path.join(root,'Documents/Alpha'), chosen=path.join(root,'Chosen é 日本語');
 await mkdir(path.join(app,'runtime/service'),{recursive:true});await copyFile(process.execPath,path.join(app,'runtime/node.exe'));
-for(const name of ['workspace-location.mjs','util.mjs']) await copyFile(path.resolve('desktop/service',name),path.join(app,'runtime/service',name));
+for(const name of ['workspace-location.mjs','workspace-layout.mjs','project-layout.mjs','util.mjs']) await copyFile(path.resolve('desktop/service',name),path.join(app,'runtime/service',name));
 const whisperCalls=path.join(root,'whisper-invocations.txt');
 await writeFile(path.join(app,'runtime/setup-local-whisper.ps1'),`param([switch]$InstallerMode)\nAdd-Content -LiteralPath '${whisperCalls.replaceAll("'","''")}' -Value 'called'\n`);
 const unrelated=path.join(root,'Unrelated');
@@ -55,7 +55,7 @@ const build=spawnSync(makensis,['/V2',script],{encoding:'utf8',windowsHide:true}
 const run=flag=>spawnSync(exe,['/S',...(flag?[`/${flag}`]:[])],{encoding:'utf8',windowsHide:true,timeout:120000});
 const assertRun=flag=>{const result=run(flag);assert.equal(result.status,0,`Installer harness ${flag||'default'} failed: ${result.error?.message||''}\n${result.stdout}\n${result.stderr}`);};
 const selection=()=>readFile(path.join(config,'repository.json'),'utf8').then(JSON.parse);
-assertRun();assert.equal(await selection(),chosen);await access(path.join(chosen,'workspace/workspace.json'));
+assertRun();assert.equal(await selection(),chosen);await access(path.join(chosen,'workspace.json'));
 const pending='{"source":"fixture","mode":"copy","destination":"pending choice"}';
 await writeFile(path.join(config,'workspace-change.json'),pending);
 assertRun('ALTERNATE');assert.equal(await selection(),chosen);

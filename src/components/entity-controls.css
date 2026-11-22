@@ -1,19 +1,20 @@
 /* Keep the status control outside the navigation link, with its own hit area. */
 .sidebar-item-row { position: relative; }
 .sidebar-item-row .sidebar-item { padding-right: 40px; }
-.entity-status-button {
+.entity-status-button, .entity-github-link {
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; flex: 0 0 32px; padding: 0;
   border: 1px solid transparent; border-radius: 8px;
   background: transparent; color: var(--text); cursor: pointer;
 }
 .sidebar-item-row > .entity-status-button { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
-.entity-status-button:hover, .entity-status-button[aria-expanded="true"] { background: var(--surface-2); border-color: var(--hairline-strong); }
-.entity-status-button:focus-visible { outline: 2px solid var(--pink); outline-offset: 1px; }
+.entity-github-link:hover, .entity-status-button:hover, .entity-status-button[aria-expanded="true"] { background: var(--surface-2); border-color: var(--hairline-strong); }
+.entity-github-link:focus-visible, .entity-status-button:focus-visible { outline: 2px solid var(--pink); outline-offset: 1px; }
 .entity-card-wrap { position: relative; display: flex; min-width: 0; }
 .entity-card-wrap .entity-card { width: 100%; }
 .entity-card-wrap .card-top { padding-right: 24px; }
-.entity-card-wrap > .entity-status-button { position: absolute; right: 8px; top: 10px; }
+.entity-card-actions { position: absolute; right: 8px; top: 10px; display: flex; gap: 2px; }
+.entity-card-wrap:has(.entity-card-actions > a) .card-top { padding-right: 58px; }
 .entity-menu {
   position: fixed; inset: auto; margin: 0; padding: 16px; box-sizing: border-box;
   width: min(292px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);

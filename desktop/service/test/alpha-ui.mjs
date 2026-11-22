@@ -32,8 +32,7 @@ try {
   assert.deepEqual(bootstrap.agents.map(item => item.id), ['codex', 'claude', 'shell', 'gitbash']);
   for (const route of ['/mobile', '/mobile/sw.js', '/api/mobile', '/api/mobile/enable']) assert.equal((await fetch(service.origin + route)).status, 404);
 
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Theme', exact: true }).click();
   const picker = page.getByLabel('Application theme', { exact: true });
   for (const theme of ['alpha', 'smurfs', 'higurashi']) {

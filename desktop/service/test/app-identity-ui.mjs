@@ -61,8 +61,7 @@ try {
   }
   await page.reload(); await expect(brand).toBeVisible();
   assert.equal(hash(await brand.screenshot()), original);
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('tabpanel', { name: 'Settings' });
   await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
   await expect(settings.getByLabel('Persona artwork')).toHaveValue('/art/rena.png');

@@ -55,7 +55,7 @@ export class Files {
     const actual = await realpath(await this.projectPath(folder));
     const entries = await readdir(actual, { withFileTypes: true });
     const atRoot = actual.toLowerCase() === this.repo.toLowerCase();
-    const filtered = entries.filter(entry => (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) && (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
+    const filtered = entries.filter(entry => (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace.json', '_shared', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) && (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
     const result = await Promise.all(filtered.slice(0, 1500).map(async entry => {
       const full = path.join(actual, entry.name);
       const info = await stat(full).catch(() => null);

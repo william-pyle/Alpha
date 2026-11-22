@@ -133,7 +133,7 @@ fn repo_path(app: &tauri::AppHandle, node: &PathBuf, resolver: &PathBuf, app_dir
     // The MSI uses the standard WiX setup wizard. Select the data folder on
     // first launch, outside the elevated installer, so it belongs to this user.
     if supplied.is_none() && node.is_file() && std::env::var_os("ALPHA_TEST_DIR").is_none()
-        && !config.join("repository.json").exists() && !legacy.join("workspace/workspace.json").exists() {
+        && !config.join("repository.json").exists() && !legacy.join("workspace.json").exists() && !legacy.join("workspace/workspace.json").exists() {
         let choice = rfd::MessageDialog::new().set_title("Choose Alpha Workspace")
             .set_description(format!("Use {} for your Workspace? Choose No to select another folder. Your files stay there across updates.", default_root.display()))
             .set_buttons(rfd::MessageButtons::YesNo).show();

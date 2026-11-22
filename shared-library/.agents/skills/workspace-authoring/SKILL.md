@@ -18,10 +18,10 @@ saving. Reread the source before each edit and update the registry date. The app
 provides the view, so do not create a second editable HTML copy of the same data.
 Preserve existing custom HTML unless conversion was requested. The desktop Workspace provides the viewer and editing controls.
 
-Use `workspace/_shared/report.css` and `report.js` in every HTML report, with
+Use the Workspace root’s `_shared/report.css` and `report.js` in every HTML report, with
 `data-mak-report="document"` on the root element. Use the shared tokens and
 layout instead of inventing another visual theme. Basic cards and media grids
-can use the sample CSS in `workspace/_shared/examples.css`.
+can use the sample CSS in the Workspace root’s `_shared/examples.css`.
 Standard reports follow the reader's Dark, Light or System preference. Check
 both dark and light when adding custom styles. An intentionally independent
 design, such as a game demo, can keep its palette with `data-mak-theme="custom"`
@@ -32,7 +32,7 @@ Use local output paths, meaningful alt text and lazy loading. Keep motion
 studies playable with native video controls. Wide tables must scroll within
 the report. Never cover the document close button with the Files rail.
 
-Update `workspace/workspace.json` with a stable ID, category, folder, readable
+Update the Workspace root’s `workspace.json` with a stable ID, category, folder, readable
 title, creation date, last updated date and steps. `sample: true` is reserved for
 starter examples; ordinary work uses normal archiving behavior.
 
@@ -46,7 +46,7 @@ meta tag and shared styles; keep the reading order useful in a single column.
 Test at 390 px and 768 px as well as desktop width. Verify readable text without
 zooming, wrapping tab labels, reachable close/download buttons, and working
 image previews with touch. Confine horizontal scrolling to tables and code.
-Use relative assets inside the report folder or `workspace/_shared/`.
+Use relative assets inside the report folder or the Workspace root’s `_shared/`.
 Standalone reports must not depend on the desktop control API, parent-window DOM, local storage or absolute localhost URLs. Keep a short result summary before lengthy details.
 
-Resolve helper and template paths against the shared library root when using this installed skill. Copy `workspace/_shared/` into the active project only if missing. Write content and register cards in the active project, not in the shared library.
+Resolve helper and template paths against the shared library root when using this installed skill. The bundled templates are in the library’s `workspace/_shared/`. Copy them to the Workspace root’s `_shared/` only if missing. Write content and register cards in the active project, not in the shared library.

@@ -16,7 +16,7 @@ const put = async (root, file, text) => { await mkdir(path.dirname(path.join(roo
 
 test('fresh setup uses Documents or the installer choice, supports Unicode, and upgrades keep the saved folder', async () => {
   const f = await fixture(); const repo = await resolveWorkspace(f.options);
-  assert.equal(repo,f.options.defaultRoot);assert.deepEqual(await readJson(path.join(repo,'workspace/workspace.json')), {entities:[]});
+  assert.equal(repo,f.options.defaultRoot);assert.deepEqual(await readJson(path.join(repo,'workspace.json')), {entities:[]});
   const selected = path.join(f.root,'Chosen Workspace é 日本語');
   assert.equal(await resolveWorkspace({...f.options,supplied:selected}),selected);
   await put(selected,'workspace/note.md','kept');
@@ -51,13 +51,16 @@ test('a queued copy waits for next launch, copies latest content and history, re
   assert.equal((await location.state()).pending,null);
 });
 
-test('open existing and cancel do not copy or modify either Workspace', async () => {
+test('cancel leaves both Workspaces unchanged and opening an existing Workspace preserves its files', async () => {
   const f = await fixture(), repo = await resolveWorkspace(f.options), location = f.change(repo), target = path.join(f.root,'Existing');
   await put(target,'workspace/workspace.json','{"entities":[]}');await put(target,'workspace/saved.txt','original');
   await location.set({path:target,mode:'existing'});await location.cancel();assert.equal(await resolveWorkspace(f.options),repo);
+  assert.deepEqual(await readJson(path.join(target,'workspace/workspace.json')), {entities:[]});
+  await assert.rejects(lstat(path.join(target,'workspace.json')),{code:'ENOENT'});
   await location.set({path:target,mode:'existing'});assert.equal(await resolveWorkspace(f.options),target);
   assert.equal(await readFile(path.join(target,'workspace/saved.txt'),'utf8'),'original');
-  assert.deepEqual(await readdir(path.join(repo,'workspace')),['workspace.json']);
+  assert.deepEqual(await readJson(path.join(target,'workspace.json')), {entities:[]});
+  assert.deepEqual(await readJson(path.join(repo,'workspace.json')), {entities:[]});
 });
 
 test('reject relative, nested, parent, application/configuration and nonempty copy destinations without overwriting', async () => {
@@ -117,13 +120,13 @@ test('location endpoints require authentication and preserve the current running
 test('canonical project-only Workspace copy preserves one workspace and source provenance without creating a checkout', async () => {
   const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Canonical copy');
   const project = { id: 'sample', title: 'Sample', folder: 'sample', workspacePath: 'projects/sample/workspace', sourceRepositoryUrl: 'https://github.com/storytold/reference', steps: [{ path: 'index.html' }] };
-  await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [project] });
+  await saveJson(path.join(repo, 'workspace.json'), { entities: [project] });
   await put(repo, 'projects/sample/workspace/index.html', '<h1>Keep project report</h1>');
   await put(repo, 'projects/sample/project.json', JSON.stringify({ id: 'sample', sourceRepositoryUrl: project.sourceRepositoryUrl, custom: 'keep' }));
   await put(repo, '.alpha/project-migrations/sample.json', JSON.stringify({ id: 'sample', phase: 'committed', from: 'old historical location', to: path.join(repo, project.workspacePath) }));
   await f.change(repo).set({ path: target, mode: 'copy' });
   assert.equal(await resolveWorkspace(f.options), target);
-  assert.deepEqual((await readJson(path.join(target, 'workspace/workspace.json'))).entities, [project]);
+  assert.deepEqual((await readJson(path.join(target, 'workspace.json'))).entities, [project]);
   for (const root of [repo, target]) assert.equal(await readFile(path.join(root, project.workspacePath, 'index.html'), 'utf8'), '<h1>Keep project report</h1>');
   assert.equal(await lstat(path.join(target, 'projects/sample/github')).catch(() => null), null);
   assert.deepEqual(await readdir(path.join(target, 'projects/sample')), ['project.json', 'workspace']);
@@ -133,7 +136,7 @@ test('bulk copy refuses registered or canonical checkout references before creat
   for (const canonical of [false, true]) {
     const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Must not copy');
     const project = { id: 'sample', folder: 'sample', workspacePath: 'projects/sample/workspace', ...(canonical ? {} : { checkoutPath: path.join(repo, 'projects/sample/github') }) };
-    await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [project] });
+    await saveJson(path.join(repo, 'workspace.json'), { entities: [project] });
     await put(repo, 'projects/sample/workspace/index.html', 'Keep private report');
     if (canonical) await put(repo, 'projects/sample/project.json', JSON.stringify({ applicationRoot: path.join(f.root, 'pinned-existing-checkout') }));
     await assert.rejects(f.change(repo).set({ path: target, mode: 'copy' }), /Copy current Workspace is deferred.*checkout/);
@@ -146,7 +149,7 @@ test('bulk copy refuses registered or canonical checkout references before creat
 
 test('pending bulk copy rechecks a newly appeared managed checkout at startup without copying any files', async () => {
   const f = await fixture(), repo = await resolveWorkspace(f.options), target = path.join(f.root, 'Pending copy');
-  await saveJson(path.join(repo, 'workspace/workspace.json'), { entities: [{ id: 'sample', folder: 'sample', workspacePath: 'projects/sample/workspace' }] });
+  await saveJson(path.join(repo, 'workspace.json'), { entities: [{ id: 'sample', folder: 'sample', workspacePath: 'projects/sample/workspace' }] });
   await put(repo, 'projects/sample/workspace/index.html', 'Original report');
   await f.change(repo).set({ path: target, mode: 'copy' });
   await put(repo, 'projects/sample/github/.git/config', 'Original checkout metadata');

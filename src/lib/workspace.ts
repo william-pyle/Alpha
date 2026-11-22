@@ -36,7 +36,7 @@ export function useWorkspace() {
 
   const reload = useCallback(async () => {
     try {
-      const res = isDesktop ? null : await fetch('/workspace/workspace.json', { cache: 'no-store' })
+      const res = isDesktop ? null : await fetch('/workspace.json', { cache: 'no-store' }).then(response => response.ok && response.headers.get('Content-Type')?.includes('json') ? response : fetch('/workspace/workspace.json', { cache: 'no-store' }))
       if (res && !res.ok) throw new Error(`HTTP ${res.status}`)
       const text = res ? await res.text() : JSON.stringify(await api<WorkspaceState>('/workspace'))
       if (text !== rawRef.current) {

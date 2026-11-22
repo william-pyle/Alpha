@@ -27,7 +27,7 @@ preserve the task and use project-local instructions rather than bypass exclusio
 - `.agents/skills/common-agent-maintenance/`: evidence-based upkeep of Alpha's common agents.
 - `common-agents/registry.json`: locally maintained reusable agent definitions and versions, created by Alpha at runtime; never copied into the release package.
 - `scripts/`: supporting helpers; optional dependencies are documented alongside them.
-- `workspace/_shared/`: common report templates to copy into a project when missing.
+- `workspace/_shared/`: bundled report templates for the Workspace root’s `_shared/`.
 - `docs/skills.md`: the skill index.
 - `docs/editable-cards.md`: Gallery and Research card format and editing guide.
 - `desktop/service/card-schema.mjs`: reusable card validator.

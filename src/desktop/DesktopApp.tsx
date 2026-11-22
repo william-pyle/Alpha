@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { dismissError, sendEvent, startDesktop, surface, useDesktop } from './client'
 import UnifiedShell from './UnifiedShell'
-import Updates from './Updates'
 import { Icon, Nose } from './Icons'
 import './desktop.css'
 
@@ -20,6 +19,5 @@ export default function DesktopApp() {
     <UnifiedShell />
     {state.error && <div className="desktop-error" role="alert"><span>{state.error}</span><button onClick={dismissError} aria-label="Dismiss error"><Icon name="close" size={16} /></button></div>}
     {!state.connected && <div className="desktop-offline">Reconnecting to the local service…</div>}
-    <Updates compact />
   </div>
 }

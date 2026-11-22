@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { parseWorkspaceRegistry, workspaceAssetPath } from './workspace-layout.mjs';
 import { readFile, writeFile, lstat, rename, mkdir } from 'node:fs/promises';
 import { saveJson, readJson, within } from './util.mjs';
 import { CONVERSATIONS_PROJECT, safeProjectPaths, assertSafePath, assertPrivateProjectRoot, ensureProjectWorkspace, projectWorkspaceDirectory, inspectTree } from './project-layout.mjs';
@@ -22,7 +23,7 @@ export class Projects {
   transaction(change) {
     const operation = this.workspace.writes.catch(() => {}).then(async () => {
       for (let attempt = 0; attempt < 6; attempt++) {
-        const source = await readFile(this.workspace.file, 'utf8'), registry = JSON.parse(source);
+        const source = await readFile(this.workspace.file, 'utf8'), registry = parseWorkspaceRegistry(source);
         const result = await change(registry);
         try { await saveJson(this.workspace.file, registry, { beforeReplace: async () => { if (await readFile(this.workspace.file, 'utf8') !== source) throw Object.assign(new Error('Project registry changed; retry.'), { code: 'ESTALE' }); } }); }
         catch (error) { if (error.code === 'ESTALE' && attempt < 5) continue; throw error; }
@@ -171,6 +172,8 @@ export class Projects {
   }
   async resolveContent(relative) {
     const normalized = relative.replaceAll('\\', '/');
+    const asset = workspaceAssetPath(this.repo, normalized);
+    if (asset) return asset;
     if (!normalized.startsWith('workspace/')) return relative;
     const items = (await this.workspace.registry()).entities.filter(item => item.workspacePath).sort((a, b) => b.folder.length - a.folder.length);
     const item = items.find(item => normalized === `workspace/${item.folder}` || normalized.startsWith(`workspace/${item.folder}/`));

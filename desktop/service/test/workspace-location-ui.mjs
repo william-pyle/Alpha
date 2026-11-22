@@ -18,7 +18,7 @@ let browser;
 try {
   browser=await launchBrowser();const page=await browser.newPage({viewport:{width:1280,height:900}}), errors=[];
   page.on('pageerror',error=>errors.push(error.message));await page.goto(service.urls.workspace);
-  await page.getByRole('button',{name:'Tools',exact:true}).click();await page.getByRole('menuitem',{name:/Settings/}).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const location=page.getByRole('region',{name:'Workspace location'});
   await expect(location).toContainText(repo);
   await location.getByRole('button',{name:'Browse…',exact:true}).click();
@@ -26,8 +26,8 @@ try {
   await location.getByRole('button',{name:'Save location',exact:true}).click();
   await expect(location.getByRole('status')).toContainText('Saved for next launch');
   assert.equal(JSON.parse(await readFile(path.join(configDir,'repository.json'),'utf8')),repo);
-  await assert.rejects(readFile(path.join(destination,'workspace/workspace.json')),{code:'ENOENT'});
-  await page.reload();await page.getByRole('button',{name:'Tools',exact:true}).click();await page.getByRole('menuitem',{name:/Settings/}).click();
+  await assert.rejects(readFile(path.join(destination,'workspace.json')),{code:'ENOENT'});
+  await page.reload();await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(location.getByRole('status')).toContainText(destination);
   await page.getByRole('tab',{name:'Theme',exact:true}).click();
   for(const theme of ['alpha','smurfs','higurashi']) {
