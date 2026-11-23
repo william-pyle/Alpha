@@ -33,15 +33,22 @@ export default function UnifiedShell() {
   const state = useDesktop()
   const { workspace } = useWorkspace()
   const [restored] = useState(() => {
-    const tools = [...new Set(state.settings.utilityTabs || [])].filter(isWorkspaceUtility).filter(utility => utility !== 'questions')
-    return { tools, active: isWorkspaceUtility(state.settings.activeUtilityTab) && (state.settings.activeUtilityTab === 'questions' || tools.includes(state.settings.activeUtilityTab)) ? state.settings.activeUtilityTab : null }
+    const tools = [...new Set(state.settings.utilityTabs ?? ['questions'])].filter(isWorkspaceUtility)
+    return { tools, active: isWorkspaceUtility(state.settings.activeUtilityTab) && tools.includes(state.settings.activeUtilityTab) ? state.settings.activeUtilityTab : null }
   })
-  const [tabs, setTabs] = useState<DocumentTab[]>(() => [home, questions, ...restored.tools.map(utility => ({ id: `utility:${utility}`, kind: 'utility' as const, utility, title: workspaceUtilities[utility] }))])
+  const [tabs, setTabs] = useState<DocumentTab[]>(() => [home, ...restored.tools.map(utility => ({ id: `utility:${utility}`, kind: 'utility' as const, utility, title: workspaceUtilities[utility] }))])
   const [active, setActive] = useState(() => restored.active ? `utility:${restored.active}` : 'workspace')
   const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 500)
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
-  useEffect(() => { document.getElementById(`document-tab-${active}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [active])
+  const previousQuestionsView = useRef<string | null>(null)
+  // Keep the panel mounted while its tab is closed so in-flight answers and
+  // unsent drafts keep their state. It is hidden until explicitly reopened.
+  const panelTabs = tabs.some(tab => tab.id === questions.id) ? tabs : [...tabs, questions]
+  useEffect(() => {
+    if (active !== questions.id) previousQuestionsView.current = active
+    document.getElementById(`document-tab-${active}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
 
   useEffect(() => {
     const route = (activate = true) => {
@@ -88,9 +95,14 @@ export default function UnifiedShell() {
     window.dispatchEvent(new HashChangeEvent('hashchange'))
   }
   const close = (tab: DocumentTab) => {
-    if (tab.kind === 'workspace' || tab.utility === 'questions') return
+    if (tab.kind === 'workspace') return
     setTabs(current => current.filter(item => item.id !== tab.id))
-    if (tab.kind === 'utility') {
+    if (tab.id === questions.id) {
+      const fallback = tab.id === active ? tabs.find(item => item.id === previousQuestionsView.current) ||
+        tabs.find(item => item.id === `entity:${parseHash().id}`) || home : activeTab
+      if (tab.id === active) choose(fallback)
+      requestAnimationFrame(() => document.getElementById(`document-tab-${fallback.id}`)?.focus())
+    } else if (tab.kind === 'utility') {
       const route = parseHash()
       const fallback = tabs.find(item => item.id === `entity:${route.id}`) || home
       setActive(current => current === tab.id ? fallback.id : current)
@@ -155,7 +167,7 @@ export default function UnifiedShell() {
     <div className="mdi-body">
       <aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><ThreadConversations /></aside>
       {<div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} />}
-      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span>{tab.utility === 'questions' && state.questions.length > 0 && <span className="mdi-questions-count" aria-hidden="true" title={state.questions.length + ' pending questions'}>{state.questions.length}</span>}</button>{tab.kind !== 'workspace' && tab.utility !== 'questions' && <button className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{tabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} />}{tab.utility === 'learned-preferences' && <LearningPanel onClose={() => close(tab)} />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" onClose={() => close(tab)} />}{tab.utility === 'health' && <AgentCenter initialTab="Health" onClose={() => close(tab)} />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}{tab.utility === 'questions' && <QuestionsPanel />}{tab.utility === 'check-for-updates' && <div className="settings-scroll"><Updates /></div>}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
+      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span>{tab.utility === 'questions' && state.questions.length > 0 && <span className="mdi-questions-count" aria-hidden="true" title={state.questions.length + ' pending questions'}>{state.questions.length}</span>}</button>{tab.kind !== 'workspace' && <button type="button" className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{panelTabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} />}{tab.utility === 'learned-preferences' && <LearningPanel onClose={() => close(tab)} />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" onClose={() => close(tab)} />}{tab.utility === 'health' && <AgentCenter initialTab="Health" onClose={() => close(tab)} />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}{tab.utility === 'questions' && <QuestionsPanel />}{tab.utility === 'check-for-updates' && <div className="settings-scroll"><Updates /></div>}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
     </div>
     <NewCard hideTrigger />
     <ConversationStatus />

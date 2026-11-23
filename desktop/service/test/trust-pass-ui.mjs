@@ -17,7 +17,11 @@ const a = service.threads.create({ name: 'Response fixture', purpose: 'Measure r
 const b = service.threads.create({ name: 'Question fixture', purpose: 'Review a decision', projectId: 'fixture' });
 service.threads.select(a.id);
 const ca = await service.getCoordinator(a.id); ca.start = async () => { ca.threadId = 'provider-fixture'; };
-ca.rpc = async () => ({ turn: { id: 'turn-fixture' } });
+const providerCalls = [];
+ca.rpc = async (method, params) => {
+  providerCalls.push({ method, operationId: ca.active?.operationId, input: params.input?.[0].text.split('\nLATEST USER REQUEST:\n').at(-1) });
+  return { turn: { id: `turn-fixture-${providerCalls.length}` } };
+};
 const answers = [], cb = await service.getCoordinator(b.id);
 cb.ask = async data => { answers.push(data); const result = { ...data, status: 'completed', result: 'Fixture answer received.', timings: {} }; cb.emit('result', result); return result; };
 const session = { id: 'outcome-fixture', agent: 'codex', cwd: repo };
@@ -33,7 +37,11 @@ try {
   const editor = pane.getByRole('textbox', { name: 'Message Alpha' });
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   const settings = async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('tab', { name: 'Conversation', exact: true }).click(); };
-  await editor.fill('Measure the response'); await editor.press('Enter');
+  const requests = [];
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === `/api/threads/${a.id}/input`) requests.push(request.postDataJSON());
+  });
+  await editor.fill('Measure the response'); await editor.press('Alt+Enter');
   await expect(page.locator('.status-runtime')).toContainText('waiting for provider');
   await ca.message({ method: 'item/agentMessage/delta', params: { threadId: 'provider-fixture', delta: 'Fixture streaming response' } });
   await expect(pane.getByText('Fixture streaming response', { exact: true })).toBeVisible();
@@ -44,8 +52,55 @@ try {
   await expect(page.locator('.status-runtime')).toContainText('does not verify');
   await page.screenshot({ path: path.join(repo, 'response-phases.png') });
   await page.locator('.status-runtime>summary').click();
+
+  const priorRequestCount = requests.length, priorProviderCount = providerCalls.length;
+  const activeText = 'Hold the active fixture run';
+  await editor.fill(activeText); await editor.press('Alt+Enter');
+  await expect.poll(() => ca.active?.turnId).toBe(`turn-fixture-${priorProviderCount + 1}`);
+  const activeId = ca.active.operationId;
+  const append = pane.getByRole('button', { name: 'Append', exact: true });
+  const queueState = page.locator('.status-runtime>summary');
+  const clickAppend = () => append.click();
+  const keyboardAppend = () => editor.press('Alt+Enter');
+  const followUps = [
+    { text: 'Append the fixture detail by click', submit: clickAppend },
+    { text: 'Append another fixture detail by key', submit: keyboardAppend },
+  ];
+  for (const [index, followUp] of followUps.entries()) {
+    await editor.fill(followUp.text);
+    await followUp.submit();
+    await expect(editor).toHaveValue('');
+    await expect(append).toBeDisabled();
+    await expect(queueState).toHaveText('Working: queued');
+    assert.equal(requests.length, priorRequestCount + index + 2);
+    const request = requests.at(-1);
+    assert.equal(request.text, followUp.text);
+    assert.equal(request.target, 'work');
+    assert.equal(ca.operations.get(request.id)?.status, 'queued');
+    assert.equal(ca.active.operationId, activeId);
+    assert.deepEqual(providerCalls.slice(priorProviderCount), [{ method: 'turn/start', operationId: activeId, input: activeText }]);
+    followUp.id = request.id;
+  }
+  assert.equal(new Set(requests.slice(priorRequestCount).map(request => request.id)).size, 3);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.screenshot({ path: path.join(repo, 'coordinator-queued-append.png') });
+  ca.active.resolve('Active fixture run completed');
+  for (const [index, followUp] of followUps.entries()) {
+    await expect.poll(() => ca.active?.turnId).toBe(`turn-fixture-${priorProviderCount + index + 2}`);
+    assert.equal(ca.active.operationId, followUp.id);
+    assert.equal(providerCalls.length, priorProviderCount + index + 2);
+    assert.deepEqual(providerCalls.at(-1), { method: 'turn/start', operationId: followUp.id, input: followUp.text });
+    if (index === 0) assert.equal(ca.operations.get(followUps[1].id).status, 'queued');
+    ca.active.resolve(`Fixture follow-up ${index + 1} completed`);
+    await expect(pane.getByText(`Fixture follow-up ${index + 1} completed`, { exact: true })).toBeVisible();
+  }
+  assert.equal(requests.length, priorRequestCount + 3);
+  assert.equal(providerCalls.length, priorProviderCount + 3);
+  assert.ok(providerCalls.slice(priorProviderCount).every(call => call.method === 'turn/start'));
+  checks.push('Busy Append by click and Alt+Enter each shows queued status and runs exactly once in FIFO order after the active turn completes');
+  await expect(page.locator('.status-runtime>summary')).toHaveText('Ready');
   ca.start = async () => { throw new Error('Fixture startup failure'); };
-  await editor.fill('Exercise failure'); await editor.press('Enter');
+  await editor.fill('Exercise failure'); await editor.press('Alt+Enter');
   await expect(page.locator('.status-runtime')).toContainText('Request failed');
   await expect(pane.getByRole('alert')).toContainText('Fixture startup failure');
   checks.push('Streamed response, phase timings, completed versus verified wording and visible failure');

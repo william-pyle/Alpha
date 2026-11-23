@@ -32,8 +32,8 @@ export function submissionComposer(agent, view) {
 }
 
 export class TerminalSubmissions {
-  constructor({ view, persist, changed, accepted, clock = Date.now, wait = sleep, timeout = 8000, settle = 350, concurrency = 4 }) {
-    Object.assign(this, { view, persist, changed, accepted, clock, wait, timeout, settle }); this.active = new Map();
+  constructor({ view, persist, changed, accepted, clock = Date.now, wait = sleep, timeout = 8000, settle = 350, concurrency = 4, diagnostic }) {
+    Object.assign(this, { view, persist, changed, accepted, clock, wait, timeout, settle, diagnostic }); this.active = new Map();
     this.concurrency = concurrency; this.running = 0; this.queue = [];
   }
   observe(session, event) {
@@ -43,12 +43,14 @@ export class TerminalSubmissions {
     const receipt = session.submissions?.findLast(item => item.hash === hash && item.pastedAt && !item.acceptedAt && (!event.at || Date.parse(event.at) >= item.pastedAt));
     if (!receipt) return;
     receipt.stage = 'accepted'; receipt.acceptance = 'observed'; receipt.acceptedAt = this.clock(); receipt.note = 'Exact request observed in the native provider input record; task completion is not verified.';
+    this.diagnostic?.(session, receipt)?.event('native-input', { worker: session.id, kind: 'provider-record' });
     this.accepted(session, receipt); this.changed(session);
     void this.persist().catch(() => {});
   }
-  submit(session, text, { taskId = randomUUID(), retry = false } = {}) {
+  submit(session, text, { taskId = randomUUID(), retry = false, trace } = {}) {
     const hash = submissionHash(text), prior = session.submissions?.find(item => item.taskId === taskId);
     if (prior) {
+      trace?.event('receipt-state', { worker: session.id, kind: 'duplicate' });
       if (prior.hash !== hash) throw new Error('This submission ID already belongs to different text.');
       if (retry && !prior.pasteIntentAt && !this.active.has(session.id) && ['blocked', 'timeout', 'failed'].includes(prior.stage)) session.submissions = session.submissions.filter(item => item !== prior);
       else return this.active.get(session.id)?.taskId === taskId ? this.active.get(session.id).promise : Promise.resolve(this.result(session, prior, true));
@@ -64,13 +66,20 @@ export class TerminalSubmissions {
     // Stable task IDs remain durable; evicting accepted receipts would silently
     // turn an old retry into new work.
     session.submissions = [...(session.submissions || []), receipt];
+    trace?.worker(session.id, taskId);
+    trace?.event('receipt-created', { worker: session.id, depth: this.queue.length, count: this.running });
+    const finish = trace?.hold();
     const target = session.process, nativeId = session.nativeId, threadId = session.alphaThreadId;
     const promise = this.bounded(async () => {
+      trace?.event('worker-dequeue', { worker: session.id, durationMs: this.clock() - receipt.createdAt });
       if (session.process !== target || session.nativeId !== nativeId || session.alphaThreadId !== threadId) {
         receipt.stage = 'blocked'; receipt.note = 'The native session changed while dispatch was queued. Nothing was pasted.'; await this.persist(); return this.result(session, receipt);
       }
-      return this.run(session, text, receipt);
-    }).finally(() => this.active.delete(session.id));
+      return this.run(session, text, receipt, trace);
+    }).finally(() => {
+      this.active.delete(session.id);
+      finish?.(['accepted', 'queued'].includes(receipt.stage) ? 'ok' : receipt.stage);
+    });
     this.active.set(session.id, { taskId, promise }); return promise;
   }
   async bounded(run) {
@@ -80,17 +89,28 @@ export class TerminalSubmissions {
     finally { const next = this.queue.shift(); if (next) next(); else this.running--; }
   }
   result(session, receipt, duplicate = false) { return { delivered: !!receipt.pastedAt, submitted: !!receipt.keyAt, queued: receipt.stage === 'queued', accepted: receipt.acceptance === 'observed', duplicate, sessionId: session.id, name: session.name, submission: { ...receipt }, note: receipt.note }; }
-  async run(session, text, receipt) {
+  async run(session, text, receipt, trace) {
     const target = session.process, manual = session.manualInputRevision || 0, nativeId = session.nativeId, threadId = session.alphaThreadId;
     const unchanged = () => session.process === target && target && session.nativeId === nativeId && session.alphaThreadId === threadId && (session.manualInputRevision || 0) === manual;
-    const update = async (stage, note) => { receipt.stage = stage; receipt.note = note; this.changed(session); await this.persist(); };
-    try {
+    const update = async (stage, note) => {
+      receipt.stage = stage; receipt.note = note; this.changed(session);
+      trace?.event('receipt-state', { worker: session.id, kind: stage });
       await this.persist();
+      trace?.event('persist-end', { worker: session.id, kind: stage });
+    };
+    try {
+      trace?.event('persist-start', { worker: session.id });
+      await this.persist();
+      trace?.event('persist-end', { worker: session.id, kind: 'ok' });
       const deadline = this.clock() + this.timeout;
-      let composer, readySince = null, ready = false;
+      let composer, readySince = null, ready = false, priorState;
       while (this.clock() < deadline) {
         if (!unchanged()) { await update('blocked', 'Worker changed or user input intervened. No automatic keys were sent.'); return this.result(session, receipt); }
         composer = submissionComposer(session.agent, await this.view(session));
+        if (trace && priorState !== composer.state) {
+          priorState = composer.state;
+          trace.event('composer-state', { worker: session.id, kind: composer.state });
+        }
         if (['blocked', 'unsupported'].includes(composer.state)) { await update('blocked', composer.reason); return this.result(session, receipt); }
         if (['idle', 'busy'].includes(composer.state)) {
           if (!composer.empty) { await update('blocked', 'The native composer contains a draft. It was preserved; no text was pasted.'); return this.result(session, receipt); }
@@ -103,11 +123,13 @@ export class TerminalSubmissions {
       if (!ready) { await update('timeout', 'Native composer readiness was not confirmed. Nothing was pasted.'); return this.result(session, receipt); }
       // Persist the intent before the only payload write. A crash can leave an
       // uncertain receipt, but can never invite an automatic second paste.
+      trace?.event('paste-intent', { worker: session.id });
       receipt.pasteIntentAt = this.clock(); await update('paste-pending', 'Paste prepared; submission and acceptance are not yet confirmed.');
       if (!unchanged()) { await update('unconfirmed', 'Worker or manual input changed before paste. Inspect the terminal; no automatic retry.'); return this.result(session, receipt); }
       composer = submissionComposer(session.agent, await this.view(session));
       if (!composer.empty || !['idle', 'busy'].includes(composer.state) || !unchanged()) { delete receipt.pasteIntentAt; await update('blocked', 'The composer changed before paste. Draft and prompts were left untouched.'); return this.result(session, receipt); }
       receipt.pastedAt = this.clock();
+      trace?.event('paste', { worker: session.id, chars: text.length });
       // Match xterm Clipboard.prepareTextForTerminal: terminal paste uses CR.
       target.write(`\x1b[200~${text.replace(/\r?\n/g, '\r')}\x1b[201~`);
       const pasteDeadline = this.clock() + this.timeout;
@@ -123,6 +145,7 @@ export class TerminalSubmissions {
       }
       if (!observed || !unchanged()) { await update('unconfirmed', 'Paste/submission readiness could not be confirmed. Text may remain in the terminal; inspect it. No keys or duplicate payload were sent.'); return this.result(session, receipt); }
       if (session.agent === 'claude' && composer.state === 'busy') { await update('unconfirmed', 'Worker became busy after paste. Draft retained; no interrupting key was sent.'); return this.result(session, receipt); }
+      trace?.event('submit-intent', { worker: session.id, kind: composer.state });
       receipt.keyIntentAt = this.clock(); receipt.action = composer.state === 'busy' ? 'queue' : 'submit';
       // Codex Tab queues when busy AND submits when idle. It is safe across an
       // idle/busy race, unlike Enter, which may steer an in-progress turn.
@@ -131,6 +154,7 @@ export class TerminalSubmissions {
       composer = submissionComposer(session.agent, await this.view(session));
       if (!['idle', 'busy'].includes(composer.state) || composer.empty || !unchanged() || session.agent === 'claude' && composer.state === 'busy') { await update('unconfirmed', 'The composer changed before submission. No key was sent; inspect the draft.'); return this.result(session, receipt); }
       receipt.keyAt = this.clock();
+      trace?.event('submit', { worker: session.id, kind: composer.state });
       target.write(session.agent === 'codex' ? '\t' : '\r');
       const verifyDeadline = this.clock() + this.timeout;
       while (this.clock() < verifyDeadline) {

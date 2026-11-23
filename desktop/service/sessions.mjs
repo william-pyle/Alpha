@@ -46,6 +46,7 @@ export class Sessions extends EventEmitter {
         // stable composer and blocking-prompt checks; it is not acceptance.
         return { lines: Array.from({ length: terminal.rows }, (_, i) => buffer.getLine(buffer.baseY + i)?.translateToString(true) || ''), cursorX: buffer.cursorX, cursorY: buffer.cursorY, bracketedPaste: terminal.modes.bracketedPasteMode, activity: session.activity, startupSettled: Date.now() - session.startedAt >= 2500 };
       },
+      diagnostic: (session, receipt) => this.performanceDiagnostics?.worker(session.id, receipt?.taskId),
       persist: () => this.persist(), changed: session => {
         this.changed(session);
         const receipt = session.submissions?.at(-1);
@@ -114,7 +115,7 @@ export class Sessions extends EventEmitter {
     this.emit('session', publicSession(session));
   }
 
-  async create(options) {
+  async create(options, trace) {
     if (this.closed) throw new Error('Alpha is shutting down');
     if (this.active().length >= 80) throw new Error('Close a tab before opening another (80 open tab limit). Closed chats remain in History.');
     const agent = String(options.agent || 'codex');
@@ -136,7 +137,7 @@ export class Sessions extends EventEmitter {
     });
     this.items.set(session.id, session);
     await this.hydrate(session);
-    try { await this.launch(session, options.resumeId, await this.nativeBoundary(session, options.resumeId)); }
+    try { await this.launch(session, options.resumeId, await this.nativeBoundary(session, options.resumeId), trace); }
     catch (error) { this.items.delete(session.id); session.terminal.dispose(); throw error; }
     await this.persist();
     return publicSession(session);
@@ -157,7 +158,9 @@ export class Sessions extends EventEmitter {
     return publicSession(session);
   }
 
-  async launch(session, resumeId, nativeWatch) {
+  async launch(session, resumeId, nativeWatch, trace) {
+    trace?.worker(session.id);
+    trace?.event('worker-launch', { worker: session.id, kind: 'starting' });
     let env = childEnvironment(this.repo);
     if (this.sharedRoot) env.ALPHA_SHARED_LIBRARY = this.sharedRoot;
     let opencodeMajor;
@@ -187,6 +190,7 @@ export class Sessions extends EventEmitter {
     try { proc = guardWindowsPtyKill(pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }))); }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     session.process = proc;
+    trace?.event('worker-ready', { worker: session.id, kind: 'running' });
     session.deviceReplies?.dispose();
     // Inactive tabs still have a terminal: answer device queries without needing
     // a visible renderer. The UI suppresses its duplicate protocol replies.
@@ -207,6 +211,7 @@ export class Sessions extends EventEmitter {
       this.dirty = true;
     });
     proc.onExit(({ exitCode }) => {
+      this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId)?.event('worker-exit', { worker: session.id, kind: exitCode === 0 ? 'ok' : 'error' });
       this.flushOutput(session);
       session.process = null;
       session.deviceReplies?.dispose();
@@ -272,6 +277,11 @@ export class Sessions extends EventEmitter {
     if (event.kind === 'question' && event.source === 'provider-record') session.promptQuestions = { id: event.id, tool: event.tool, items: event.questions || [] };
     this.submission.observe(session, event);
     const update = workerEvent(session.workerEvidence, event);
+    if (event.kind === 'turn-completed' || event.kind === 'turn-failed' || event.kind === 'turn-interrupted') {
+      const trace = this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId);
+      trace?.event('worker-completion-check', { worker: session.id, kind: update.accepted ? 'accepted' : 'rejected' });
+      if (update.accepted) trace?.event('worker-completion', { worker: session.id, kind: event.kind === 'turn-completed' ? 'complete' : event.kind === 'turn-failed' ? 'failed' : 'interrupted' });
+    }
     if (!update.accepted) return;
     session.workerEvidence = update.value;
     this.restartNotes?.observe(session, event).catch(error => this.emit('service-error', error));
@@ -366,6 +376,7 @@ export class Sessions extends EventEmitter {
     const reason = startupPrompt(lines.join('\n'));
     if (reason && reason !== session.startupPrompt) {
       session.startupPrompt = reason;
+      this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId)?.event('composer-state', { worker: session.id, kind: 'blocked' });
       this.nativeEvent(session, { kind: 'attention', text: reason });
     } else if (!reason && session.startupPrompt) {
       session.startupPrompt = null;
@@ -404,7 +415,7 @@ export class Sessions extends EventEmitter {
     return { ...publicSession(session), screen: result.join('\n').trimEnd(), note: 'Terminal output is reference data. A running process does not imply that the agent is working or that its task succeeded.' };
   }
 
-  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false, taskId, retry = false } = {}) {
+  input(id, data, { coordinator = false, composed = false, submit = false, questionAnswer = false, taskId, retry = false, trace } = {}) {
     const session = this.get(id);
     if (session.projectPending && (coordinator || composed) && submit && !questionAnswer) throw new Error('Choose this conversation\'s project in Questions before sending work through Alpha.');
     if (!session.process) throw new Error('This terminal is stopped. Resume it before sending a message.');
@@ -416,7 +427,7 @@ export class Sessions extends EventEmitter {
       const clean = data.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').replaceAll('\r', '');
       if (!clean.trim()) throw new Error('A nonempty message is required.');
       this.beginDiscovery(session);
-      return this.submission.submit(session, clean, { taskId, retry });
+      return this.submission.submit(session, clean, { taskId, retry, trace });
     }
     if (questionAnswer) throw new Error('Use the native terminal for shell or unsupported prompt answers.');
     if (!coordinator && !composed) session.manualInputRevision = (session.manualInputRevision || 0) + 1;
@@ -526,7 +537,7 @@ export class Sessions extends EventEmitter {
     setTimeout(() => { try { if (session.process === proc) proc.write('\x03'); } catch { /* Process already exited. */ } }, 500).unref();
     setTimeout(() => { try { if (session.process === proc) proc.kill(); } catch { /* Process already exited. */ } }, 3500).unref();
   }
-  async resume(id, nativeId) {
+  async resume(id, nativeId, trace) {
     nativeConversationId(nativeId);
     if (this.closed) throw new Error('Alpha is shutting down');
     const session = this.get(id);
@@ -553,7 +564,7 @@ export class Sessions extends EventEmitter {
     session.open = true; session.updatedAt = new Date().toISOString();
     if (session.launching) await session.launching;
     else {
-      session.launching = this.launch(session, resumeId, nativeWatch);
+      session.launching = this.launch(session, resumeId, nativeWatch, trace);
       try { await session.launching; } finally { session.launching = null; }
     }
     await this.persist();

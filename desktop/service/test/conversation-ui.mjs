@@ -27,7 +27,7 @@ for (const thread of [a, b]) {
   };
 }
 service.speech.speak = async (text, voice, threadId) => { spoken.push({ text, threadId }); return { speaking: false, error: null }; };
-let browser;
+let browser, syntheticWorker;
 try {
   browser = await launchBrowser(); const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.setDefaultTimeout(15000); const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -43,6 +43,14 @@ try {
   const menu = async name => { await pane.locator('[role=tab][aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name, exact: true }).click(); };
   await expect(pane).toBeVisible(); await expect(editor).toHaveCount(1); await expect(page.locator('.chat-composer')).toHaveCount(0);
   const inputRoute = '**/api/threads/*/input';
+  const inputs = [];
+  page.on('request', request => {
+    if (request.method() === 'POST' && /^\/api\/threads\/[^/]+\/input$/.test(new URL(request.url()).pathname)) inputs.push(request.postDataJSON());
+  });
+  const submit = pane.getByRole('button', { name: 'Submit', exact: true });
+  await expect(submit).toBeVisible();
+  await expect(submit).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter');
+  await expect(pane.locator('.voice-compose button[type=submit]')).toHaveCount(1);
   let startSend, finishSend;
   await page.route(inputRoute, route => {
     startSend = async () => {
@@ -51,10 +59,16 @@ try {
     };
   });
   await editor.fill('Private A'); await editor.press('Enter');
+  await expect(editor).toHaveValue('Private A\n');
+  await editor.dispatchEvent('keydown', { key: 'Enter', altKey: true, repeat: true });
+  await editor.dispatchEvent('keydown', { key: 'Enter', altKey: true, isComposing: true });
+  assert.equal(inputs.length, 0);
+  await editor.press('Alt+Enter');
   const sendingReceipt = pane.getByText('Sending your request…', { exact: true });
   const receivedReceipt = pane.getByText('Got it. Alpha received your request.', { exact: true });
   await expect(sendingReceipt).toBeVisible({ timeout: 1000 });
   await expect.poll(() => !!startSend).toBe(true);
+  assert.deepEqual(inputs.map(({ text, target }) => ({ text, target })), [{ text: 'Private A', target: 'work' }]);
   await page.locator(`#conversation-tab-${b.id}`).click();
   await expect(sendingReceipt).toHaveCount(0);
   await page.locator(`#conversation-tab-${a.id}`).click();
@@ -89,8 +103,11 @@ try {
   await expect(editor).toHaveValue('Draft A');
   let rejectSend;
   await page.route(inputRoute, route => { rejectSend = () => route.fulfill({ status: 409, json: { error: 'Delivery rejected for this test.' } }); });
-  await pane.getByRole('button', { name: 'Send to Alpha' }).click();
+  const beforeRejected = inputs.length;
+  await submit.click();
   await expect.poll(() => !!rejectSend).toBe(true);
+  assert.equal(inputs.length, beforeRejected + 1);
+  assert.equal(inputs.at(-1).target, 'work');
   await expect(sendingReceipt).toBeVisible();
   await expect(editor).toHaveValue('', { timeout: 1000 });
   await expect(pane.getByLabel('Attached images', { exact: true })).toHaveCount(0);
@@ -108,8 +125,12 @@ try {
   await expect(pane.getByText('A background result', { exact: true })).toHaveCount(0); assert.equal(spoken.length, 0);
   await page.locator(`#conversation-tab-${a.id}`).click(); await expect(pane.getByText('A background result', { exact: true })).toBeVisible(); assert.equal(spoken.length, 0);
   await editor.fill(''); await settings(); await page.getByRole('button', { name: 'Dictate a message' }).click(); await page.getByRole('button', { name: 'Stop recording and transcribe' }).click();
-  await expect(editor).toHaveValue('Voice hello'); await page.getByRole('button', { name: 'Close settings' }).click(); await editor.press('Enter');
+  await expect(editor).toHaveValue('Voice hello'); await page.getByRole('button', { name: 'Close settings' }).click();
+  const beforeClick = inputs.length;
+  await submit.click();
   await expect(pane.getByText('Architecture: Voice hello', { exact: true })).toBeVisible(); assert.equal(requests.at(-1).threadId, a.id);
+  assert.equal(inputs.length, beforeClick + 1);
+  assert.equal(inputs.at(-1).target, 'work');
   let finishTranscription;
   await page.unroute('**/api/transcribe');
   await page.route('**/api/transcribe', route => { finishTranscription = () => route.fulfill({ contentType: 'application/json', body: '{"text":"Late voice A"}' }).catch(() => {}); });
@@ -124,58 +145,72 @@ try {
   service.awareness.event({ id: 'attention-a', threadId: a.id, kind: 'error', text: 'A decision needs review.', source: 'Fixture question event' });
   await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); await expect(page.getByText('A decision needs review.', { exact: true })).toBeVisible();
   await page.locator('.thread-attention article').filter({ hasText: 'A decision needs review.' }).getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.reload(); await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click();
-  await expect(page.getByText('A decision needs review.', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('A decision needs review.', { exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Close Needs attention' }).click(); await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect.poll(() => service.awareness.settings.quiet).toBe(true);
   await page.getByRole('button', { name: 'Close settings' }).click();
   await menu("What I've learned"); const learning = page.getByRole('region', { name: "What I've learned" });
   await learning.getByLabel('Use this for').selectOption('work'); await learning.getByLabel('What should I do differently?').fill('Name anything unfinished.'); await learning.getByRole('button', { name: 'Remember this' }).click();
   await expect(learning.getByText('Name anything unfinished.', { exact: true })).toBeVisible();
   await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await page.getByRole('button', { name: "Close What I've learned", exact: true }).click();
-  const worker = service.sessions.make({ id: 'native-queue-fixture', agent: 'shell', name: 'Busy worker fixture', cwd: repo, projectId: 'example', status: 'running', activity: 'working', open: true });
+  const worker = service.sessions.make({ id: 'native-queue-fixture', agent: 'codex', nativeId: 'synthetic-queue-id', name: 'Busy worker fixture', cwd: repo, projectId: 'example', status: 'running', activity: 'working', open: true });
+  syntheticWorker = worker;
   service.sessions.items.set(worker.id, worker);
   service.threads.observe(worker);
   const background = await service.getCoordinator(worker.id);
   const foreground = await service.getCoordinator(worker.id, { replyOnly: true });
-  let finishForeground;
-  foreground.ask = async data => {
-    foreground.emit('progress', { text: 'Foreground reply progress' });
-    await new Promise(resolve => { finishForeground = resolve; });
-    const operation = { ...data, threadId: worker.id, origin: 'foreground', status: 'completed', result: `Foreground reply: ${data.text}`, at: new Date().toISOString() };
-    foreground.operations.set(data.id, operation); foreground.emit('result', operation); return operation;
-  };
-  const originalInput = service.sessions.input;
-  const workerInputs = [];
-  service.sessions.input = async (id, text, options) => {
-    assert.equal(id, worker.id);
-    workerInputs.push({ text, options });
-    return { delivered: true, queued: true, submission: { taskId: options.taskId, stage: 'queued' } };
+  let foregroundCalls = 0, nativeDraft = '', queued = false;
+  foreground.ask = async () => { foregroundCalls++; throw new Error('Append should never request a foreground reply'); };
+  const nativeKeys = [];
+  worker.process = { resize() {}, kill() {}, write(value) {
+    nativeKeys.push(value);
+    if (value.startsWith('\x1b[200~')) { nativeDraft = '[Pasted text]'; queued = false; }
+    if (value === '\t') { nativeDraft = ''; queued = true; }
+  } };
+  const originalView = service.sessions.submission.view;
+  service.sessions.submission.view = async session => {
+    if (session !== worker) return originalView(session);
+    return { lines: ['OpenAI Codex', `› ${nativeDraft}`, `esc to interrupt · tab to queue message${queued ? ' · queued message' : ''}`],
+      cursorX: nativeDraft.length + 2, cursorY: 1, activity: 'working', startupSettled: true, bracketedPaste: true };
   };
   await page.locator(`#conversation-tab-${worker.id}`).click();
-  const workerAction = pane.getByRole('button', { name: 'Send to worker', exact: true });
-  await expect(workerAction).toBeVisible();
-  await expect(pane.getByText('Work is already running. Send asks Alpha for a separate reply.', { exact: true })).toBeVisible();
+  const append = pane.getByRole('button', { name: 'Append', exact: true });
+  await expect(append).toBeVisible();
+  await expect(append).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter');
+  await expect(submit).toHaveCount(0);
+  await expect(pane.locator('.voice-compose button[type=submit]')).toHaveCount(1);
   background.emit('progress', { text: 'Background work progress' });
-  await editor.fill('Can you answer while that runs?'); await editor.press('Enter');
   await expect(pane.getByText('Background work progress', { exact: true })).toBeVisible();
-  await expect(pane.getByText('Foreground reply progress', { exact: true })).toBeVisible();
-  await expect.poll(() => !!finishForeground).toBe(true); finishForeground();
-  await expect(pane.getByText('Foreground reply: Can you answer while that runs?', { exact: true })).toBeVisible();
-  await expect(pane.getByText('Foreground reply progress', { exact: true })).toHaveCount(0);
-  await expect(pane.getByText('Background work progress', { exact: true })).toBeVisible();
-  assert.equal(workerInputs.length, 0, 'Primary Send must use the foreground reply lane while work is busy.');
-  await editor.fill('A follow-up for the busy worker');
+  await editor.fill('Click appends for the busy worker');
   const wideViewport = page.viewportSize();
   await page.setViewportSize({ width: 390, height: 1000 });
-  await expect(workerAction).toBeEnabled();
+  await expect(append).toBeEnabled();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
   await page.screenshot({ path: path.join(repo, 'conversations-busy-390.png') });
   await page.setViewportSize(wideViewport);
-  await workerAction.click();
   const queuedReceipt = pane.getByText('Got it. Your request was queued for the worker.', { exact: true });
-  await expect(queuedReceipt).toBeVisible();
-  await expect(editor).toBeEnabled();
-  assert.equal(workerInputs.length, 1); assert.match(workerInputs[0].text, /A follow-up for the busy worker/);
-  service.sessions.input = originalInput;
+  const clickFollowUp = () => append.click();
+  const keyboardFollowUp = () => editor.press('Alt+Enter');
+  for (const [text, action] of [['Click appends for the busy worker', clickFollowUp], ['Keyboard appends for the busy worker', keyboardFollowUp]]) {
+    await editor.fill(text);
+    const countBefore = inputs.length, keysBefore = nativeKeys.length;
+    await action();
+    await expect.poll(() => worker.submissions?.at(-1)?.taskId === inputs.at(-1)?.id && inputs.length === countBefore + 1 && worker.submissions?.at(-1)?.stage === 'queued').toBe(true);
+    await expect(queuedReceipt).toBeVisible();
+    await expect(editor).toBeEnabled(); await expect(editor).toHaveValue('');
+    assert.equal(inputs.at(-1).text, text);
+    assert.equal(inputs.at(-1).target, 'work');
+    const [paste, key] = nativeKeys.slice(keysBefore);
+    assert.ok(paste.startsWith('\x1b[200~') && paste.endsWith(text + '\x1b[201~'));
+    assert.equal(key, '\t', 'Busy Codex receives one non-interrupting Tab queue key');
+    assert.equal(nativeKeys.length, keysBefore + 2);
+    await expect(pane.getByText('Background work progress', { exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    assert.equal(page.context().pages().length, 1);
+  }
+  assert.equal(foregroundCalls, 0);
+  assert.equal(worker.activity, 'working');
+  service.sessions.submission.view = originalView;
+  worker.process = null;
   await page.locator(`#conversation-tab-${b.id}`).click();
   await expect(queuedReceipt).toHaveCount(0);
   await expect(pane.getByText('Background work progress', { exact: true })).toHaveCount(0);
@@ -190,5 +225,5 @@ try {
   await expect(editor).toHaveValue('Draft B');
   await page.locator(`#conversation-tab-${a.id}`).click(); await expect(editor).toHaveValue('');
   await page.locator(`#conversation-tab-${b.id}`).click(); await expect(editor).toHaveValue('Draft B');
-  assert.deepEqual(errors, []); console.log(`Thread UI passed isolation, drafts across service restart/new origin, late uploads/voice, sharing, awareness and learning. Evidence: ${repo}`);
-} finally { await browser?.close(); await service.close(); }
+  assert.deepEqual(errors, []); console.log(`Thread UI passed newline-only editing, explicit Submit/Append by click and Alt+Enter, native queue without interrupt, rejected draft recovery, isolation, late uploads/voice, sharing, awareness and learning. Evidence: ${repo}`);
+} finally { if (syntheticWorker) syntheticWorker.process = null; await browser?.close(); await service.close(); }

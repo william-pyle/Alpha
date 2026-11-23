@@ -8,7 +8,13 @@ export class Awareness {
   snapshot() {
     if (this.desktop && this.clock() - this.desktop.at > 15000) this.desktop = null;
     const priority = { question: 0, error: 1, attention: 2, review: 3 };
-    return { settings: this.settings, items: this.items.filter(item => this.clock() - item.at < 30 * 86400000 && !item.dismissed && (!item.snoozeUntil || item.snoozeUntil <= this.clock())).sort((a, b) => (priority[a.kind] ?? 4) - (priority[b.kind] ?? 4) || b.at - a.at), desktop: this.desktop };
+    const now = this.clock();
+    const retained = this.items.filter(item => now - item.at < 30 * 86400000);
+    const items = retained.filter(item => !item.dismissed && (!item.snoozeUntil || item.snoozeUntil <= now))
+      .sort((a, b) => (priority[a.kind] ?? 4) - (priority[b.kind] ?? 4) || b.at - a.at);
+    const history = retained.filter(item => item.dismissed && ['error', 'health'].includes(item.kind))
+      .sort((a, b) => b.at - a.at);
+    return { settings: this.settings, items, history, desktop: this.desktop };
   }
   event({ id, threadId = null, questionId = null, sessionId = null, kind, text, source, inference = false, at = this.clock() }) {
     const observedAt = typeof at === 'string' ? Date.parse(at) : at;

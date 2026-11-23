@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { api, onServiceEvent, reportError, selectThread, useDesktop } from './client'
+import { desktopState, observingPerformance, reportConversationRender, api, onServiceEvent, reportError, selectThread, useDesktop } from './client'
 import type { AlphaThread, ThreadMessage } from './types'
 import { liveVoice } from './live'
 import MakComposer from './MakComposer'
@@ -44,6 +44,28 @@ export default function ThreadConversations() {
   const [context, setContext] = useState<ConversationMenuOrigin | null>(null)
   const [closing, setClosing] = useState<{ id: string; name: string } | null>(null), [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null), [closeBusy, setCloseBusy] = useState(false)
   const [newThread, setNewThread] = useState(false)
+  const newThreadButton = useRef<HTMLButtonElement>(null)
+  const tabCloses = useRef(new Set<string>())
+  const focusAfterClose = useRef<{ id: string; origin: HTMLButtonElement } | null>(null)
+  useEffect(() => {
+    const pending = focusAfterClose.current
+    if (!pending || state.threads.some(item => item.id === pending.id && (!item.archived || item.id === state.selectedThreadId))) return
+    focusAfterClose.current = null
+    if (document.activeElement !== pending.origin && document.activeElement !== document.body) return
+    const selectedTab = state.selectedThreadId ? document.getElementById(`conversation-tab-${state.selectedThreadId}`) : null
+    const next = selectedTab || newThreadButton.current
+    next?.focus()
+  }, [state.threads, state.selectedThreadId])
+  async function closeTab(id: string, origin: HTMLButtonElement) {
+    if (tabCloses.current.has(id)) return
+    tabCloses.current.add(id)
+    focusAfterClose.current = { id, origin }
+    try { await api(`/threads/${id}/close`, {}) }
+    catch (error) {
+      if (focusAfterClose.current?.id === id) focusAfterClose.current = null
+      reportError(error)
+    } finally { tabCloses.current.delete(id) }
+  }
   const [sending, setSending] = useState<Record<string, string>>({})
   const [workOpen, setWorkOpen] = useState(false), [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => { const search = () => setSearchOpen(true), work = () => setWorkOpen(true); window.addEventListener('alpha-search-conversation', search); window.addEventListener('alpha-work-details', work); return () => { window.removeEventListener('alpha-search-conversation', search); window.removeEventListener('alpha-work-details', work) } }, [])
@@ -62,6 +84,8 @@ export default function ThreadConversations() {
   const previousSelection = useRef(state.selectedThreadId)
   const [older, setOlder] = useState<Record<string, ThreadMessage[]>>({})
   const messages = thread ? [...(older[thread.id] || []).filter(item => !thread.messages.some(recent => recent.id === item.id)), ...thread.messages] : []
+  const renderTiming = useRef<{ operation: string; at: number } | null>(null)
+  const measuredRender = useRef('')
   const pendingSend = thread ? sending[thread.id] : undefined
   const showSendingReceipt = pendingSend && !messages.some(message => message.id === pendingSend)
   const latestMessage = messages[messages.length - 1]
@@ -71,6 +95,15 @@ export default function ThreadConversations() {
   const active = ['live', 'connecting', 'closing'].includes(live.status)
   useEffect(() => onServiceEvent(event => {
     if (event.type === 'disconnected') liveVoice.disconnect()
+    if (observingPerformance()) {
+      const operation = event.type === 'thread-progress' ? event.id : event.type === 'coordinator-result' ? event.operation?.id : undefined
+      const owner = event.threadId || event.operation?.threadId
+      const view = desktopState()
+      if (operation && owner === view.selectedThreadId && view.threads.find(item => item.id === owner)?.viewMode !== 'terminal' && measuredRender.current !== operation + event.type) {
+        measuredRender.current = operation + event.type
+        renderTiming.current = { operation, at: performance.now() }
+      }
+    }
     if (event.type === 'thread-progress' && event.threadId) {
       const lane = event.lane === 'reply' ? 'reply' : 'work'
       setProgress(current => ({ ...current, [event.threadId!]: { ...current[event.threadId!], [lane]: event.text || '' } }))
@@ -107,6 +140,12 @@ export default function ThreadConversations() {
     }
     hydrated.current = true
   }, [state.threads, state.selectedThreadId, state.settings.speakReplies, state.voice.owner, state.awareness.settings.quiet, active])
+  useEffect(() => {
+    const timing = renderTiming.current
+    if (!timing) return
+    renderTiming.current = null
+    reportConversationRender(timing.operation, performance.now() - timing.at)
+  }, [thread?.messages.length, progress.work, progress.reply])
   useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [thread?.id, thread?.messages.length, pendingSend, receipt, progress.work, progress.reply, live.captions])
   useEffect(() => {
     const create = () => setNewThread(true)
@@ -127,12 +166,12 @@ export default function ThreadConversations() {
     { label: `Needs attention (${importantEvents(state).length})`, run: () => openWorkspaceUtility('needs-attention') },
     { label: "What I've learned", run: () => openWorkspaceUtility('learned-preferences') },
   ]
-  const send = async (text: string, images: string[], target?: 'reply' | 'work') => {
+  const send = async (text: string, images: string[]) => {
     if (!thread) return
     const threadId = thread.id
     const messageId = crypto.randomUUID()
     setSending(current => ({ ...current, [threadId]: messageId }))
-    try { await api(`/threads/${threadId}/input`, { id: messageId, text, images, ...(target ? { target } : {}) }) }
+    try { await api(`/threads/${threadId}/input`, { id: messageId, text, images, target: 'work' }) }
     finally {
       setSending(current => {
         const next = { ...current }
@@ -143,8 +182,8 @@ export default function ThreadConversations() {
   }
   return <section className="alpha-conversation-pane thread-conversation" aria-label="Alpha conversation">
     <div className="thread-picker">
-      <ConversationTabs threads={state.threads} selectedId={state.selectedThreadId} context={setContext} />
-      <button aria-label="New conversation" title="New conversation" onClick={() => setNewThread(true)}>+</button>
+      <ConversationTabs threads={state.threads} selectedId={state.selectedThreadId} context={setContext} close={(id, origin) => void closeTab(id, origin)} />
+      <button ref={newThreadButton} aria-label="New conversation" title="New conversation" onClick={() => setNewThread(true)}>+</button>
 
     </div>
     {state.settings.viewerEnabled && <LayoutRegion kind="viewer"><Suspense fallback={<div>Loading viewer...</div>}><AlphaPresence /></Suspense></LayoutRegion>}
@@ -175,14 +214,14 @@ export default function ThreadConversations() {
     {visited.map(id => { const item = state.threads.find(candidate => candidate.id === id); return item && <WorkerActivity key={id} thread={item} active={id === thread?.id && !!raw && !workOpen} /> })}
     </div>
     {raw && <div className="composer-destination">Alpha draft saved below. Switch to Alpha view to send it.</div>}
-    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={!!pendingSend} onSend={send} backgroundWorkActive={thread.backgroundWorkActive} workActionLabel={thread.kind === 'native' ? 'Send to worker' : 'Queue for work'} autoSendVoice />}
+    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={!!pendingSend} onSend={send} backgroundWorkActive={thread.backgroundWorkActive} autoSendVoice />}
     {context && <ConversationContextMenu target={context} items={contextItems} close={() => setContext(null)} />}
     {searchOpen && thread && <ConversationSearch key={thread.id} threadId={thread.id} close={() => setSearchOpen(false)} jump={(found, id) => { setOlder(current => ({ ...current, [thread.id]: [...new Map([...(current[thread.id] || []), ...found].map(message => [message.id, message])).values()].sort((a, b) => a.at.localeCompare(b.at)) })); requestAnimationFrame(() => requestAnimationFrame(() => { const node = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]')).find(element => element.dataset.messageId === id); node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true }) })) }} />}
     {workOpen && <ConversationDialog title="Work details" close={() => setWorkOpen(false)}>{thread && <WorkerActivity key={thread.id} thread={thread} active />}</ConversationDialog>}
     {closing && <ConversationDialog title="Close conversation" close={() => { if (!closeBusy) setClosing(null) }}><p>Move <strong>{closing.name}</strong> to History? Its messages, draft and workers are preserved. Reopen it from History.</p><p>Running work continues. Pending questions stay in Questions and keep their original conversation.</p><button disabled={closeBusy} onClick={() => {
       const id = closing.id
       setCloseBusy(true)
-      void api<{ archiveUndo?: { id: string } }>(`/threads/${id}/close`, {}).then(result => { setClosing(null); if (result.archiveUndo) window.dispatchEvent(new CustomEvent('alpha-organization-change', { detail: { threadId: id, undoId: result.archiveUndo.id } })) }).catch(reportError).finally(() => setCloseBusy(false))
+      void api(`/threads/${id}/close`, {}).then(() => setClosing(null)).catch(reportError).finally(() => setCloseBusy(false))
     }}>Move to History</button><button disabled={closeBusy} onClick={() => setClosing(null)}>Cancel</button></ConversationDialog>}
     {deleting && <DeleteConversationDialog conversation={deleting} close={() => setDeleting(null)} />}
     {newThread && <NewConversation close={() => setNewThread(false)} />}

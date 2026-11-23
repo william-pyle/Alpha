@@ -48,3 +48,26 @@ test('pending Questions reconcile after pause and restart; resolved Questions an
     assert.equal(service.awareness.settings.desktop, false);
   } finally { await service.close(); }
 });
+
+test('a verified worker recovery moves its error to history and keeps other issues current', async t => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'alpha-attention-recovery-'));
+  await mkdir(path.join(repo, 'workspace'));
+  await writeFile(path.join(repo, 'workspace/workspace.json'), '{"entities":[]}');
+  const service = await createService({ repo, uiDir: repo, mcpOptions: { home: repo, env: {} } });
+  t.after(() => service.close());
+  const worker = service.sessions.make({ id: 'recovering', agent: 'codex', name: 'Recovery fixture', cwd: repo, status: 'running' });
+  service.sessions.items.set(worker.id, worker);
+  const error = { kind: 'error', source: 'Native provider error', text: 'Fixture provider failure', at: Date.now() - 1000 };
+  service.awareness.event({ ...error, id: 'recovered-error', sessionId: worker.id });
+  service.awareness.event({ ...error, id: 'unrelated-error', sessionId: 'different-worker' });
+  service.awareness.event({ ...error, id: 'unconfirmed-delivery', sessionId: worker.id, source: 'Terminal submission verification' });
+  assert.equal(service.awareness.snapshot().items.length, 3);
+  worker.workerEvidence = { execution: 'finished', observedAt: Date.now() };
+  service.sessions.changed(worker);
+  const snapshot = service.awareness.snapshot();
+  assert.deepEqual(snapshot.history.map(item => item.id), ['recovered-error']);
+  assert.deepEqual(snapshot.items.map(item => item.id).sort(), ['unconfirmed-delivery', 'unrelated-error']);
+  await service.awareness.save();
+  const restored = await new Awareness(path.dirname(service.awareness.file)).init();
+  assert.deepEqual(restored.snapshot().history.map(item => item.id), ['recovered-error']);
+});

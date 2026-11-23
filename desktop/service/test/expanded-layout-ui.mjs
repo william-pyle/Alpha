@@ -62,25 +62,20 @@ try {
   await page.locator('.mdi-document-tabs').getByRole('tab', { name: 'Workspace', exact: true }).click();
   const card = page.locator('.home [data-card="fixture"]');
   const noOrganizationPrompt = () => expect(page.getByText('Organization updated.', { exact: true })).toHaveCount(0);
-  const undoOrganizationEdit = async () => {
+  const expectFileMenuWithoutUndo = async () => {
     await page.getByRole('button', { name: 'File', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Undo last organization change', exact: true }).click();
+    await expect(page.getByRole('menu', { name: 'File', exact: true }).getByRole('menuitem')).toHaveText(['New conversation', 'Create project']);
+    await page.keyboard.press('Escape');
   };
-  await card.getByRole('button', { name: /^Edit Fixture Project:/ }).click(); await page.getByRole('dialog', { name: 'Project settings: Fixture Project' }).getByRole('button', { name: 'Archived', exact: true }).click(); await expect(card).toHaveCount(0);
-  await noOrganizationPrompt();
-  await page.route('**/api/workspace/undo', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Retry fixture undo"}' }));
-  await undoOrganizationEdit();
-  await expect(page.getByRole('alert').filter({ hasText: 'Retry fixture undo' })).toBeVisible();
-  await page.getByRole('button', { name: 'Dismiss error', exact: true }).click();
-  await page.unroute('**/api/workspace/undo'); await undoOrganizationEdit(); await expect(card).toBeVisible();
   await card.getByRole('button', { name: /^Edit Fixture Project:/ }).click(); await page.getByRole('dialog', { name: 'Project settings: Fixture Project' }).getByLabel('Project category').selectOption('dev');
   await expect.poll(async () => (await service.workspace.registry()).entities[0].category).toBe('dev');
   await noOrganizationPrompt();
-  await undoOrganizationEdit(); await expect.poll(async () => (await service.workspace.registry()).entities[0].category).toBe('design');
-  await expect(page.locator('.mdi-center')).toBeVisible(); await page.locator('.conversation-tabs [aria-selected=true]').click({ button: 'right' }); await page.getByRole('menuitem', { name: 'Conversation details', exact: true }).click();
-  await page.getByRole('button', { name: 'Close conversation', exact: true }).click(); await page.getByRole('button', { name: 'Move to History' }).click(); await expect(page.locator(`#conversation-tab-${a.id}`)).toHaveCount(0);
+  await expectFileMenuWithoutUndo();
+  await card.getByRole('button', { name: /^Edit Fixture Project:/ }).click(); await page.getByRole('dialog', { name: 'Project settings: Fixture Project' }).getByRole('button', { name: 'Archived', exact: true }).click(); await expect(card).toHaveCount(0);
   await noOrganizationPrompt();
-  await undoOrganizationEdit(); await page.locator(`#conversation-tab-${a.id}`).click(); await expect(editor).toBeEnabled(); await expect(editor).toHaveValue('Draft survives switching'); assert.equal(service.threads.get(a.id).archived, false);
+  await expectFileMenuWithoutUndo();
+  await expect.poll(async () => (await service.workspace.registry()).entities[0].status).toBe('archived');
+  await expect(editor).toHaveValue('Draft survives switching'); assert.equal(service.threads.get(a.id).archived, false);
   const worker = service.sessions.make({ id: 'event-fixture', name: 'Structured fixture worker', agent: 'shell', cwd: repo, status: 'running', open: false, alphaThreadId: a.id, projectId: 'fixture' }); service.sessions.items.set(worker.id, worker); a.sessionIds.push(worker.id);
   const eventAt = Date.now();
   service.sessions.nativeEvent(worker, { kind: 'turn-started', nativeTaskId: 'fixture-turn', eventKey: 'fixture-start', source: 'provider-record', at: new Date(eventAt).toISOString() }); await expect(page.locator('.mdi-statusbar')).toContainText('Worker working');
@@ -88,6 +83,6 @@ try {
   service.sessions.nativeEvent(worker, { kind: 'turn-completed', nativeTaskId: 'fixture-turn', id: 'fixture-complete', eventKey: 'fixture-complete', source: 'provider-record', at: new Date(eventAt + 2).toISOString() }); await expect(page.locator('.mdi-statusbar')).toContainText('Ready');
   const revision = worker.workerEvidence.revision; service.sessions.nativeEvent(worker, { kind: 'turn-started', nativeTaskId: 'fixture-turn', eventKey: 'fixture-start', source: 'provider-record', at: new Date(eventAt).toISOString() }); assert.equal(worker.workerEvidence.revision, revision);
   service.sessions.nativeEvent(worker, { kind: 'turn-failed', nativeTaskId: 'fixture-turn', eventKey: 'fixture-failure', source: 'provider-record', at: new Date(eventAt + 3).toISOString() }); await expect(page.locator('.mdi-statusbar')).toContainText('Worker failed');
-  await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, checks: ['Conversation tabs preserve drafts; obsolete Ctrl+K does not open a switcher', 'Long selected-history search and exact message focus, other-thread forbidden', 'Reading persistence and reduced viewer motion', 'Live coordinator-tool layout response, redacted and revoked, available with utility tabs', 'Explicit summary and full evidence', 'Light/dark 960/390 layouts', 'Project and conversation organization changes have no success banner; File menu undo preserves retry and draft', 'Task-bound worker status bar: working, needs-input, idle after completion, failed; duplicate rejected'] }, null, 2));
+  await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, checks: ['Conversation tabs preserve drafts; obsolete Ctrl+K does not open a switcher', 'Long selected-history search and exact message focus, other-thread forbidden', 'Reading persistence and reduced viewer motion', 'Live coordinator-tool layout response, redacted and revoked, available with utility tabs', 'Explicit summary and full evidence', 'Light/dark 960/390 layouts', 'Project category and archive changes persist without the File menu undo command', 'Task-bound worker status bar: working, needs-input, idle after completion, failed; duplicate rejected'] }, null, 2));
   console.log(`Expanded layout UI passed: ${repo}`);
 } finally { await browser?.close(); await service.close(); }

@@ -6,8 +6,11 @@ a resizable sidebar, terminal and message editor; Workspace, projects, files and
 Help use document tabs. The service manages native PTYs, chat history,
 Workspace storage, questions and update checks.
 
-The message editor saves drafts per chat. Enter sends and Alt+Enter inserts a
-line. Pasted or dropped images are saved in the Workspace inbox and added to
+The message editor saves drafts per chat. Enter inserts a line and Alt+Enter
+uses the Submit or Append button. Append uses the existing work queue, with
+queue feedback in the status bar or a worker receipt. If a worker cannot queue
+safely, Alpha shows the delivery failure in the conversation.
+Pasted or dropped images are saved in the Workspace inbox and added to
 the draft. The shared Questions section routes answers to the chat that asked.
 
 Project categories are stored in the selected Workspace's

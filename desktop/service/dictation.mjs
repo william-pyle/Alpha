@@ -61,7 +61,7 @@ export class Dictation {
     return this.status();
   }
 
-  async transcribe(request, deviceId, authorized = () => true) {
+  async transcribe(request, deviceId, authorized = () => true, trace) {
     if (this.closed || !authorized()) fail('Alpha is disconnected.', 401);
     const id = request.headers['x-transcription-id'];
     if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) fail('A recording ID is required.');
@@ -75,6 +75,7 @@ export class Dictation {
       chunks.push(chunk);
     }
     const audio = Buffer.concat(chunks);
+    trace?.event('http-body', { category: 'voice', bytes: size });
     const valid = audio.length >= 12 && (mime === 'audio/webm' ? audio.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
       : mime === 'audio/mp4' ? audio.toString('ascii', 4, 8) === 'ftyp'
       : mime === 'audio/ogg' ? audio.toString('ascii', 0, 4) === 'OggS'
@@ -88,6 +89,7 @@ export class Dictation {
     const previous = this.jobs.get(key);
     if (previous) {
       if (previous.hash !== hash) fail('This recording ID belongs to different audio.', 409);
+      trace?.event('voice-start', { kind: 'duplicate' });
       return previous.promise;
     }
     if (this.controllers.has(deviceId)) fail('Another recording is being transcribed. Wait a moment and retry.', 429);
@@ -120,16 +122,22 @@ export class Dictation {
     currentRate.count++; this.rates.set(deviceId, currentRate);
     const controller = new AbortController(); this.controllers.set(deviceId, controller);
     const job = { hash, pending: true, expires: now + 10 * 60 * 1000 };
-    job.promise = this.call(config, audio, mime, controller.signal).then(result => {
+    const startedAt = trace ? performance.now() : 0;
+    trace?.event('voice-start', { bytes: size, count: this.controllers.size });
+    job.promise = this.call(config, audio, mime, controller.signal, trace).then(result => {
+      trace?.event('voice-end', { kind: 'ok', durationMs: performance.now() - startedAt });
       if (!authorized() || this.closed) fail('Alpha is disconnected.', 401);
       return result;
-    }).catch(error => { this.jobs.delete(key); throw error; }).finally(() => {
+    }).catch(error => {
+      trace?.event('voice-end', { kind: controller.signal.aborted ? 'abort' : 'error', durationMs: performance.now() - startedAt });
+      this.jobs.delete(key); throw error;
+    }).finally(() => {
       job.pending = false; this.controllers.delete(deviceId);
     });
     this.jobs.set(key, job);
     return job.promise;
   }
-  async call({ provider, key, model, local }, audio, mime, signal) {
+  async call({ provider, key, model, local }, audio, mime, signal, trace) {
     if (provider === 'local') {
       const result = this.localControl.state(true).running
         ? await this.localControl.transcribe(audio, formats[mime], signal)
@@ -147,6 +155,7 @@ export class Dictation {
     let response, result;
     try {
       response = await this.fetcher(url, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.any([signal, AbortSignal.timeout(65000)]) });
+      trace?.event('voice-end', { kind: 'response', statusCode: response.status });
       result = response.ok ? await response.json() : null;
     } catch { fail('Transcription could not finish. Your recording is kept in Alpha; try again.', 502); }
     if (!response.ok) {

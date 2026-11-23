@@ -6,8 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.24**.
-See the [0.2.24 release notes](release-notes/v0.2.24.md).
+knowledge into one Windows desktop window. This source targets **0.2.25**.
+See the [0.2.25 release notes](release-notes/v0.2.25.md).
 
 ## What you can do
 
@@ -117,12 +117,15 @@ apply it on Alpha's next normal launch. A copy keeps the original folder.
 ## Use Alpha
 
 Choose **New conversation** and a project. New conversations default to **Conversations**. Use + beside the project selector to create a project without losing the new-conversation form. Each conversation has its own
-history, saved draft, images, voice and worker links. Use the conversation selector
-to switch; **History** includes archived threads. Alpha shares titles, purposes,
+history, saved draft, images, voice and worker links. Switch using the named tabs
+with a view icon and status. The tab's **×** closes it while work continues.
+Reopen it from **Conversation history**. Alpha shares titles, purposes,
 projects and statuses across threads, without automatically sharing transcripts.
 **Share** copies one previewed message to a chosen conversation without starting work.
 
-**Enter sends**; **Shift+Enter adds a line**. Paste or drop images into the composer.
+**Enter** adds a line. **Alt+Enter** uses the primary button. Choose **Submit** to
+start work or **Append** to queue a follow-up behind the active run. Alpha shows
+when the follow-up is queued. Paste or drop images into the composer.
 Expand **Activity** for native worker output. **Enable terminal controls** is for
 native permission prompts or CLI recovery. Existing Codex/Claude identities and
 history remain intact; **Load earlier native conversation** imports verified user

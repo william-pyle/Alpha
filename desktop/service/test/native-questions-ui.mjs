@@ -2,7 +2,7 @@ import { tmpdir as isolatedTmpdir } from 'node:os';
 // Isolated WebView-compatible UI + headless terminal fixture, no owner state.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createService } from '../server.mjs';
 import { launchBrowser } from './browser.mjs';
@@ -36,19 +36,31 @@ try {
   const documents = page.getByRole('tablist', { name: 'Documents', exact: true });
   const questionsTab = documents.getByRole('tab', { name: 'Questions', exact: true });
   const workspaceTab = documents.getByRole('tab', { name: 'Workspace', exact: true });
+  const closeQuestions = documents.getByRole('button', { name: 'Close Questions', exact: true });
   const panel = page.getByRole('region', { name: 'Questions', exact: true });
+  const openFromView = async name => {
+    await page.getByRole('button', { name: 'View', exact: true }).click();
+    await page.getByRole('menuitem', { name, exact: true }).click();
+  };
   await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
   await expect(panel).toBeHidden();
   await expect(questionsTab.locator('.mdi-questions-count')).toHaveText('2');
   if (process.platform === 'win32') {
     for (const session of all) service.sessions.emit('prompt-check', { id: session.id });
-    await page.getByRole('button', { name: 'View', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click();
+    await closeQuestions.press('Enter');
+    await expect(questionsTab).toHaveCount(0);
+    await openFromView('Needs attention');
     const attention = page.getByRole('tabpanel', { name: 'Needs attention', exact: true });
     await expect(attention.getByText(/Alpha could not verify the folder under C:\/Projects/i)).toHaveCount(1);
     assert.deepEqual(writes, [], 'Unverified and lookalike paths require manual action');
     await attention.getByRole('button', { name: 'Open Questions', exact: true }).click();
     await expect(panel.locator('.question-card').filter({ hasText: 'First' })).toBeFocused();
+    await closeQuestions.press('Enter');
+    const attentionTab = documents.getByRole('tab', { name: 'Needs attention', exact: true });
+    await expect(attentionTab).toHaveAttribute('aria-selected', 'true');
+    await expect(attentionTab).toBeFocused();
+    await expect(workspaceTab).toBeVisible();
+    await openFromView('Questions');
     await workspaceTab.click();
   }
   await questionsTab.press('Enter');
@@ -83,6 +95,7 @@ try {
   await expect(questionsTab.locator('.mdi-questions-count')).toHaveCount(0);
   assert.deepEqual(writes.slice(2), [['Second', '1'], ['Second', '\r']]);
   await page.screenshot({ path: path.join(root, 'questions-resolved.png') });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   // A queued async reply must remain visible until a later exact acceptance,
   // then disappear without a second click or payload.
   const session = all[1];
@@ -93,8 +106,48 @@ try {
     assert.equal(id, session.id); sends++; replyPayload = payload; replyTask = options.taskId;
     return { accepted: false, note: 'Queued; waiting for native acceptance.' };
   };
-  await panel.getByRole('button', { name: 'Blue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Send answer', exact: true }).click();
+  const color = panel.locator(`[data-question-id="${asyncQuestion.id}"]`);
+  const colorAnswer = color.getByRole('textbox');
+  await color.getByRole('button', { name: 'Blue', exact: true }).click();
+  await closeQuestions.press('Enter');
+  await expect(questionsTab).toHaveCount(0);
+  await expect(panel).toBeHidden();
+  await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+  await expect(workspaceTab).toBeFocused();
+  assert.equal(service.questions.list().length, 1);
+  assert.equal(sends, 0);
+
+  const firstThread = service.threads.owner('First');
+  const lateQuestion = await service.questions.ask({ text: 'Which fixture detail should be retained?', source: 'maintenance', sourceId: 'closed-questions-fixture', threadId: firstThread.id, chatName: firstThread.name });
+  const firstAttention = page.getByRole('button', { name: /^Attention for First: 1 pending question/ });
+  await expect(firstAttention).toBeVisible();
+  await expect(questionsTab).toHaveCount(0);
+  await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: path.join(root, 'questions-closed-with-pending.png') });
+  await expect.poll(async () => JSON.parse(await readFile(path.join(root, '.alpha/settings.json'), 'utf8')).utilityTabs?.includes('questions')).toBe(false);
+  await page.reload();
+  await expect(firstAttention).toBeVisible();
+  await expect(questionsTab).toHaveCount(0);
+  await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+
+  await openFromView('Questions');
+  await openFromView('Questions');
+  await expect(questionsTab).toHaveCount(1);
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(questionsTab.locator('.mdi-questions-count')).toHaveText('2');
+  await expect(colorAnswer).toHaveValue('Blue');
+
+  await closeQuestions.press('Enter');
+  await expect(questionsTab).toHaveCount(0);
+  await firstAttention.press('Enter');
+  await expect(questionsTab).toHaveCount(1);
+  const lateCard = panel.locator(`[data-question-id="${lateQuestion.id}"]`);
+  await expect(lateCard.getByRole('textbox')).toBeFocused();
+  await expect(page.locator(`#conversation-tab-${firstThread.id}`)).toHaveAttribute('aria-selected', 'true');
+  await lateCard.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(lateCard).toHaveCount(0);
+  await expect(colorAnswer).toHaveValue('Blue');
+  await color.getByRole('button', { name: 'Send answer', exact: true }).click();
   await expect(panel.getByRole('alert')).toContainText('waiting for native acceptance');
   assert.equal(service.questions.list().length, 1); assert.equal(sends, 1);
   assert.ok(replyPayload.includes(asyncQuestion.asyncQuestion.id.replaceAll('"', '\\"')));
@@ -103,5 +156,5 @@ try {
   await expect(panel.locator('.question-card')).toHaveCount(0); assert.equal(sends, 1);
   await workspaceTab.click(); await expect(panel).toBeHidden();
   service.sessions.input = originalInput;
-  console.log(JSON.stringify({ passed: true, root, checks: ['pending Questions stay in a dedicated tab', 'keyboard tab selection', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'answered cards cleared', 'Workspace return', 'wide/narrow'] }));
+  console.log(JSON.stringify({ passed: true, root, checks: ['pending Questions stay in a dedicated tab', 'keyboard selection and close', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'answered cards cleared', 'Workspace return', 'pending arrival while closed', 'closure persists on reload', 'singleton View reopen', 'origin-bound question navigation while closed', 'count and draft preservation', 'wide/narrow'] }));
 } finally { for (const session of all) session.process = null; await browser.close(); await service.close(); }

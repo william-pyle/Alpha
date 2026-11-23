@@ -22,6 +22,27 @@ let state: DesktopState = {
 let socket: WebSocket | null = null
 let started = false
 let reconnectTimer = 0
+let captureId: string | null = null
+let observedOperation: string | null = null
+let longTasks: PerformanceObserver | null = null
+let taskReports = 0
+export const observingPerformance = () => captureId !== null
+
+function observeTasks(next: string | null) {
+  if (captureId === next) return
+  longTasks?.disconnect()
+  longTasks = null
+  observedOperation = null
+  taskReports = 0
+  captureId = next
+  if (!next || typeof PerformanceObserver === 'undefined' || !PerformanceObserver.supportedEntryTypes.includes('longtask')) return
+  longTasks = new PerformanceObserver(entries => {
+    if (next !== captureId || taskReports++ >= 6) return
+    const batch = entries.getEntries()
+    reportPerformance('ui-task', { captureId: next, durationMs: Math.max(0, ...batch.map(entry => entry.duration)), count: batch.length })
+  })
+  longTasks.observe({ entryTypes: ['longtask'] })
+}
 const update = (values: Partial<DesktopState>) => { state = { ...state, ...values }; listeners.forEach(listener => listener()) }
 export const desktopState = () => state
 export const useDesktop = () => useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, desktopState)
@@ -31,18 +52,42 @@ export const dismissError = () => update({ error: null })
 export const reportError = (error: unknown) => update({ error: error instanceof Error ? error.message : String(error) })
 export const contentUrl = (relative: string) => isDesktop ? `${state.contentBase}${relative}` : relative
 
+export function reportPerformance(event: 'ui-request' | 'ui-response' | 'ui-render' | 'ui-task', data: { captureId?: string; operation?: string; durationMs?: number; count?: number }) {
+  void fetch('/api/performance-diagnostics/client', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ event, ...data }) }).catch(() => {})
+}
+
+function observeResponse(response: Response, startedAt: number, requestAt = startedAt) {
+  if (!startedAt) return
+  const id = response.headers.get('X-Alpha-Performance-Capture')
+  if (!id) return
+  observeTasks(id)
+  reportPerformance('ui-request', { captureId: id, durationMs: requestAt - startedAt })
+  reportPerformance('ui-response', { captureId: id, durationMs: performance.now() - startedAt })
+}
+
 export async function api<T>(path: string, data?: unknown, method?: string, options: { keepalive?: boolean } = {}): Promise<T> {
   if ((path === '/coordinator' || /^\/common-agents\/[^/]+\/run$/.test(path)) && data && typeof data === 'object' && state.selectedThreadId) data = { threadId: state.selectedThreadId, ...data }
+  const startedAt = state.settings.performanceDiagnostics || path === '/bootstrap' ? performance.now() : 0
+  const body = data === undefined ? undefined : JSON.stringify(data)
+  const requestAt = startedAt ? performance.now() : 0
   const response = await fetch(`/api${path}`, {
     ...options,
     method: method || (data === undefined ? 'GET' : 'POST'),
     headers: { Authorization: `Bearer ${token}`, ...(data === undefined ? {} : { 'Content-Type': 'application/json' }) },
-    body: data === undefined ? undefined : JSON.stringify(data),
+    body,
   })
   const value = await response.json()
+  observeResponse(response, startedAt, requestAt)
+  if (captureId && /^\/threads\/[\w-]+\/input$/.test(path) && data && typeof data === 'object' && 'id' in data && typeof data.id === 'string') {
+    if (response.headers.get('X-Alpha-Performance-Capture') === captureId) observedOperation = data.id
+  }
   if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`)
   return value as T
 }
+export function reportConversationRender(operation: string, durationMs: number) {
+  if (captureId && operation === observedOperation) reportPerformance('ui-render', { captureId, operation, durationMs })
+}
+
 export function pickFiles(): Promise<string[]> {
   const requestId = crypto.randomUUID()
   return new Promise((resolve, reject) => {
@@ -96,6 +141,10 @@ export async function startDesktop() {
     const selected = localStorage.getItem('alpha.selectedChat')
     if (surface === 'workspace' && !location.hash && initial.settings.workspaceRoute?.startsWith('#/')) history.replaceState(null, '', location.pathname + location.search + initial.settings.workspaceRoute)
     update({ ...initial, ready: true, error: null, selectedId: initial.sessions.some(item => item.id === selected) ? selected : initial.selectedId })
+    if (captureId) {
+      const id = captureId
+      requestAnimationFrame(() => { if (captureId === id) reportPerformance('ui-render', { captureId: id, durationMs: performance.now() }) })
+    }
     connect()
   } catch (error) { started = false; reportError(error) }
 }
@@ -146,7 +195,11 @@ function connect() {
     }
     if (event.type === 'reply' && event.reply) update({ replies: [...state.replies.filter(item => item.id !== event.reply!.id), event.reply].slice(-200) })
     if (event.type === 'speech' && event.speech) update({ speech: event.speech })
-    if (event.type === 'settings' && event.settings) update({ settings: event.settings })
+    if (event.type === 'performance-diagnostics-changed' && captureId && event.captureId !== captureId) observeTasks(null)
+    if (event.type === 'settings' && event.settings) {
+      if (!event.settings.performanceDiagnostics) observeTasks(null)
+      update({ settings: event.settings })
+    }
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
     if (event.type === 'questions' && event.questions) update({ questions: event.questions })
     if (event.type === 'voice-owner') update({ voice: { ...state.voice, owner: event.owner || null } })
@@ -161,6 +214,7 @@ function connect() {
     events.forEach(listener => listener(event))
   }
   socket.onclose = () => {
+    observeTasks(null)
     update({ connected: false })
     clearTimeout(reconnectTimer)
     reconnectTimer = window.setTimeout(connect, 1500)

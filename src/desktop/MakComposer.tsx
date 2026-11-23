@@ -16,14 +16,13 @@ function saveDraft(id: string, draft: Draft) {
   return write
 }
 
-export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft, backgroundWorkActive = false, workActionLabel = 'Queue for work' }: {
+export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft, backgroundWorkActive = false }: {
   draftId?: string
   initialDraft?: Draft
   connected: boolean
   sending: boolean
-  onSend: (text: string, images: string[], target?: 'reply' | 'work') => Promise<void>
+  onSend: (text: string, images: string[]) => Promise<void>
   backgroundWorkActive?: boolean
-  workActionLabel?: string
   autoSendVoice?: boolean
 }) {
   const [error, setError] = useState('')
@@ -118,13 +117,13 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
     finally { busy.current = false; setUploading(false) }
   }
 
-  async function send(target?: 'reply' | 'work') {
+  async function send() {
     if (disabled || busy.current || (!draft.trim() && !images.length)) return
     busy.current = true; setError('')
     // Keep the saved draft recoverable until delivery succeeds.
     setSubmitting(true)
     try {
-      await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path), target)
+      await onSend(draft.trim() || 'Please review the attached images.', images.map(image => image.path))
       if (!alive.current) {
         localStorage.setItem(`alpha.threadDraft.${draftId}`, JSON.stringify({ text: '', paths: [] }))
         void saveDraft(draftId, { text: '', paths: [] }).catch(() => {})
@@ -141,16 +140,19 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
       <ZoomImage src={image.url} alt={image.name} />
       <button className="desk-icon" title={`Remove ${image.name}`} aria-label={`Remove ${image.name}`} disabled={disabled} onClick={() => setImages(previous => previous.filter(item => item.path !== image.path))}><Icon name="close" size={12} /></button>
     </div>)}</div>}
-    {backgroundWorkActive && <div className="composer-busy-choice" role="status"><span>Work is already running. Send asks Alpha for a separate reply.</span><button type="button" disabled={disabled || (!draft.trim() && !images.length)} onClick={() => void send('work')}>{workActionLabel}</button></div>}
-    <form className="voice-compose" onSubmit={event => { event.preventDefault(); void send(backgroundWorkActive ? 'reply' : undefined) }}>
+    <form className="voice-compose" onSubmit={event => { event.preventDefault(); void send() }}>
       <input ref={picker} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Choose images for Alpha" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; void attach(files) }} />
       <button type="button" title="Attach images" aria-label="Attach images" disabled={disabled} onClick={() => picker.current?.click()}><Icon name="attach" size={17} /></button>
-      <textarea ref={area} value={sendPending ? '' : draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter sends; Shift+Enter adds a line" disabled={disabled}
+      <textarea ref={area} value={sendPending ? '' : draft} rows={6} onChange={event => setDraft(event.target.value)} placeholder="Tell Alpha…" aria-label="Message Alpha" title="Enter adds a line. Alt+Enter submits." disabled={disabled}
         onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' }}
         onDrop={event => { event.preventDefault(); void attach(Array.from(event.dataTransfer.files).filter(file => file.type.startsWith('image/'))) }}
         onPaste={event => { const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (files.length) { event.preventDefault(); void attach(files) } }}
-        onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
-      <button type="submit" title="Send to Alpha" aria-label="Send to Alpha" disabled={disabled || (!draft.trim() && !images.length)}><Icon name="send" size={17} /></button>
+        onKeyDown={event => {
+          if (event.key !== 'Enter' || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+          event.preventDefault()
+          if (!event.repeat) event.currentTarget.form?.requestSubmit()
+        }} />
+      <button type="submit" aria-keyshortcuts="Alt+Enter" disabled={disabled || (!draft.trim() && !images.length)}>{backgroundWorkActive ? 'Append' : 'Submit'}</button>
     </form>
     {uploading && <div role="status">Saving images...</div>}
   </div></LayoutRegion>

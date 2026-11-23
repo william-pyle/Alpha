@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, reportError, useDesktop } from './client'
+import { useDesktop } from './client'
 import WindowControls from './WindowControls'
 import { Nose } from './Icons'
 
@@ -12,8 +12,6 @@ const labels = Object.keys(menus)
 
 export default function TopMenus({ run }: { run: (action: string) => void }) {
   const [open, setOpen] = useState<string | null>(null)
-  const [organizationEdit, setOrganizationEdit] = useState<{ undoId: string; threadId?: string } | null>(null)
-  const [undoing, setUndoing] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const { nativeWindow } = useDesktop()
   const trigger = (label: string) => root.current?.querySelector<HTMLButtonElement>(`[data-menu-trigger="${label}"]`)
@@ -21,25 +19,6 @@ export default function TopMenus({ run }: { run: (action: string) => void }) {
     const items = root.current?.querySelectorAll<HTMLButtonElement>(`[data-menu="${label}"] [role=menuitem]`)
     items?.[last ? items.length - 1 : 0]?.focus()
   })
-  useEffect(() => {
-    const changed = (event: Event) => {
-      const { undoId, threadId } = (event as CustomEvent<{ undoId?: string; threadId?: string }>).detail
-      setOrganizationEdit(undoId ? { undoId, threadId } : null)
-    }
-    window.addEventListener('alpha-organization-change', changed)
-    return () => window.removeEventListener('alpha-organization-change', changed)
-  }, [])
-  async function undoOrganizationEdit() {
-    if (!organizationEdit || undoing) return
-    setUndoing(true)
-    try {
-      const route = organizationEdit.threadId ? `/threads/${organizationEdit.threadId}/undo` : '/workspace/undo'
-      await api(route, { id: organizationEdit.undoId })
-      setOrganizationEdit(current => current === organizationEdit ? null : current)
-      window.dispatchEvent(new Event('alpha-workspace-changed'))
-    } catch (error) { reportError(error) }
-    finally { setUndoing(false) }
-  }
   useEffect(() => {
     const dismiss = () => setOpen(null)
     const outside = (event: Event) => { if (!(event.target instanceof Element) || !root.current?.contains(event.target) || !event.target.closest('.mdi-menu-group')) dismiss() }
@@ -90,11 +69,6 @@ export default function TopMenus({ run }: { run: (action: string) => void }) {
         }
       }}>
         {items.map(([text, action]) => <button role="menuitem" key={action} type="button" onClick={() => { setOpen(null); trigger(label)?.focus(); run(action) }}>{text}</button>)}
-        {label === 'File' && organizationEdit && !undoing && <button role="menuitem" type="button" onClick={() => {
-          setOpen(null)
-          trigger(label)?.focus()
-          void undoOrganizationEdit()
-        }}>Undo last organization change</button>}
       </div>}
     </div>)}
     <WindowControls openSettings={() => run('settings')} />

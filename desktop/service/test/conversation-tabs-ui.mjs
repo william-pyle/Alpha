@@ -26,6 +26,7 @@ const checks = [], screenshots = [], errors = [];
 let browser, page;
 const tab = id => page.locator(`#conversation-tab-${id}`);
 const mode = name => page.getByRole('button', { name: `Worker terminal for ${name}`, exact: true });
+const closeTab = name => page.getByRole('button', { name: `Close conversation tab for ${name}`, exact: true });
 const contextAction = async (id, label, keyboard = false) => { if (keyboard) { await tab(id).focus(); await tab(id).press('Shift+F10'); } else await tab(id).click({ button: 'right' }); await page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: label, exact: true }).click(); };
 const history = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Conversation history', exact: true }).click(); };
 const events = async () => { await page.getByRole('button', { name: 'View', exact: true }).click(); await page.getByRole('menuitem', { name: 'Needs attention', exact: true }).click(); };
@@ -35,6 +36,21 @@ try {
   page.on('pageerror', error => errors.push(error.message)); await page.goto(service.urls.workspace);
   const editor = page.getByRole('textbox', { name: 'Message Alpha' });
   await expect(editor).toBeEnabled(); await expect(page.locator('.mdi-center')).toBeVisible(); await expect(page.locator('.conversation-menu')).toHaveCount(0);
+  const tabs = page.getByRole('tablist', { name: 'Conversations', exact: true });
+  await expect(tabs.getByRole('tab')).toHaveCount(14);
+  await expect(tab(b.id)).toHaveText(b.name);
+  await expect(tab(b.id)).toHaveAccessibleName(`${b.name}, Messages, Ready`);
+  const statusMark = tab(b.id).locator('.conversation-tab-status');
+  await expect(statusMark).toHaveAttribute('data-status', 'idle');
+  b.status = 'working'; service.threads.publish();
+  await expect(tab(b.id)).toHaveAccessibleName(`${b.name}, Messages, Working`);
+  await expect(statusMark).toHaveAttribute('data-status', 'active');
+  b.status = 'waiting-for-user'; service.threads.publish();
+  await expect(tab(b.id)).toHaveAccessibleName(`${b.name}, Messages, Waiting for your answer`);
+  await expect(statusMark).toHaveAttribute('data-status', 'attention');
+  b.status = 'idle'; service.threads.publish();
+  await expect(closeTab(b.name)).toHaveText('×');
+  const messageIcon = await mode(a.name).locator('path').getAttribute('d');
   await expect(page.getByRole('button', { name: /Return to conversation/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Needs attention:/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'New conversation', exact: true }).click(); await expect(page.getByRole('heading', { name: 'New conversation', exact: true })).toBeVisible(); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -48,6 +64,8 @@ try {
 
   const beforeMode = input.length;
   await mode(a.name).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(editor).toBeDisabled();
+  await expect(tab(a.id)).toHaveAccessibleName(/^Architecture review, Terminal, /);
+  await expect(mode(a.name).locator('path')).not.toHaveAttribute('d', messageIcon);
   const activity = page.getByRole('region', { name: `Worker activity for ${a.name}` });
   await expect(activity).toBeVisible(); await expect(activity.getByRole('combobox')).toHaveValue(w1.id);
   await expect.poll(async () => (await service.sessions.read(w1.id)).screen).toMatch(/PS |[$>#]/);
@@ -73,10 +91,11 @@ try {
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 }); await tab(extra.at(-1).id).click();
     await expect(tab(extra.at(-1).id)).toBeInViewport(); await expect(page.getByRole('button', { name: 'New conversation', exact: true })).toBeInViewport();
+    await expect(closeTab(extra.at(-1).name)).toBeInViewport();
     await expect(page.locator('.mdi-center')).toBeInViewport(); await expect(editor).toBeInViewport();
     await expect(page.getByRole('button', { name: /Return to conversation/i })).toHaveCount(0);
     const bounds = await page.evaluate(() => { const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height }; }; return { tabs: rect('.conversation-tabs'), plus: rect('[aria-label="New conversation"]'), composer: rect('.layout-composer'), pane: rect('.thread-conversation'), overflow: document.documentElement.scrollWidth > innerWidth + 1 }; });
-    assert.ok(bounds.plus.x >= bounds.tabs.right - 1); assert.ok(Math.abs(bounds.composer.bottom - bounds.pane.bottom) < 2); assert.equal(bounds.overflow, false);
+    assert.ok(bounds.tabs.height <= 40); assert.ok(bounds.plus.x >= bounds.tabs.right - 1); assert.ok(Math.abs(bounds.composer.bottom - bounds.pane.bottom) < 2); assert.equal(bounds.overflow, false);
     const resizer = page.getByRole('separator', { name: 'Resize writing area' }); const size = Number(await resizer.getAttribute('aria-valuenow')); await resizer.press('ArrowDown'); assert.ok(Number(await resizer.getAttribute('aria-valuenow')) < size);
     const shot = path.join(repo, `tabs-${width}.png`); await page.screenshot({ path: shot }); screenshots.push(shot);
   }
@@ -85,11 +104,25 @@ try {
 
   await tab(b.id).click(); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
   await mode(b.name).click(); await expect(mode(b.name)).toHaveAttribute('aria-pressed', 'false');
+  await closeTab(b.name).press('Enter');
+  await expect(tab(b.id)).toHaveCount(0);
+  await expect(tab(extra[0].id)).toHaveAttribute('aria-selected', 'true');
+  await expect(tab(extra[0].id)).toBeFocused();
+  assert.equal(service.threads.get(b.id).archived, true);
+  await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Research conversation/ }).click();
+  await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
+  await expect(editor).toHaveValue('Research draft');
+  assert.equal(service.threads.get(b.id).archived, false);
+  await page.getByRole('button', { name: 'Close Conversation history' }).click();
   await expect(editor).toBeEnabled(); await editor.focus(); await expect(editor).toBeFocused();
   const event = { id: 'synthetic-failure', threadId: a.id, sessionId: w2.id, kind: 'error', text: 'Synthetic worker failure requires inspection.', source: 'Native provider error' };
   service.awareness.event(event); service.awareness.event(event); service.threads.message(a.id, { id: 'background', role: 'assistant', text: 'Background result, not verified.' });
   await expect(page.getByRole('button', { name: /^Attention for Architecture/ })).toBeVisible(); await expect(editor).toBeFocused(); assert.equal(service.threads.selectedId, b.id);
-  await request(`/threads/${a.id}/close`); assert.equal(service.threads.get(a.id).archived, true); await expect(tab(a.id)).toHaveCount(0);
+  const aWorkers = service.threads.get(a.id).sessionIds.slice();
+  await closeTab(a.name).click(); await expect(tab(a.id)).toHaveCount(0); await expect(tab(b.id)).toBeFocused();
+  assert.equal(service.threads.get(a.id).archived, true); assert.deepEqual(service.threads.get(a.id).sessionIds, aWorkers);
+  for (const id of aWorkers) assert.equal(service.sessions.get(id).status, 'running');
+  assert.equal(input.length, afterSecond);
   await events(); const notice = page.locator('[data-event-id="synthetic-failure"]'); await expect(notice).toHaveCount(1); await expect(notice).toContainText('History'); await notice.getByRole('button', { name: 'Open originating conversation' }).click();
   await expect(tab(a.id)).toHaveAttribute('aria-selected', 'true'); assert.equal(service.threads.get(a.id).archived, true); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); await expect(activity.getByRole('button', { name: 'Enable terminal controls' })).toBeVisible();
   await events(); await notice.getByRole('button', { name: 'Dismiss', exact: true }).click(); await page.getByRole('button', { name: 'Close Needs attention' }).click(); service.awareness.event(event); await expect(page.locator('[data-event-id="synthetic-failure"]')).toHaveCount(0);
@@ -109,13 +142,14 @@ try {
   for (const thread of service.threads.items.filter(item => !item.archived)) await request(`/threads/${thread.id}/close`);
   // A was explicitly previewed from History; close the preview selection through
   // selecting the final open fixture first so the last close reaches null.
-  await request(`/threads/${extra[0].id}/reopen`); await request(`/threads/${extra[0].id}/select`); await request(`/threads/${extra[0].id}/close`);
+  await request(`/threads/${extra[0].id}/reopen`); await request(`/threads/${extra[0].id}/select`); await tab(extra[0].id).press('Delete');
+  await expect(page.getByRole('button', { name: 'New conversation', exact: true })).toBeFocused();
   await expect(page.getByText('No open conversations', { exact: true })).toBeVisible(); await expect(page.locator('.mdi-center')).toBeVisible(); await expect(page.getByRole('button', { name: 'New conversation', exact: true })).toBeInViewport(); await page.reload(); await expect(page.getByText('No open conversations', { exact: true })).toBeVisible();
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: new RegExp('^Research conversation') }).click(); await expect(editor).toHaveValue('Research draft'); assert.equal(service.sessions.items.size, 3);
   for (const id of [w1.id, w2.id, w3.id]) assert.equal(service.sessions.get(id).status, 'running');
   const oldOrigin = service.origin; await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
-  checks.push('Background close targets captured ID; last close/null survives reload; History reopens drafts and selection across isolated service restart without restarting workers; raw mode/worker choice persists.');
+  checks.push('Visible × closes selected and background tabs, focuses neighbor or fixed + after last keyboard close, preserves workers/IDs, and History reopens draft and terminal mode across isolated service restart.');
   assert.deepEqual(errors, []); await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowsPTY: process.platform === 'win32', checks, screenshots }, null, 2)); console.log(`Conversation tabs UI passed. Evidence: ${repo}`);
 } catch (error) { await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: error.stack, checks }, null, 2)); if (page) await page.screenshot({ path: path.join(repo, 'failure.png') }).catch(() => {}); console.error(`Evidence: ${repo}`); throw error; }
 finally { await browser?.close(); await service.close(); }

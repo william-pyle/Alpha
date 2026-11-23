@@ -58,12 +58,12 @@ try {
     await page.getByRole('button', { name: 'Close settings' }).click();
     const input = page.getByRole('textbox', { name: 'Message Alpha' });
     const before = requests.length;
-    await input.fill('First line'); await input.press('Shift+Enter'); await input.pressSequentially('Second line');
+    await input.fill('First line'); await input.press('Enter'); await input.pressSequentially('Second line');
     assert.equal(await input.inputValue(), 'First line\nSecond line'); assert.equal(requests.length, before);
-    await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
+    await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', altKey: true, isComposing: true });
     assert.equal(requests.length, before);
     assert.equal(await input.inputValue(), 'First line\nSecond line');
-    await input.press('Enter');
+    await input.press('Alt+Enter');
     await page.waitForFunction(() => {
       const editor = document.querySelector('.voice-compose textarea');
       return editor && !editor.disabled && editor.value === '';
@@ -83,11 +83,11 @@ try {
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.screenshot({ path: path.join(repo, `composer-${surface}.png`) });
     fail = true;
-    await input.press('Enter');
+    await input.press('Alt+Enter');
     await page.getByRole('alert').filter({ hasText: 'Fixture request failed' }).waitFor();
     assert.equal(await input.inputValue(), 'Review this screenshot'); assert.equal(await attached.locator('img').count(), 1);
     await page.getByRole('button', { name: 'Dismiss message error' }).click();
-    fail = false; await input.press('Enter');
+    fail = false; await input.press('Alt+Enter');
     await page.waitForFunction(() => {
       const editor = document.querySelector('.voice-compose textarea');
       return editor && !editor.disabled && editor.value === '';

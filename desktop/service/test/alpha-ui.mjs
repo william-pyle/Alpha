@@ -72,10 +72,10 @@ try {
   await expect.poll(async () => JSON.parse(await readFile(path.join(repo, '.alpha/settings.json'))).chatSidebarWidth).toBe(Math.round(sideAfter));
   const editor = page.getByRole('textbox', { name: 'Message Alpha' });
   await editor.fill("printf 'ALPHA_COMPOSER_OK\\n'");
-  await editor.press('Shift+Enter');
+  await editor.press('Enter');
   await expect(editor).toHaveValue("printf 'ALPHA_COMPOSER_OK\\n'\n");
   await page.waitForTimeout(2600);
-  await editor.press('Enter');
+  await editor.press('Alt+Enter');
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_COMPOSER_OK');
   await expect(editor).toHaveValue('');
 
@@ -105,7 +105,7 @@ try {
   await expect(page.locator('.mak-composer')).toHaveCount(1);
   await page.waitForTimeout(2600);
   await editor.fill("printf 'ALPHA_MULTI_1\\n'\nprintf 'ALPHA_MULTI_2\\n'");
-  await page.getByRole('button', { name: 'Send to Alpha', exact: true }).click();
+  await page.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('ALPHA_MULTI_2');
   assert.equal(context.pages().length, 1);
 
@@ -121,7 +121,7 @@ try {
   assert.deepEqual([...await readFile(imagePath)].slice(0, 8), [137, 80, 78, 71, 13, 10, 26, 10]);
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen).not.toContain('IMAGE ');
   await page.waitForTimeout(2600);
-  await editor.press('Enter');
+  await editor.press('Alt+Enter');
   await expect.poll(async () => (await call(`/sessions/${session.id}/screen`)).screen, { timeout: 20000 }).toContain('IMAGE ');
   await expect(editor).toHaveValue('');
 

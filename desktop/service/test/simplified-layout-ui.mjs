@@ -96,7 +96,7 @@ try {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/dZkAAAAASUVORK5CYII=', 'base64');
   await pane.getByLabel('Choose images for Alpha').setInputFiles({ name: 'layout-fixture.png', mimeType: 'image/png', buffer: png });
   await expect(pane.getByLabel('Attached images').locator('img')).toHaveCount(1); await page.reload(); await expect(pane.getByLabel('Attached images').locator('img')).toHaveCount(1);
-  await editor.fill('Review the attached layout.'); await pane.getByRole('button', { name: 'Send to Alpha' }).click(); await expect(editor).toHaveValue('');
+  await editor.fill('Review the attached layout.'); await pane.getByRole('button', { name: 'Submit' }).click(); await expect(editor).toHaveValue('');
   await expect.poll(() => requests.length).toBe(1);
   assert.equal(requests.at(-1).threadId, a.id); assert.equal(requests.at(-1).images.length, 1);
   checks.push(`Composer pointer ${pointer.before}->${pointer.after}px; keyboard ->${savedHeight}px; 50-line editing, thread drafts, attachment persistence and send origin verified.`);
@@ -184,7 +184,7 @@ try {
   ca.start = async () => { ca.threadId = 'fixture-provider'; }; ca.rpc = async () => ({ turn: { id: 'fixture-turn' } });
   const fixtureAsk = ca.ask;
   const { Coordinator } = await import('../coordinator.mjs'); ca.ask = Coordinator.prototype.ask.bind(ca);
-  await editor.fill('Stream the layout review'); await editor.press('Enter');
+  await editor.fill('Stream the layout review'); await editor.press('Alt+Enter');
   await expect(page.locator('.status-runtime>summary')).toContainText('waiting for provider');
   await ca.message({ method: 'item/agentMessage/delta', params: { threadId: 'fixture-provider', delta: '## Streaming review\n\n**Readable** while arriving.\n\n```rust\nfn example() {' } });
   await expect(pane.getByRole('heading', { name: 'Streaming review' })).toBeVisible();

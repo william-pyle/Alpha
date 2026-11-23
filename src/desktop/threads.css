@@ -3,11 +3,11 @@
 .unified-shell .mdi-body{flex-direction:row;overflow:hidden}
 .unified-shell .mdi-chats.conversation-primary{flex:1 1 100%!important;width:100%!important;border:0}
 .unified-shell .mdi-center[hidden]{display:none!important}
-.thread-picker{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--hairline);flex:none}
+.thread-picker{display:flex;align-items:center;gap:6px;padding:3px 8px 0;border-bottom:1px solid var(--hairline-strong);background:var(--bg-deep);flex:none}
 .thread-picker select{flex:1;min-width:0;width:0;height:34px}
 .thread-conversation select,.thread-conversation button,.conversation-dialog button,.conversation-dialog select{background:var(--bg);color:var(--text);border:1px solid var(--hairline-strong);border-radius:6px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer}
 .thread-conversation button:disabled{opacity:.5;cursor:default}
-.thread-picker>button{min-width:34px;height:34px}
+.thread-picker>button{flex:none;min-width:32px;height:32px}
 .conversation-menu{position:relative}.conversation-menu>summary{list-style:none;cursor:pointer;padding:4px 10px;font-size:23px;line-height:26px;border-radius:6px}.conversation-menu>summary::-webkit-details-marker{display:none}
 .conversation-menu>div{position:absolute;right:0;top:38px;z-index:50;display:grid;min-width:190px;background:var(--surface-solid);border:1px solid var(--hairline-strong);border-radius:8px;padding:6px;box-shadow:0 10px 30px #0005}.conversation-menu button{text-align:left;border:0;padding:10px}
 .thread-conversation .alpha-conversation-scroll{padding:20px max(16px,calc((100% - 820px)/2));min-height:70px;scroll-padding:16px}
@@ -31,9 +31,6 @@
 .layout-composer .voice-compose textarea{height:100%;min-height:0;max-height:none;resize:none;box-sizing:border-box;color:var(--text);font-size:14px!important;line-height:1.6;padding:8px!important;overflow:auto}
 .layout-composer .voice-compose textarea:focus-visible{outline:2px solid var(--pink)!important;outline-offset:-2px;border-radius:6px}
 .layout-composer .voice-compose button{align-self:flex-end;margin-bottom:4px;min-width:34px;min-height:34px}
-.composer-busy-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 4px 0;padding:7px 9px;border:1px solid var(--hairline-strong);border-radius:7px;background:var(--surface-1);color:var(--text-dim);font-size:11px;line-height:1.4}
-.composer-busy-choice span{min-width:0;overflow-wrap:anywhere}
-.composer-busy-choice button{flex:none;white-space:nowrap}
 .layout-composer .voice-attachments{flex:none;flex-wrap:nowrap;max-height:64px;overflow:auto;padding:5px 8px}.layout-composer .voice-attachment img{height:42px;width:42px}
 .layout-viewer .alpha-presence-stage{min-height:0}.layout-viewer .alpha-presence{height:100%}
 .conversation-dialog{position:fixed;margin:auto;box-sizing:border-box;width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:20px;border:1px solid var(--hairline-strong);border-radius:10px;background:var(--surface-solid);color:var(--text);overflow:auto}
@@ -48,7 +45,7 @@
 .mdi-questions-count{color:var(--pink);font-weight:600}.question-card footer{flex-wrap:wrap}
 .window-controls-settings-only{margin-left:auto}.window-controls .window-settings{font-size:21px;line-height:1}
 @media(max-width:900px){.unified-shell .mdi-body{flex-direction:column}.unified-shell .mdi-center{position:relative;flex:0 0 28%;min-height:120px;min-width:0!important;border-bottom:1px solid var(--hairline-strong);order:-1}.unified-shell .mdi-chats{flex:1 1 0!important;width:100%!important}.unified-shell .mdi-side-splitter{display:none}}
-@media(max-width:500px){.thread-picker{padding:6px 8px;gap:4px}.thread-conversation .alpha-conversation-scroll{padding:12px}.layout-composer .mak-composer{padding:0 8px}.composer-busy-choice{align-items:flex-start}.mdi-settings-dialog{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.mdi-menu-bar{padding:0 4px;gap:0}.mdi-menu-group>button{padding:0 7px}.mdi-brand{margin:0;padding-right:6px}.question-card footer{flex-wrap:wrap}}
+@media(max-width:500px){.thread-picker{padding:6px 8px;gap:4px}.thread-conversation .alpha-conversation-scroll{padding:12px}.layout-composer .mak-composer{padding:0 8px}.mdi-settings-dialog{width:calc(100vw - 12px);height:calc(100dvh - 12px)}.mdi-menu-bar{padding:0 4px;gap:0}.mdi-menu-group>button{padding:0 7px}.mdi-brand{margin:0;padding-right:6px}.question-card footer{flex-wrap:wrap}}
 
 .message-context-menu{position:fixed;z-index:200;display:grid;box-sizing:border-box;width:min(270px,calc(100vw - 16px));padding:5px;border:1px solid var(--hairline-strong);border-radius:8px;background:var(--surface-solid);color:var(--text);box-shadow:0 12px 36px #0006}.message-context-menu button{border:0;border-radius:4px;padding:10px 12px;text-align:left;background:transparent;color:inherit;font:12px var(--font-body)}.message-context-menu button:hover,.message-context-menu button:focus-visible{background:var(--pink-dim);outline:1px solid var(--pink)}.thread-conversation [data-message-id]:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
 
@@ -73,14 +70,20 @@
 
 /* Single-row, horizontally scrollable conversation tabs; the composer never
    participates in tab overflow. Mode buttons are siblings, not nested tabs. */
-.conversation-tabs{display:flex;flex:1;min-width:0;gap:4px;overflow-x:auto;scrollbar-width:thin;align-self:stretch}
-.conversation-tab{position:relative;flex:0 0 170px;min-width:0;border:1px solid var(--hairline-strong);border-radius:7px 7px 0 0;background:var(--bg-deep)}
-.conversation-tab.selected{border-color:var(--pink);box-shadow:inset 0 -3px var(--pink);background:var(--surface-solid)}
-.conversation-tab>button[role=tab]{display:flex;flex-direction:column;align-items:start;gap:4px;width:100%;height:100%;min-height:60px;padding:7px 38px 8px 10px;border:0;background:transparent;text-align:left}
-.conversation-tab-title{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.conversation-tab small{font-size:10px;color:var(--text-dim);max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.conversation-tab .conversation-tab-mode{position:absolute;right:2px;bottom:4px;display:grid;place-items:center;width:32px;height:32px;padding:0;background:transparent;border:0}
-.conversation-tab-mode[aria-pressed=true]{color:var(--pink);background:var(--pink-dim)}
+.conversation-tabs{display:flex;flex:1;min-width:0;gap:2px;overflow-x:auto;scrollbar-width:thin;align-self:stretch}
+.conversation-tab{display:flex;align-items:center;flex:0 0 auto;min-width:110px;max-width:220px;height:34px;border:1px solid transparent;border-radius:6px 6px 0 0}
+.conversation-tab.selected{background:var(--surface-solid);border-color:var(--hairline-strong);border-bottom-color:var(--surface-solid)}
+.conversation-tab>button[role=tab]{display:flex;align-items:center;gap:6px;flex:1;min-width:0;height:32px;padding:0 5px;border:0;background:transparent;color:var(--text-dim);text-align:left;font-size:11px}
+.conversation-tab.selected>button[role=tab]{color:var(--text)}
+.conversation-tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-tab-status{flex:none;width:7px;height:7px;border:1px solid currentColor;border-radius:50%;color:var(--text-dim)}
+.conversation-tab-status[data-status=active]{border-radius:1px;background:var(--pink);border-color:var(--pink)}
+.conversation-tab-status[data-status=attention]{border:0;border-radius:0;background:var(--text);clip-path:polygon(50% 0,100% 100%,0 100%)}
+.conversation-tab .conversation-tab-mode,.conversation-tab .conversation-tab-close{display:grid;place-items:center;flex:none;width:24px;height:26px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--text-dim)}
+.conversation-tab .conversation-tab-mode{margin-left:3px}
+.conversation-tab .conversation-tab-close{margin-right:3px;font-size:16px}
+.conversation-tab .conversation-tab-mode[aria-pressed=true]{color:var(--pink)}
+.conversation-tab .conversation-tab-close:hover,.conversation-tab .conversation-tab-mode:hover{background:var(--pink-dim);color:var(--text)}
 .conversation-tabs-empty{align-self:center;font-size:12px;color:var(--text-dim)}
 .conversation-tab button:focus-visible,.thread-picker summary:focus-visible{outline:2px solid var(--pink);outline-offset:-3px}
 .conversation-content{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}
@@ -98,7 +101,7 @@
 
 .conversation-worker[hidden],.worker-terminal[hidden]{display:none!important}
 
-.conversation-tab .conversation-tab-badge{position:absolute;right:4px;top:3px;min-width:26px;height:24px;padding:0 5px;border-radius:12px;color:var(--text);background:var(--pink-dim);font-size:11px;font-weight:700}
+.conversation-tab .conversation-tab-badge{flex:none;min-width:22px;height:22px;padding:0 4px;border-radius:11px;color:var(--text);background:var(--pink-dim);font-size:11px;font-weight:700}
 .mdi-statusbar .important-events-trigger {
   display: inline-flex;
   flex: 0 0 auto;

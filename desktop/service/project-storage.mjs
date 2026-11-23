@@ -42,6 +42,7 @@ export class ProjectStorage {
   constructor({ repo, projects, repositories, measure, sessions = () => [], tools = async () => [], active = () => false, protectedRoots = [], changed = () => {}, removeTree = rm }) {
     this.repo = path.resolve(repo); this.projects = projects; this.repositories = repositories; this.measure = measure;
     this.sessions = sessions; this.tools = tools; this.active = active; this.protectedRoots = protectedRoots;
+    this.traces = new Map();
     this.changed = changed; this.removeTree = removeTree; this.values = new Map(); this.queue = []; this.running = 0; this.previews = new Map(); this.busy = new Set(); this.blockedProjects = new Set(); this.closed = false;
   }
   async initialize() {
@@ -51,13 +52,14 @@ export class ProjectStorage {
     const entries = (await this.projects.workspace.registry()).entities.filter(item => !item.removedAt);
     return { projects: await Promise.all(entries.map(item => this.size(item.id))) };
   }
-  async size(id, refresh = false) {
+  async size(id, refresh = false, trace) {
     const project = await this.projects.get(id);
     if (project.removedAt) fail('Project has been removed.', 404);
     if (project.deletionPending) return { id, status: 'error', error: 'Project deletion is incomplete. Choose Delete project again to retry.' };
     let current = this.values.get(id);
     if (current && ['queued', 'scanning'].includes(current.status)) return { ...current };
     if (!current || refresh || Date.now() - Date.parse(current.measuredAt) > 15 * 60_000) {
+      if (trace) this.traces.set(id, { trace, release: trace.hold(), at: performance.now() });
       current = { id, status: 'queued' }; this.values.set(id, current); this.queue.push(id); void this.drain();
     }
     return { ...current };
@@ -65,6 +67,10 @@ export class ProjectStorage {
   async drain() {
     if (this.running >= 2 || this.closed) return;
     const id = this.queue.shift(); if (!id) return;
+    const observed = this.traces.get(id);
+    const startedAt = observed ? performance.now() : 0;
+    observed?.trace.event('storage-start', { durationMs: startedAt - observed.at, depth: this.queue.length, count: this.running });
+    let outcome = 'error';
     this.running++; const scanning = { id, status: 'scanning' }; this.values.set(id, scanning);
     try {
       const project = await this.projects.get(id);
@@ -72,9 +78,15 @@ export class ProjectStorage {
       if (root === path.join(this.repo, 'workspace')) fail('This legacy project shares its folder with other Workspace content.');
       await assertSafePath(this.repo, root);
       const { allocatedBytes, logicalBytes, files, skippedLinks, errors } = await this.measure(root);
+      outcome = errors ? 'error' : 'ok';
       if (this.values.get(id) === scanning) this.values.set(id, { id, status: errors ? 'error' : 'ready', allocatedBytes, logicalBytes, files, skippedLinks, errors, measuredAt: new Date().toISOString(), ...(errors ? { error: `Measurement was incomplete (${errors} unreadable entries). Retry when disk access is available.` } : {}) });
     } catch (error) { if (this.values.get(id) === scanning) this.values.set(id, { id, status: 'error', measuredAt: new Date().toISOString(), error: error.message }); }
-    finally { this.running--; this.changed(); void this.drain(); }
+    finally {
+      observed?.trace.event('storage-end', { durationMs: performance.now() - startedAt, kind: outcome });
+      observed?.release(outcome);
+      if (observed) this.traces.delete(id);
+      this.running--; this.changed(); void this.drain();
+    }
   }
   assertAvailable(id) {
     if (this.busy.has(id)) fail('This project is being cleaned or deleted. Wait for the result before starting work.');

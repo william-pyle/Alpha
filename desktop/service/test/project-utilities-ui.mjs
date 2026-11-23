@@ -288,8 +288,15 @@ try {
     await panel('Needs attention').getByRole('button', { name: 'Dismiss', exact: true }).click();
     await expect(panel('Needs attention')).toContainText('Nothing needs attention.');
     await expect(statusAttention).toHaveCount(0);
+    const historical = panel('Needs attention').locator('[data-history-event-id="actionable"]');
+    await panel('Needs attention').getByText('Historical errors (1)', { exact: true }).click();
+    await expect(historical).toContainText('Isolated worker failure needs review.');
+    await expect(historical.getByRole('button', { name: 'Dismiss' })).toHaveCount(0);
+    await page.locator(`#conversation-tab-${a.id}`).click();
+    await historical.getByRole('button', { name: 'Open originating conversation' }).click();
+    await expect.poll(() => service.threads.selectedId).toBe(b.id);
     service.awareness.event({ id: 'recovery-fixture', kind: 'error', text: 'A deleted conversation needs cleanup.', source: 'Conversation deletion recovery' });
-    await panel('Needs attention').getByRole('button', { name: 'Open conversation history' }).click();
+    await panel('Needs attention').locator('[data-event-id="recovery-fixture"]').getByRole('button', { name: 'Open conversation history' }).click();
     await expect(panel('Conversation history')).toBeVisible();
     await statusAttention.click();
     await panel('Needs attention').getByRole('button', { name: 'Dismiss', exact: true }).click();
@@ -302,6 +309,8 @@ try {
     service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });
     await page.goto(service.urls.workspace);
     await expect(panel('Needs attention')).toBeVisible();
+    await expect(panel('Needs attention').getByText('Historical errors (2)', { exact: true })).toBeVisible();
+    await expect(statusAttention).toHaveCount(0);
     for (const [title] of toolTitles) await expect(page.locator('.mdi-document-tabs').getByRole('tab', { name: title, exact: true })).toHaveCount(1);
     assert.equal(service.threads.selectedId, b.id);
     assert.equal(service.threads.get(a.id).projectId, 'fixture');
