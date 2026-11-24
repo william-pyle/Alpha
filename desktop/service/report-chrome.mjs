@@ -12,7 +12,14 @@ function preludeFor({theme = 'dark', parentOrigin = '', sharedDriveGrant} = {}) 
   document.addEventListener('alpha:shared-drive-request', event => {
     const request = event.detail;
     if (!request || typeof request.requestId !== 'string') return;
-    parent.postMessage({ type: 'alpha:shared-drive-request', grant: ${JSON.stringify(sharedDriveGrant)}, request }, ${trustedOrigin});
+    const { port1, port2 } = new MessageChannel();
+    const timer = setTimeout(() => port1.close(), 20000);
+    port1.onmessage = event => {
+      clearTimeout(timer);
+      port1.close();
+      document.dispatchEvent(new CustomEvent('alpha:shared-drive-result', { detail: event.data }));
+    };
+    parent.postMessage({ type: 'alpha:shared-drive-request', grant: ${JSON.stringify(sharedDriveGrant)}, request }, ${trustedOrigin}, [port2]);
   });` : '';
   return Buffer.from(`<meta name="color-scheme" content="${theme}"><style data-alpha-chrome>
 html{color-scheme:dark;background-color:#101115;color:#d3d0d9}
@@ -32,10 +39,6 @@ ${reportThemeCSS}
     if (message.type === 'alpha:theme') setTheme(message.theme);
     ${sharedDriveGrant ? `if (message.type === 'alpha:shared-drive-ready') {
       document.dispatchEvent(new Event('alpha:shared-drive-ready'));
-    }
-    if (message.type === 'alpha:shared-drive-result') {
-      const { type, ...detail } = message;
-      document.dispatchEvent(new CustomEvent('alpha:shared-drive-result', { detail }));
     }` : ''}
     if (message.type === 'alpha:report-tools-query' && typeof message.query === 'string') {
       const declaration = document.head?.querySelector('meta[name="alpha-workspace-tools"]');

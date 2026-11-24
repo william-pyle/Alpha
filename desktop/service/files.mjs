@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { realFile, secret, within } from './util.mjs';
 import { serveReport } from './report-chrome.mjs';
-import { sharedDriveMirror } from './shared-drive-originals.mjs';
+import { sharedDriveMirror, sharedDrivePrivateDirectory } from './shared-drive-originals.mjs';
 
 const mime = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -15,6 +15,9 @@ const mime = {
 };
 const textExtensions = new Set(['.txt', '.md', '.json', '.js', '.mjs', '.ts', '.tsx', '.jsx', '.css', '.py', '.rs', '.toml', '.yaml', '.yml', '.csv', '.log', '.xml', '.ini', '.ps1', '.cmd', '.sh', '.gitignore']);
 const secretPart = value => value.startsWith('.') || /^(node_modules|target|oauth_.*\.json|.*_secret.*\.json|tokens?\.json|auth\.json)$/i.test(value);
+const comparablePath = file => process.platform === 'win32'
+  ? file.replace(/^\\\\\?\\(?=[a-z]:)/i, '').split('\\').map(part => part.replace(/[. ]+$/, '')).join('\\')
+  : file;
 
 export async function serveFile(request, response, file, info, headers = {}) {
   const contentType = mime[path.extname(file).toLowerCase()] || 'application/octet-stream';
@@ -38,11 +41,17 @@ export async function serveFile(request, response, file, info, headers = {}) {
 
 export class Files {
   constructor(repo) { this.repo = repo; this.grants = new Map(); this.repoGrant = this.grant(repo); this.writes = Promise.resolve(); }
+  isSharedDrivePrivate(file) {
+    return within(sharedDrivePrivateDirectory(this.repo), comparablePath(file));
+  }
+  assertNotSharedDriveState(file) {
+    if (this.isSharedDrivePrivate(file)) {
+      throw Object.assign(new Error('Open Shared Drive from its registered Workspace tab.'), { status: 403 });
+    }
+  }
   assertReportPath(file) {
-    const comparable = process.platform === 'win32'
-      ? file.replace(/^\\\\\?\\(?=[a-z]:)/i, '').split('\\').map(part => part.replace(/[. ]+$/, '')).join('\\')
-      : file;
-    if (within(sharedDriveMirror(this.repo), comparable)) {
+    this.assertNotSharedDriveState(file);
+    if (within(sharedDriveMirror(this.repo), comparablePath(file))) {
       throw Object.assign(new Error('Open Shared Drive from its registered Workspace tab.'), { status: 403 });
     }
   }
@@ -72,7 +81,9 @@ export class Files {
     const actual = await this.resolveAllowed(folder);
     const entries = await readdir(actual, { withFileTypes: true });
     const atRoot = actual.toLowerCase() === this.repo.toLowerCase();
-    const filtered = entries.filter(entry => (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace.json', '_shared', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) && (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
+    const filtered = entries.filter(entry => !this.isSharedDrivePrivate(path.join(actual, entry.name)) &&
+      (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace.json', '_shared', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) &&
+      (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
     const result = await Promise.all(filtered.slice(0, 1500).map(async entry => {
       const full = path.join(actual, entry.name);
       const info = await stat(full).catch(() => null);

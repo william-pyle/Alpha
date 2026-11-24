@@ -438,8 +438,9 @@ fn main() {
                         },
                         "shared-drive-original" => {
                             let handle = app_handle.clone();
+                            let workspace = repo.clone();
                             std::thread::spawn(move || {
-                                let reply = shared_drive::response(event);
+                                let reply = shared_drive::response(event, &workspace);
                                 if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
                                     if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
                                 }

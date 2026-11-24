@@ -58,19 +58,25 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
     const receive = (event: MessageEvent) => {
       const frame = sharedDriveFrame.current
       const message = event.data
+      const [port] = event.ports
       if (!frame?.element.isConnected || frame.element.closest('[hidden]') ||
           location.hash !== '#/author-ashlyn-brooks/8' ||
           event.source !== frame.element.contentWindow || event.origin !== reportOrigin ||
-          message?.type !== 'alpha:shared-drive-request' || typeof message.grant !== 'string') return
-      const { requestId, action, relativePath, text, revision } = message.request || {}
-      if (typeof requestId !== 'string' || requestId.length > 100) return
+          message?.type !== 'alpha:shared-drive-request' || typeof message.grant !== 'string' || !port) return
+      const { requestId, action, relativePath, text, revision, rejected } = message.request || {}
+      if (typeof requestId !== 'string' || !requestId.length || requestId.length > 100) {
+        port.close()
+        return
+      }
       const reply = (value: object) => {
+        // The reply port belongs to the requesting document, even during iframe navigation.
         if (frame === sharedDriveFrame.current && frame.element.isConnected && !frame.element.closest('[hidden]') &&
             location.hash === '#/author-ashlyn-brooks/8') {
-          frame.element.contentWindow?.postMessage({ type: 'alpha:shared-drive-result', requestId, ...value }, reportOrigin)
+          port.postMessage({ requestId, ...value })
         }
+        port.close()
       }
-      void api('/workspace/shared-drive-original', { grant: message.grant, action, relativePath, text, revision })
+      void api('/workspace/shared-drive-original', { grant: message.grant, action, relativePath, text, revision, rejected })
         .then(result => reply({ result }), (error: Error & { status?: number }) => {
           reply({ error: error.status ? error.message : 'Shared Drive is unavailable.', status: error.status || 503 })
         })

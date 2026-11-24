@@ -1205,7 +1205,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       }
       if (!['GET', 'HEAD'].includes(request.method)) throw Object.assign(new Error('Not allowed'), { status: 405 });
       const relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-      const { file, info } = await realFile(uiDir, relative);
+      const { file, info } = await realFile(uiDir, relative, file => files.assertNotSharedDriveState(file));
       if (!info.isFile()) throw new Error('File not found');
       await serveFile(request, response, file, info, {
         'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY',

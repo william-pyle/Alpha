@@ -6,8 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.26**.
-See the [0.2.26 release notes](release-notes/v0.2.26.md).
+knowledge into one Windows desktop window. This source targets **0.2.27**.
+See the [0.2.27 release notes](release-notes/v0.2.27.md).
 
 ## What you can do
 
@@ -115,6 +115,12 @@ Workspace** for a folder with `workspace.json` at its root. Alpha upgrades the l
 apply it on Alpha's next normal launch. A copy keeps the original folder.
 
 ## Use Alpha
+
+The registered Shared Drive report can keep its Rejected flags in the local
+Workspace so they survive a report reload or desktop restart. A flag is tied to
+the full relative path with its original case. Replacing or restoring a file at
+the same path keeps its flag. Renames and files of the same name in other
+folders have their own flags. The report uses the flags as local review metadata.
 
 Choose **New conversation** and a project. New conversations default to **Conversations**. Use + beside the project selector to create a project without losing the new-conversation form. Each conversation has its own
 history, saved draft, images, voice and worker links. Switch using the named tabs

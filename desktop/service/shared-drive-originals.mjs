@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { assertSafePath } from './project-layout.mjs';
+import { assertPrivateProjectRoot, assertSafePath } from './project-layout.mjs';
 
 const projectId = 'author-ashlyn-brooks';
 const workspacePath = `projects/${projectId}/workspace`;
@@ -10,8 +10,23 @@ const reportIndex = 8;
 const mirrorFolder = 'SharedDrive';
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
+function rejectionPath(value) {
+  if (typeof value !== 'string' || value.length > 1024) return null;
+  const parts = value.split(/[\\/]/);
+  for (const part of parts) {
+    const device = part.split('.', 1)[0].replace(/[\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u, '');
+    if (!part || /[. ]$|[<>:"|?*\x00-\x1f\x7f-\x9f\uD800-\uDFFF]/u.test(part) ||
+        /^(?:con|prn|aux|nul|conin\$|conout\$|(?:com|lpt)[0-9¹²³])$/i.test(device)) return null;
+  }
+  return parts.join('/');
+}
+
 export function sharedDriveMirror(repo) {
   return path.join(repo, 'projects', projectId, mirrorFolder);
+}
+
+export function sharedDrivePrivateDirectory(repo) {
+  return path.join(repo, 'projects', projectId, '.alpha-shared-drive');
 }
 
 export class SharedDriveOriginals {
@@ -51,6 +66,17 @@ export class SharedDriveOriginals {
       return this.request({ action: 'status' }, 2000).catch(() => ({ available: false }));
     }
     if (!root) throw fail(403, 'This report has no Shared Drive file access.');
+    if (data.action === 'list-rejections' || data.action === 'set-rejection') {
+      const { action, rejected } = data;
+      const relativePath = action === 'set-rejection' ? rejectionPath(data.relativePath) : null;
+      if (action === 'set-rejection' && (relativePath === null || typeof rejected !== 'boolean')) {
+        throw fail(400, 'Choose a Shared Drive relative file path and a rejection value.');
+      }
+      await assertPrivateProjectRoot(this.repo, projectId).catch(() => {
+        throw fail(403, 'This report has no Shared Drive rejection access.');
+      });
+      return this.request(action === 'list-rejections' ? { action } : { action, relativePath, rejected }, 15_000);
+    }
     if (!['image', 'text', 'save'].includes(data.action)) throw fail(400, 'This Shared Drive action is unsupported.');
     if (typeof data.relativePath !== 'string' || data.relativePath.length > 1024 ||
         data.relativePath.split(/[\\/]/).some(part => !part || part === '.' || part === '..' || /[:\x00-\x1f]/.test(part))) {

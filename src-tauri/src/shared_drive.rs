@@ -1,6 +1,10 @@
 use serde_json::{json, Value};
+use std::path::Path;
 
-pub(super) fn response(request: Value) -> Value {
+#[cfg(windows)]
+mod rejections;
+
+pub(super) fn response(request: Value, _workspace: &Path) -> Value {
     let id = &request["requestId"];
     let mut reply = json!({"type": "shared-drive-original", "requestId": id});
     if request["action"] == "status" {
@@ -8,11 +12,17 @@ pub(super) fn response(request: Value) -> Value {
         return reply;
     }
     #[cfg(windows)]
-    match windows_files::perform(&request) {
-        Ok(result) => reply["result"] = result,
-        Err((status, error)) => {
-            reply["status"] = json!(status);
-            reply["error"] = json!(error);
+    {
+        let result = match request["action"].as_str() {
+            Some("list-rejections" | "set-rejection") => rejections::perform(_workspace, &request),
+            _ => windows_files::perform(&request),
+        };
+        match result {
+            Ok(value) => reply["result"] = value,
+            Err((status, error)) => {
+                reply["status"] = json!(status);
+                reply["error"] = json!(error);
+            }
         }
     }
     #[cfg(not(windows))]
@@ -46,8 +56,8 @@ mod windows_files {
         },
     };
 
-    type Failure = (u16, &'static str);
-    type Outcome<T> = Result<T, Failure>;
+    pub(super) type Failure = (u16, &'static str);
+    pub(super) type Outcome<T> = Result<T, Failure>;
     const TEXT_LIMIT: u64 = 128 * 1024;
     const IMAGE_LIMIT: u64 = 8 * 1024 * 1024;
     const UNSAFE_PATH: Failure = (
@@ -59,7 +69,7 @@ mod windows_files {
         409,
         "This original is offline or needs cloud recall. Open it in Explorer when available.",
     );
-    const NO_RECALL: u32 = FILE_FLAG_OPEN_NO_RECALL.0 | FILE_FLAG_OPEN_REPARSE_POINT.0;
+    pub(super) const NO_RECALL: u32 = FILE_FLAG_OPEN_NO_RECALL.0 | FILE_FLAG_OPEN_REPARSE_POINT.0;
 
     fn io_failure(error: io::Error) -> Failure {
         match error.raw_os_error() {
@@ -71,7 +81,7 @@ mod windows_files {
         }
     }
 
-    fn component_allowed(name: &str) -> bool {
+    pub(super) fn component_allowed(name: &str) -> bool {
         if name.is_empty()
             || name.ends_with(['.', ' '])
             || name
@@ -100,7 +110,7 @@ mod windows_files {
             })
     }
 
-    fn validate_attributes(file: &File, directory: bool) -> Outcome<()> {
+    pub(super) fn validate_attributes(file: &File, directory: bool) -> Outcome<()> {
         let info = file.metadata().map_err(io_failure)?;
         validate_flags(info.file_attributes())?;
         if (directory && !info.is_dir()) || (!directory && !info.is_file()) {
@@ -120,7 +130,7 @@ mod windows_files {
         Ok(())
     }
 
-    fn lock_directory(path: &Path) -> Outcome<File> {
+    pub(super) fn lock_directory(path: &Path) -> Outcome<File> {
         // Hold each verified ancestor without SHARE_DELETE for the full operation.
         let file = OpenOptions::new()
             .access_mode(FILE_READ_ATTRIBUTES.0)
@@ -132,12 +142,8 @@ mod windows_files {
         Ok(file)
     }
 
-    fn open_original(root: &str, relative: &str, writing: bool) -> Outcome<(File, Vec<File>)> {
-        let parts: Vec<_> = relative.split(['/', '\\']).collect();
-        if relative.len() > 4096 || parts.iter().any(|part| !component_allowed(part)) {
-            return Err(INVALID_PATH);
-        }
-        let mut components = Path::new(root).components();
+    pub(super) fn lock_local_tree(root: &Path) -> Outcome<(PathBuf, Vec<File>)> {
+        let mut components = root.components();
         let Some(Component::Prefix(drive)) = components.next() else {
             return Err(INVALID_PATH);
         };
@@ -158,6 +164,15 @@ mod windows_files {
             path.push(name);
             locks.push(lock_directory(&path)?);
         }
+        Ok((path, locks))
+    }
+
+    fn open_original(root: &str, relative: &str, writing: bool) -> Outcome<(File, Vec<File>)> {
+        let parts: Vec<_> = relative.split(['/', '\\']).collect();
+        if relative.len() > 4096 || parts.iter().any(|part| !component_allowed(part)) {
+            return Err(INVALID_PATH);
+        }
+        let (mut path, mut locks) = lock_local_tree(Path::new(root))?;
         for part in &parts[..parts.len() - 1] {
             path.push(part);
             locks.push(lock_directory(&path)?);
@@ -182,7 +197,7 @@ mod windows_files {
         Ok((file, locks))
     }
 
-    fn identity(file: &File) -> Outcome<[u8; 12]> {
+    pub(super) fn identity(file: &File) -> Outcome<[u8; 12]> {
         let mut info = BY_HANDLE_FILE_INFORMATION::default();
         unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut info) }
             .map_err(|_| (503, "Windows could not verify the original file."))?;
