@@ -22,7 +22,7 @@ const w2 = await service.sessions.create({ agent: 'shell', name: 'Second synthet
 const w3 = await service.sessions.create({ agent: 'shell', name: 'Unrelated synthetic terminal', cwd: repo, projectId: 'fixture', alphaThreadId: extra[0].id });
 const input = [], originalInput = service.sessions.input.bind(service.sessions);
 service.sessions.input = (id, text) => { input.push({ id, text }); return originalInput(id, text); };
-const checks = [], screenshots = [], errors = [];
+const checks = [], screenshots = [], errors = [], transcriptScroll = [];
 let browser, page;
 const tab = id => page.locator(`#conversation-tab-${id}`);
 const mode = name => page.getByRole('button', { name: `Worker terminal for ${name}`, exact: true });
@@ -61,6 +61,50 @@ try {
   await tab(a.id).focus(); await tab(a.id).press('Shift+F10'); await page.screenshot({ path: path.join(repo, 'conversation-context-menu.png') }); await page.keyboard.press('Escape'); await expect(tab(a.id)).toBeFocused();
   await page.locator('[data-message-id="a-message"]').click({ button: 'right' }); await expect(page.getByRole('menu', { name: 'Message actions' })).toBeVisible(); await expect(page.getByRole('menu', { name: 'Conversation actions' })).toHaveCount(0); await page.keyboard.press('Escape');
   checks.push('Tabs keyboard selection, draft/selected persistence, exact background-tab edit, context Escape focus, message menu preserved.');
+
+  {
+    const feed = page.locator('[aria-label="Conversation feed"]');
+    const toggle = mode(a.name);
+    const addReply = id => service.threads.message(a.id, { id, role: 'assistant', text: `Transcript reply ${id}` });
+    for (let n = 0; n < 48; n++) service.threads.message(a.id, { id: `history-${n}`, role: 'assistant', text: `Transcript history ${n}` }, false);
+    addReply('initial-tail');
+    await expect(feed.locator('[data-message-id="initial-tail"]')).toBeVisible();
+    await editor.evaluate(node => node.setSelectionRange(3, 8));
+    const geometry = id => feed.evaluate((pane, messageId) => {
+      const viewport = pane.getBoundingClientRect();
+      const reply = pane.querySelector(`[data-message-id="${messageId}"]`)?.getBoundingClientRect();
+      return { scrollTop: pane.scrollTop, overflow: pane.scrollHeight - pane.clientHeight,
+        gap: pane.scrollHeight - pane.clientHeight - pane.scrollTop,
+        latestVisible: !!reply && reply.top >= viewport.top && reply.bottom <= viewport.bottom };
+    }, id);
+    for (const [index, tail] of ['initial-tail', 'terminal-tail'].entries()) {
+      await feed.evaluate(pane => { pane.scrollTop = 0; });
+      await expect(feed.locator('[data-message-id="a-message"]')).toBeInViewport();
+      if (index === 1) {
+        addReply('messages-tail');
+        await expect(feed.locator('[data-message-id="messages-tail"]')).toHaveCount(1);
+        const readingHistory = await geometry('messages-tail');
+        assert.equal(readingHistory.scrollTop, 0);
+        assert.equal(readingHistory.latestVisible, false);
+      }
+      await toggle.focus(); await toggle.press('Enter');
+      await expect(feed).toBeHidden();
+      if (index === 1) {
+        addReply(tail);
+        await expect(feed.locator(`[data-message-id="${tail}"]`)).toHaveCount(1);
+      }
+      await toggle.press('Enter');
+      await expect(feed).toBeVisible();
+      await expect.poll(() => geometry(tail)).toMatchObject({ gap: 0, latestVisible: true });
+      const measurement = await geometry(tail);
+      assert.ok(measurement.overflow > 500);
+      transcriptScroll.push({ latestReply: tail, ...measurement });
+      await expect(toggle).toBeFocused();
+      await expect(editor).toHaveValue('Architecture draft');
+      assert.deepEqual(await editor.evaluate(node => [node.selectionStart, node.selectionEnd]), [3, 8]);
+    }
+    checks.push('Repeated Terminal to Messages switches scroll the overflowing transcript to its last reply, including a reply received while hidden. Messages keeps intentional scrollback on a new reply. The mode button keeps focus and the draft and caret are preserved.');
+  }
 
   const beforeMode = input.length;
   await mode(a.name).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(editor).toBeDisabled();
@@ -152,6 +196,6 @@ try {
   const oldOrigin = service.origin; await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
   checks.push('Visible × closes selected and background tabs, focuses neighbor or fixed + after last keyboard close, preserves workers/IDs, and History reopens draft and terminal mode across isolated service restart.');
-  assert.deepEqual(errors, []); await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowsPTY: process.platform === 'win32', checks, screenshots }, null, 2)); console.log(`Conversation tabs UI passed. Evidence: ${repo}`);
+  assert.deepEqual(errors, []); await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowsPTY: process.platform === 'win32', checks, transcriptScroll, screenshots }, null, 2)); console.log(`Conversation tabs UI passed. Evidence: ${repo}`);
 } catch (error) { await writeFile(path.join(repo, 'failure.json'), JSON.stringify({ error: error.stack, checks }, null, 2)); if (page) await page.screenshot({ path: path.join(repo, 'failure.png') }).catch(() => {}); console.error(`Evidence: ${repo}`); throw error; }
 finally { await browser?.close(); await service.close(); }

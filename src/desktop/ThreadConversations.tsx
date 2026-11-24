@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { desktopState, observingPerformance, reportConversationRender, api, onServiceEvent, reportError, selectThread, useDesktop } from './client'
 import type { AlphaThread, ThreadMessage } from './types'
 import { liveVoice } from './live'
@@ -80,7 +80,8 @@ export default function ThreadConversations() {
   const [sharing, setSharing] = useState<{ sourceId: string; message: ThreadMessage } | null>(null), [destination, setDestination] = useState('')
   const [project, setProject] = useState(''), [projects, setProjects] = useState<{ id: string; title: string }[]>([])
   const [editing, setEditing] = useState<AlphaThread | null>(null), [name, setName] = useState(''), [purpose, setPurpose] = useState('')
-  const bottom = useRef<HTMLDivElement>(null), seen = useRef(new Set<string>()), hydrated = useRef(false)
+  const transcript = useRef<HTMLDivElement>(null), followLatest = useRef(true)
+  const seen = useRef(new Set<string>()), hydrated = useRef(false)
   const previousSelection = useRef(state.selectedThreadId)
   const [older, setOlder] = useState<Record<string, ThreadMessage[]>>({})
   const messages = thread ? [...(older[thread.id] || []).filter(item => !thread.messages.some(recent => recent.id === item.id)), ...thread.messages] : []
@@ -146,7 +147,12 @@ export default function ThreadConversations() {
     renderTiming.current = null
     reportConversationRender(timing.operation, performance.now() - timing.at)
   }, [thread?.messages.length, progress.work, progress.reply])
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [thread?.id, thread?.messages.length, pendingSend, receipt, progress.work, progress.reply, live.captions])
+  // Showing a conversation resets scrollback. Updates within Messages respect it.
+  useLayoutEffect(() => { followLatest.current = true }, [thread?.id, raw])
+  useLayoutEffect(() => {
+    const pane = transcript.current
+    if (!raw && pane && followLatest.current) pane.scrollTop = pane.scrollHeight
+  }, [raw, thread?.id, thread?.messages.length, pendingSend, receipt, progress.work, progress.reply, live.captions])
   useEffect(() => {
     const create = () => setNewThread(true)
     window.addEventListener('alpha-new-conversation', create)
@@ -188,7 +194,10 @@ export default function ThreadConversations() {
     </div>
     {state.settings.viewerEnabled && <LayoutRegion kind="viewer"><Suspense fallback={<div>Loading viewer...</div>}><AlphaPresence /></Suspense></LayoutRegion>}
     <div id="conversation-content" role="tabpanel" aria-labelledby={thread ? `conversation-tab-${thread.id}` : undefined} className="conversation-content">
-    <div className="alpha-conversation-scroll" aria-live="polite" hidden={raw} tabIndex={0} aria-label="Conversation feed" onContextMenu={event => {
+    <div ref={transcript} className="alpha-conversation-scroll" aria-live="polite" hidden={raw} tabIndex={0} aria-label="Conversation feed" onScroll={event => {
+      const pane = event.currentTarget
+      if (!pane.hidden) followLatest.current = pane.scrollHeight - pane.clientHeight - pane.scrollTop <= 2
+    }} onContextMenu={event => {
       if ((event.target as HTMLElement).closest('[data-message-id],button,input,textarea,a,.terminal-area')) return
       event.preventDefault(); setContext({ id: thread?.id || null, x: event.clientX, y: event.clientY, origin: event.currentTarget })
     }} onKeyDown={event => {
@@ -209,7 +218,6 @@ export default function ThreadConversations() {
       {progress.work && <div className="alpha-conversation-reply" data-progress-lane="work"><ConversationMarkdown text={progress.work} /></div>}
       {progress.reply && <div className="alpha-conversation-reply" data-progress-lane="reply"><ConversationMarkdown text={progress.reply} /></div>}
       {active && live.captions.map((item, index) => <p key={index} className={item.role === 'user' ? 'alpha-conversation-user' : 'alpha-conversation-reply'}><span>{item.role === 'user' ? 'You Â· voice' : 'Alpha Â· voice'}</span>{item.text}</p>)}
-      <div ref={bottom} />
     </div>
     {visited.map(id => { const item = state.threads.find(candidate => candidate.id === id); return item && <WorkerActivity key={id} thread={item} active={id === thread?.id && !!raw && !workOpen} /> })}
     </div>
