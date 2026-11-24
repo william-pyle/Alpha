@@ -131,7 +131,9 @@ try {
   await events(); await expect(page.locator('[data-event-id="worker-review"]')).toContainText('not verified'); await page.locator('[data-event-id="worker-review"]').getByRole('button', { name: 'Snooze 30 minutes' }).click(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   service.awareness.control({ quiet: true }); service.awareness.event({ ...event, id: 'quiet-error' }); await expect(page.getByRole('button', { name: /^Needs attention:/ })).toHaveCount(0); await events(); await expect(page.locator('[data-event-id="quiet-error"]')).toBeVisible(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   const question = await service.questions.ask({ source: 'coordinator', sourceId: 'question-fixture', threadId: b.id, sessionId: b.id, chatName: b.name, text: 'Synthetic decision?', options: ['Keep'] });
-  await page.getByRole('button', { name: /^Attention for Research/ }).click(); await expect(page.locator(`[data-question-id="${question.id}"]`)).toHaveCount(1);
+  await page.getByRole('button', { name: /^Attention for Research/ }).click();
+  await expect(page.getByRole('tabpanel', { name: 'Questions', exact: true })).toBeVisible();
+  await expect(page.locator(`#question-answer-${question.id}`)).toBeFocused();
   await events(); await expect(page.getByRole('tabpanel', { name: 'Needs attention' })).not.toContainText('Synthetic decision?'); await page.getByRole('button', { name: 'Close Needs attention' }).click();
   await request(`/questions/${question.id}/dismiss`); await expect(page.locator(`[data-question-id="${question.id}"]`)).toHaveCount(0);
   service.awareness.event({ id: 'app-health-fixture', kind: 'health', text: 'Synthetic app-level health problem', source: 'Alpha health' }); await events(); await page.locator('[data-event-id="app-health-fixture"]').getByRole('button', { name: 'Open Alpha health' }).click(); await expect(page.getByRole('tabpanel', { name: 'Alpha health', exact: true })).toBeVisible(); await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('button', { name: 'Close Alpha health', exact: true }).click();
