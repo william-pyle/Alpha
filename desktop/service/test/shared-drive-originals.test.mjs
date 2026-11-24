@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -13,6 +13,7 @@ test('Shared Drive originals require the approved report grant and use only the 
   const root = path.join(repo, 'projects', project, 'SharedDrive');
   await mkdir(reportDirectory, { recursive: true });
   await mkdir(root);
+  const canonicalRoot = await realpath(root);
   await writeFile(path.join(root, 'private.txt'), 'Synthetic private original');
   const config = path.join(repo, 'projects', project, 'project.json');
   await writeFile(config, JSON.stringify({ sharedDrive: { sync: { mirrorFolder: 'SharedDrive' } } }));
@@ -53,6 +54,7 @@ test('Shared Drive originals require the approved report grant and use only the 
   const grant = /grant: "([\w-]+)"/.exec(page)?.[1];
   assert.ok(grant);
   assert.ok(!page.includes(root));
+  assert.ok(!page.includes(canonicalRoot));
   const endpoint = service.origin + '/api/workspace/shared-drive-original';
   const send = (data, headers = auth) => fetch(endpoint, { method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -70,7 +72,7 @@ test('Shared Drive originals require the approved report grant and use only the 
   const read = await send({ grant, action: 'text', relativePath: 'nested/notes.txt', root: 'Z:/not-approved' });
   assert.equal(read.status, 200);
   assert.equal((await read.json()).text, 'Synthetic text');
-  assert.equal(calls.at(-1).root, root);
+  assert.equal(calls.at(-1).root, canonicalRoot);
   assert.equal(calls.at(-1).relativePath, 'nested/notes.txt');
   await writeFile(config, JSON.stringify({ sharedDrive: { sourceFolder: 'Z:/unavailable-peer' } }));
   assert.equal((await send({ grant, action: 'save', relativePath: 'private.txt', revision: 'a'.repeat(64), text: 'No' })).status, 403);
