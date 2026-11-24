@@ -18,12 +18,22 @@ export function shellCommand(env = process.env) {
   return { file: shell, args: [] };
 }
 
-export function commandSearchRoots(env = process.env, home = os.homedir()) {
+export function accountHome() {
+  try { return os.userInfo().homedir; } catch { return os.homedir(); }
+}
+
+export function windowsAppDataFolders(env = process.env, home = accountHome()) {
+  const folders = (configured, kind) => [...new Set([configured, path.join(home, 'AppData', kind)].filter(folder => folder && path.isAbsolute(folder)))];
+  return { roaming: folders(env.APPDATA, 'Roaming'), local: folders(env.LOCALAPPDATA, 'Local') };
+}
+
+export function commandSearchRoots(env = process.env, home = isWindows ? accountHome() : os.homedir()) {
   const roots = [];
-  if (isWindows && env.APPDATA) roots.push(path.join(env.APPDATA, 'npm'));
-  // Installer-launched apps can inherit a PATH without the user's CLI entries.
-  if (isWindows) roots.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Programs', 'OpenAI', 'Codex', 'bin'));
-  if (isWindows) roots.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'agy', 'bin'));
+  if (isWindows) {
+    const { roaming, local } = windowsAppDataFolders(env, home);
+    roots.push(...roaming.map(folder => path.join(folder, 'npm')));
+    for (const folder of local) roots.push(path.join(folder, 'Programs', 'OpenAI', 'Codex', 'bin'), path.join(folder, 'agy', 'bin'));
+  }
   roots.push(path.join(home, '.opencode', 'bin'), path.join(home, '.kimi-code', 'bin'), path.join(home, '.local', 'bin'));
   return roots;
 }
@@ -32,12 +42,13 @@ export function commandExtensions() {
   return isWindows ? ['.exe', '.cmd', '.bat', '.ps1', ''] : [''];
 }
 
-export function resolveCommand(name, env = process.env, home = os.homedir()) {
-  if (path.isAbsolute(name) && existsSync(name)) return name;
+export function resolveCommand(name, env = process.env, home, extensions = commandExtensions(), isFile = existsSync) {
+  if (path.isAbsolute(name)) return isFile(name) ? name : null;
   for (const folder of [...String(env.PATH || env.Path || '').split(path.delimiter), ...commandSearchRoots(env, home)]) {
-    for (const ext of commandExtensions()) {
+    if (!folder || (isWindows && !path.isAbsolute(folder))) continue;
+    for (const ext of extensions) {
       const candidate = path.join(folder, name.toLowerCase().endsWith(ext) && ext ? name : name + ext);
-      if (existsSync(candidate)) return candidate;
+      if (isFile(candidate)) return candidate;
     }
   }
   return null;

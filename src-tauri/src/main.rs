@@ -5,6 +5,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, menu::{CheckMenuItem, Men
 use tauri_plugin_window_state::StateFlags;
 mod external_links;
 mod project_storage;
+mod shared_drive;
 mod window_chrome;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -51,6 +52,48 @@ fn process_job(child: &Child) -> Result<OwnedHandle, Box<dyn std::error::Error>>
 fn hidden(command: &mut Command) -> &mut Command {
     #[cfg(windows)] command.creation_flags(0x08000000);
     command
+}
+
+#[cfg(windows)]
+fn can_relaunch_after_update() -> bool {
+    use windows_sys::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows_sys::Win32::System::{RemoteDesktop::ProcessIdToSessionId, Threading::{GetCurrentProcess, OpenProcessToken}};
+    let mut session = 0;
+    let mut token = std::ptr::null_mut();
+    unsafe {
+        if ProcessIdToSessionId(std::process::id(), &mut session) == 0 || session == 0
+            || OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+            return false;
+        }
+        let token = OwnedHandle::from_raw_handle(token);
+        let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+        let mut size = 0;
+        GetTokenInformation(token.as_raw_handle(), TokenElevation, (&mut elevation as *mut TOKEN_ELEVATION).cast(),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32, &mut size) != 0 && elevation.TokenIsElevated == 0
+    }
+}
+
+#[cfg(windows)]
+fn configure_cli_profile(command: &mut Command) {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::{System::Com::CoTaskMemFree, UI::Shell::{
+        FOLDERID_LocalAppData, FOLDERID_RoamingAppData, KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath,
+    }};
+    for (variable, folder) in [("ALPHA_WINDOWS_CLI_ROAMING", FOLDERID_RoamingAppData), ("ALPHA_WINDOWS_CLI_LOCAL", FOLDERID_LocalAppData)] {
+        command.env_remove(variable);
+        let mut value = std::ptr::null_mut();
+        // Ask Windows for the current token's registered folder without creating it.
+        unsafe {
+            let result = SHGetKnownFolderPath(&folder, KF_FLAG_DONT_VERIFY as u32, std::ptr::null_mut(), &mut value);
+            if result >= 0 && !value.is_null() {
+                let mut len = 0;
+                while *value.add(len) != 0 { len += 1; }
+                let path = PathBuf::from(std::ffi::OsString::from_wide(std::slice::from_raw_parts(value, len)));
+                if path.is_absolute() { command.env(variable, path); }
+            }
+            CoTaskMemFree(value.cast());
+        }
+    }
 }
 
 fn configuration_folder(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -307,6 +350,8 @@ fn main() {
                 .env("ALPHA_PARENT_PID", std::process::id().to_string())
                 .env("ALPHA_APP_VERSION", app.package_info().version.to_string())
                 .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
+            #[cfg(windows)]
+            configure_cli_profile(&mut command);
             #[cfg(target_os = "macos")]
             command.env("PATH", login_path::discover());
             let mut child = hidden(&mut command).spawn()?;
@@ -332,6 +377,12 @@ fn main() {
                             #[cfg(windows)]
                             let script = update_script.clone();
                             let _ = app_handle.run_on_main_thread(move || {
+                                #[cfg(windows)]
+                                if !can_relaunch_after_update() {
+                                    rfd::MessageDialog::new().set_title("Alpha update could not start")
+                                        .set_description("Open Alpha normally from the signed-in Windows account to install the update.").show();
+                                    return;
+                                }
                                 let confirmed = rfd::MessageDialog::new().set_title("Update Alpha")
                                     .set_description(format!("Install Alpha {version}? This closes Alpha and stops {count} running terminal(s). Saved workspace files and history are retained."))
                                     .set_buttons(rfd::MessageButtons::YesNo).show();
@@ -380,6 +431,15 @@ fn main() {
                             let path = event.get("path").and_then(serde_json::Value::as_str).map(str::to_owned);
                             std::thread::spawn(move || {
                                 let reply = project_storage::response(request_id, path.as_deref());
+                                if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                    if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                                }
+                            });
+                        },
+                        "shared-drive-original" => {
+                            let handle = app_handle.clone();
+                            std::thread::spawn(move || {
+                                let reply = shared_drive::response(event);
                                 if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
                                     if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
                                 }

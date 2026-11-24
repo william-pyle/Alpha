@@ -34,13 +34,15 @@ dependencies = [
 
 [[package]]
 name = "alpha-desktop"
-version = "0.2.25"
+version = "0.2.26"
 dependencies = [
+ "base64 0.22.1",
  "drag",
  "libc",
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",

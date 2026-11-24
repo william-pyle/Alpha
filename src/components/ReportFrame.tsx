@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState, type IframeHTMLAttributes } f
 import { useWorkspaceTheme } from '../lib/workspace-theme'
 import { reportThemeCSS } from '../../desktop/service/report-theme.mjs'
 
-type Props = Omit<IframeHTMLAttributes<HTMLIFrameElement>, 'src' | 'onLoad'> & { url: string; onLoad?: () => void }
+type Props = Omit<IframeHTMLAttributes<HTMLIFrameElement>, 'src' | 'onLoad'> & {
+  url: string
+  onLoad?: (frame: HTMLIFrameElement) => void
+}
 
 function ThemedFrame({ url, onLoad, ...props }: Props) {
   const { resolved } = useWorkspaceTheme()
@@ -37,7 +40,7 @@ function ThemedFrame({ url, onLoad, ...props }: Props) {
     element.contentWindow?.postMessage({ type: 'alpha:theme', theme: resolved }, new URL(url, location.href).origin)
   }, [resolved, url])
   useEffect(applyTheme, [applyTheme])
-  return <iframe {...props} ref={frame} src={src} onLoad={() => { applyTheme(); onLoad?.() }} />
+  return <iframe {...props} ref={frame} src={src} onLoad={event => { applyTheme(); onLoad?.(event.currentTarget) }} />
 }
 
 export default function ReportFrame(props: Props) {

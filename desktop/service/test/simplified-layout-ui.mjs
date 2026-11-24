@@ -165,7 +165,7 @@ try {
   await work.getByRole('button', { name: 'Enable terminal controls' }).click(); await expect(work.getByRole('button', { name: 'Lock terminal controls' })).toBeVisible();
   await work.getByRole('button', { name: 'Close Work details' }).click(); assert.equal(service.sessions.get(idle.id).nativeId, 'exact-native-fixture');
   await page.locator('.status-runtime>summary').click(); await expect(page.locator('.status-detail')).toContainText('0 active workers'); await page.locator('.status-runtime>summary').click();
-  await editor.fill('Draft stays while panels open'); await menu("What I've learned"); await page.getByRole('button', { name: 'Close What I\'ve learned' }).click(); await expect(editor).toHaveValue('Draft stays while panels open');
+  await editor.fill('Draft stays while panels open'); await menu("What I've learned"); await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('button', { name: 'Close What I\'ve learned' }).click(); await expect(editor).toHaveValue('Draft stays while panels open');
   checks.push('On-demand Work details preserves exact native identity and manual controls; idle open worker is not counted as active. Secondary panels preserve draft.');
 
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await closeSettings();

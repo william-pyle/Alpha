@@ -81,7 +81,7 @@ export async function api<T>(path: string, data?: unknown, method?: string, opti
   if (captureId && /^\/threads\/[\w-]+\/input$/.test(path) && data && typeof data === 'object' && 'id' in data && typeof data.id === 'string') {
     if (response.headers.get('X-Alpha-Performance-Capture') === captureId) observedOperation = data.id
   }
-  if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`)
+  if (!response.ok) throw Object.assign(new Error(value.error || `Request failed (${response.status})`), { status: response.status })
   return value as T
 }
 export function reportConversationRender(operation: string, durationMs: number) {

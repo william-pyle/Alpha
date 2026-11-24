@@ -241,6 +241,20 @@ try {
       assert.equal(service.threads.get(a.id).projectId, 'fixture');
     }
     checks.push('Six singleton Workspace tabs preserve the selected conversation, project and draft; no utility dialogs.');
+    const documents = page.getByRole('tablist', { name: 'Documents', exact: true });
+    for (const name of ["What I've learned", 'Common agents', 'Alpha health']) {
+      await open('View', name);
+      await expect(panel(name).getByText('Close tab', { exact: true })).toHaveCount(0);
+      const tab = documents.getByRole('tab', { name, exact: true });
+      const close = documents.getByRole('button', { name: `Close ${name}`, exact: true });
+      await expect(close).toBeInViewport({ ratio: 1 });
+      await close.press('Enter');
+      await expect(tab).toHaveCount(0);
+      await open('View', name);
+      await expect(tab).toHaveCount(1);
+      await expect(panel(name)).toBeVisible();
+    }
+    checks.push('Learned preferences, Common agents and Alpha health close by keyboard from the Documents strip and reopen once through View.');
     await open('View', "What I've learned");
     await page.getByLabel('What should I do differently?').fill('Unsaved lesson draft stays while switching tools.');
     await openSettings();

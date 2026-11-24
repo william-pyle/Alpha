@@ -151,7 +151,7 @@ try {
   await menu("What I've learned"); const learning = page.getByRole('region', { name: "What I've learned" });
   await learning.getByLabel('Use this for').selectOption('work'); await learning.getByLabel('What should I do differently?').fill('Name anything unfinished.'); await learning.getByRole('button', { name: 'Remember this' }).click();
   await expect(learning.getByText('Name anything unfinished.', { exact: true })).toBeVisible();
-  await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await page.getByRole('button', { name: "Close What I've learned", exact: true }).click();
+  await learning.getByRole('button', { name: 'Forget lesson' }).click(); await expect(learning.getByText('No saved lessons yet.')).toBeVisible(); await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('button', { name: "Close What I've learned", exact: true }).click();
   const worker = service.sessions.make({ id: 'native-queue-fixture', agent: 'codex', nativeId: 'synthetic-queue-id', name: 'Busy worker fixture', cwd: repo, projectId: 'example', status: 'running', activity: 'working', open: true });
   syntheticWorker = worker;
   service.sessions.items.set(worker.id, worker);

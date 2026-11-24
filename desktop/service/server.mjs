@@ -23,6 +23,7 @@ import { Workspace, localDay, metadataPatch } from './workspace.mjs';
 import { Projects } from './projects.mjs';
 import { ProjectRepositories } from './project-repositories.mjs';
 import { NativeStorage, ProjectStorage } from './project-storage.mjs';
+import { SharedDriveOriginals } from './shared-drive-originals.mjs';
 import { safeProjectPaths } from './project-layout.mjs';
 import { WorkspaceTools } from './workspace-tools.mjs';
 import { Replies } from './replies.mjs';
@@ -158,6 +159,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const workspace = new Workspace(repo, () => broadcast('workspace-changed', {}), stateDir);
   const workspaceTools = await new WorkspaceTools({ workspace, stateDir, native, changed: cardId => broadcast('workspace-tool-state', { cardId }) }).init();
   const registry = async () => workspace.registry();
+  const sharedDrive = new SharedDriveOriginals(repo, registry, native);
+  files.sharedDriveGrant = file => sharedDrive.reportGrant(file);
   const cards = new CardDocuments(workspace);
   const projectStore = new Projects(workspace, { sessions: () => sessions.list(), threads: () => threads.items });
   try {
@@ -718,6 +721,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/transcribe') return json(response, 200, await dictation.transcribe(request, 'desktop', () => !closing, trace));
         const cardImage = /^\/api\/workspace\/cards\/([^/]+)\/(\d+)\/images$/.exec(url.pathname);
         if (method === 'POST' && cardImage) return json(response, 201, await cards.image(decodeURIComponent(cardImage[1]), Number(cardImage[2]), request, url.searchParams.get('name')));
+        if (method === 'POST' && url.pathname === '/api/workspace/shared-drive-original') {
+          // Allow JSON escaping overhead, then cap decoded text in SharedDriveOriginals.
+          return json(response, 200, await sharedDrive.run(await body(request, 128 * 1024 * 6 + 4096)));
+        }
         const bodyStartedAt = trace ? performance.now() : 0;
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname.startsWith('/api/performance-diagnostics') ? 2048 : url.pathname === '/api/files/markdown' ? (50 * 1024 * 1024 * 6 + 64 * 1024) : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
         trace?.event('http-body', { durationMs: performance.now() - bodyStartedAt });
@@ -1248,9 +1255,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   return {
     diagnostics, origin, contentOrigin: files.origin, token, sessions, questions, coordinator, getCoordinator, threads, awareness, quick, workspace, workspaceTools, replies, speech, learning, common, health, restartNotes, cards, files, projects, knowledge, integrations, projectStorage,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
-      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
+      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); sharedDrive.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
       async close() {
-        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); workspaceLocation.close(); await files.writes.catch(() => {});
+        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); sharedDrive.close(); workspaceLocation.close(); await files.writes.catch(() => {});
       await Promise.allSettled([...nativeDispatches.values()].flatMap(jobs => [...jobs]));
       watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       await Promise.all([...coordinators.values()].map(item => item.close()));

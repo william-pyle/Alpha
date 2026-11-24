@@ -188,7 +188,7 @@ try {
   await task.getByText('Corrections and feedback history', { exact: true }).click();
   await expect(task).toContainText('verified'); assert.equal(service.common.tasks[0].feedbackHistory.length, 3);
   await page.screenshot({ path: path.join(repo, 'outcome-evidence.png') });
-  await page.getByRole('button', { name: 'Close Common agents', exact: true }).click();
+  await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('button', { name: 'Close Common agents', exact: true }).click();
   checks.push('Acceptance does not verify; evidence entry, version provenance and correction history render in product UI');
 
   await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } });

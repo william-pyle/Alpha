@@ -48,9 +48,21 @@ if ($CheckOnly) {
   return
 }
 
+$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+if ([Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0 -or
+    $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  throw 'Start the Alpha update from the normal window of the signed-in user.'
+}
+$alpha = Join-Path (Split-Path -Parent $PSScriptRoot) 'alpha-desktop.exe'
+if (-not (Test-Path -LiteralPath $alpha -PathType Leaf)) {
+  throw 'The current Alpha installation could not be located for restart.'
+}
 if ($ParentPid -gt 0) {
   $parent = Get-Process -Id $ParentPid -ErrorAction SilentlyContinue
-  if ($parent) { Wait-Process -InputObject $parent -Timeout 60 -ErrorAction Stop }
+  if ($parent) {
+    if ($parent.Path -ine $alpha) { throw 'The original Alpha process could not be verified.' }
+    Wait-Process -InputObject $parent -Timeout 60 -ErrorAction Stop
+  }
 }
 if ($oldUninstaller) {
   # Silent uninstall leaves the unchecked app-data option off and removes stale shortcuts.
@@ -59,5 +71,15 @@ if ($oldUninstaller) {
     throw 'The old Alpha installation could not be removed. The MSI was not started.'
   }
 }
-$installed = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\msiexec.exe') -ArgumentList @('/i', ('"{0}"' -f $file), '/passive', '/norestart', 'AUTOLAUNCHAPP=1') -Wait -PassThru -WindowStyle Hidden
+$installed = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\msiexec.exe') -ArgumentList @('/i', ('"{0}"' -f $file), '/passive', '/norestart') -Wait -PassThru -WindowStyle Hidden
 if ($installed.ExitCode -notin @(0, 3010)) { throw "Alpha MSI failed with exit code $($installed.ExitCode)." }
+if ($installed.ExitCode -eq 3010) {
+  Write-Warning 'Alpha was installed. Restart Windows before opening Alpha.'
+  return
+}
+if (-not (Test-Path -LiteralPath $alpha -PathType Leaf)) {
+  throw 'Alpha installed but its executable could not be located for restart.'
+}
+# This helper never elevates. The MSI owns installation, and this original
+# user process makes one launch attempt only after the transaction succeeds.
+Start-Process -FilePath $alpha -WorkingDirectory (Split-Path -Parent $alpha)

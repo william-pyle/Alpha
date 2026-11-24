@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseEnv } from 'dotenv';
-import { isWindows, resolveCommand, shellCommand, shellLabel } from './platform.mjs';
+import { isWindows, resolveCommand, shellCommand, shellLabel, windowsAppDataFolders } from './platform.mjs';
 import { validAntigravityId } from './antigravity.mjs';
 
 export { shellCommand };
@@ -31,33 +31,70 @@ export function commandPath(name, env = process.env, home) {
   return name === 'gitbash' ? gitBashPath(env) : resolveCommand(name, env, home);
 }
 
+function codexSearchEnvironment(env) {
+  if (!isWindows) return env;
+  return {
+    ...env,
+    APPDATA: env.ALPHA_WINDOWS_CLI_ROAMING ?? env.APPDATA,
+    LOCALAPPDATA: env.ALPHA_WINDOWS_CLI_LOCAL ?? env.LOCALAPPDATA,
+  };
+}
+
+function codexTerminal(env = process.env) {
+  try { return codexBinary(env); }
+  catch (error) {
+    const shim = isWindows && resolveCommand('codex', codexSearchEnvironment(env), undefined, ['.cmd', '.bat', '.ps1']);
+    if (shim) return { file: shim, args: [] };
+    throw error;
+  }
+}
+
 export function inventory(env = process.env) {
   const shell = shellCommand(env);
   const shellAvailable = path.isAbsolute(shell.file) ? existsSync(shell.file) : !!commandPath(shell.file, env);
-  return AGENTS.map(agent => ({ ...agent, available: agent.id === 'shell' ? shellAvailable : !!commandPath(agent.command, env) }));
+  let codexAvailable;
+  try { codexAvailable = !!codexTerminal(env); } catch { codexAvailable = false; }
+  return AGENTS.map(agent => ({ ...agent, available: agent.id === 'shell' ? shellAvailable : agent.id === 'codex' ? codexAvailable : !!commandPath(agent.command, env) }));
 }
 
 // Resolve the real Codex binary when available so JSON-RPC does not pass through a shell.
-export function codexBinary(env = process.env) {
+export function codexBinary(env = process.env, home) {
+  env = codexSearchEnvironment(env);
+  let unreadable = false;
+  const isFile = file => {
+    try { return statSync(file, { throwIfNoEntry: false })?.isFile() === true; }
+    catch (error) {
+      if (error.code !== 'ENOTDIR') unreadable = true;
+      return false;
+    }
+  };
+  const unavailable = () => unreadable
+    ? new Error('Alpha could not read a Codex CLI search location. Check access to the CLI from the signed-in account.')
+    : new Error('Alpha could not find the Codex CLI in the configured search locations. Check its installation for this user.');
   if (!isWindows) {
-    const executable = commandPath('codex', env);
+    const executable = resolveCommand('codex', env, home, [''], isFile);
     if (executable) return { file: executable, args: [] };
-    throw new Error('Codex CLI is not installed. Install it and sign in once to use Alpha.');
+    throw unavailable();
   }
-  const npmRoot = path.join(env.APPDATA || '', 'npm', 'node_modules', '@openai');
   const triple = process.arch === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
   const platformPackage = `codex-win32-${process.arch}`;
-  for (const root of [path.join(npmRoot, 'codex', 'node_modules', '@openai', platformPackage), path.join(npmRoot, platformPackage), path.join(npmRoot, 'codex')]) {
-    for (const directory of ['bin', 'codex']) {
-      const candidate = path.join(root, 'vendor', triple, directory, 'codex.exe');
-      if (existsSync(candidate)) return { file: candidate, args: [] };
+  for (const roaming of windowsAppDataFolders(env, home).roaming) {
+    const npmRoot = path.join(roaming, 'npm', 'node_modules', '@openai');
+    for (const root of [path.join(npmRoot, 'codex', 'node_modules', '@openai', platformPackage), path.join(npmRoot, platformPackage), path.join(npmRoot, 'codex')]) {
+      for (const directory of ['bin', 'codex']) {
+        const candidate = path.join(root, 'vendor', triple, directory, 'codex.exe');
+        if (isFile(candidate)) return { file: candidate, args: [] };
+      }
     }
+    const js = path.join(npmRoot, 'codex', 'bin', 'codex.js');
+    if (isFile(js)) return { file: process.execPath, args: [js] };
   }
-  const js = path.join(npmRoot, 'codex', 'bin', 'codex.js');
-  if (existsSync(js)) return { file: process.execPath, args: [js] };
-  const executable = commandPath('codex', env);
-  if (executable && !/\.(cmd|bat|ps1)$/i.test(executable)) return { file: executable, args: [] };
-  throw new Error('Codex CLI is not installed. Install it and sign in once to use Alpha.');
+  const executable = resolveCommand('codex', env, home, ['.exe', ''], isFile);
+  if (executable) return { file: executable, args: [] };
+  if (resolveCommand('codex', env, home, ['.cmd', '.bat', '.ps1'], isFile)) {
+    throw new Error('Alpha found a Codex command shim but could not locate its executable. Check the Codex installation or PATH for this user.');
+  }
+  throw unavailable();
 }
 
 // Conversation IDs become CLI arguments. One shaped like an option would be
@@ -72,7 +109,7 @@ export function terminalCommand(agent, { bypass = false, resumeId, nativeId, eff
   if (!AGENTS.some(item => item.id === agent)) throw new Error('Unknown agent');
   resumeId = nativeConversationId(resumeId); nativeId = nativeConversationId(nativeId);
   if (initialPrompt !== undefined && (agent !== 'codex' || !resumeId || typeof initialPrompt !== 'string' || !initialPrompt.trim() || initialPrompt.length > 16000)) throw new Error('A restart prompt requires a saved Codex conversation and a bounded note.');
-  const command = agent === 'shell' ? shellCommand() : agent === 'gitbash' ? { file: gitBashPath(), args: ['--login', '-i'] } : { file: commandPath(AGENTS.find(item => item.id === agent).command), args: [] };
+  const command = agent === 'shell' ? shellCommand() : agent === 'gitbash' ? { file: gitBashPath(), args: ['--login', '-i'] } : agent === 'codex' ? codexTerminal() : { file: commandPath(AGENTS.find(item => item.id === agent).command), args: [] };
   if (!command || !command.file) throw new Error(`${agent} is not installed on this computer`);
   if (agent === 'shell' && (path.isAbsolute(command.file) ? !existsSync(command.file) : !commandPath(command.file))) throw new Error('The local shell is not available on this computer');
   const args = [];
@@ -118,7 +155,7 @@ export function childEnvironment(repo) {
   }
   // Drop host-agent identity from the parent so every terminal is an independent CLI.
   for (const key of Object.keys(env)) {
-    if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CODEX_THREAD_ID|CODEX_TURN_ID|CODEX_SHELL|ANTIGRAVITY_AGENT|ALPHA_TOKEN|ALPHA_PARENT_PID)$/.test(key) || key.startsWith('ALPHA_OPENCODE_')) delete env[key];
+    if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CODEX_THREAD_ID|CODEX_TURN_ID|CODEX_SHELL|ANTIGRAVITY_AGENT|ALPHA_TOKEN|ALPHA_PARENT_PID|ALPHA_WINDOWS_CLI_ROAMING|ALPHA_WINDOWS_CLI_LOCAL)$/.test(key) || key.startsWith('ALPHA_OPENCODE_')) delete env[key];
   }
   return env;
 }

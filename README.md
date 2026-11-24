@@ -6,8 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.25**.
-See the [0.2.25 release notes](release-notes/v0.2.25.md).
+knowledge into one Windows desktop window. This source targets **0.2.26**.
+See the [0.2.26 release notes](release-notes/v0.2.26.md).
 
 ## What you can do
 
@@ -140,6 +140,27 @@ choose **Help → Check for Updates**. Choose **Download update**, then
 **Restart and install** when ready. Alpha verifies the installer checksum and
 warns about active terminals before restarting. Closing the app alone does not
 install a downloaded update.
+
+### Workspace tools on HTML report tabs
+
+In the development source, an HTML tab generator can declare which of the
+project's registered tools appear above its report. Add this to the generated
+`<head>`, using IDs from the project's existing Workspace `tools` list.
+
+```html
+<meta name="alpha-workspace-tools" content="refresh-inventory">
+```
+
+Separate multiple IDs with commas or whitespace. Alpha renders its own Tools
+controls and starts a tool when the user clicks the control. Overview continues
+to show the project's registered tools. Tabs without this declaration keep
+their existing layout.
+
+When the user's one-shot Run finishes on an opted-in tab, Alpha dispatches
+`alpha:workspace-tool-finished` on that report's `document`. Its detail is
+`{ id, success }`. Handle successful and failed runs as appropriate for the
+report. For example, a report can refetch its saved snapshot without resetting
+the user's search or filters.
 
 ## Skills and knowledge
 

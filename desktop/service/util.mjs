@@ -49,10 +49,12 @@ export const within = (root, file) => {
   const rel = path.relative(root, file);
   return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel));
 };
-export async function realFile(root, relative = '') {
+export async function realFile(root, relative = '', assertAllowed = () => {}) {
   const file = path.resolve(root, relative);
   if (!within(root, file)) throw Object.assign(new Error('Path is outside this location'), { status: 403 });
+  assertAllowed(file);
   const actual = await realpath(file);
+  assertAllowed(actual);
   // A configured folder may itself be a junction. Resolve that root as well.
   if (!within(await realpath(root), actual)) throw Object.assign(new Error('Link leaves this location'), { status: 403 });
   return { file: actual, info: await stat(actual) };

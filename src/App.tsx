@@ -46,6 +46,8 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
     : -1
   const step = entity?.steps[stepIndex]
   const reportUrl = entity && step ? contentUrl(`/workspace/${entity.folder}/${step.path}`) : null
+  const overviewTools = isDesktop && step?.name.toLowerCase() === 'overview'
+  const sharedDrive = isDesktop && entity?.id === 'author-ashlyn-brooks' && stepIndex === 8 && step?.path === 'shared-drive.html'
 
   // Hash → state: entity links navigate natively; this also covers back/forward.
   useEffect(() => {
@@ -144,7 +146,7 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
 
         <div className="content">
           <div className="workspace-tool-layout">
-          {isDesktop && entity?.tools?.length && step?.name.toLowerCase() === 'overview' ? <WorkspaceToolControls key={entity.id} cardId={entity.id} /> : null}
+          {overviewTools && entity?.tools?.length ? <WorkspaceToolControls key={entity.id} cardId={entity.id} /> : null}
           <div className="workspace-tool-body">
           <ReportBoundary key={reportUrl || 'home'} onHome={goHome}>
           {entity && reportUrl && step?.viewer === 'card' ? (
@@ -156,7 +158,7 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
               baseUrl={reportUrl.slice(0, reportUrl.lastIndexOf('/'))}
             /></Suspense>
           ) : entity && reportUrl ? (
-            <Suspense fallback={<div className="boot"><MakLogo size={56} animated={false} /></div>}><ReportViewer key={reportUrl} url={reportUrl} title={step?.name ?? entity.title} relativePath={`${entity.workspacePath || `workspace/${entity.folder}`}/${step?.path}`} /></Suspense>
+            <Suspense fallback={<div className="boot"><MakLogo size={56} animated={false} /></div>}><ReportViewer key={`${entity.id}:${stepIndex}:${reportUrl}`} url={reportUrl} title={step?.name ?? entity.title} relativePath={`${entity.workspacePath || `workspace/${entity.folder}`}/${step?.path}`} toolProject={isDesktop && !overviewTools ? entity : undefined} sharedDrive={sharedDrive} /></Suspense>
           ) : (
             <HomeGrid
               entities={entities}

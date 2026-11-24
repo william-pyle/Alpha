@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { realFile, secret, within } from './util.mjs';
 import { serveReport } from './report-chrome.mjs';
+import { sharedDriveMirror } from './shared-drive-originals.mjs';
 
 const mime = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -37,12 +38,28 @@ export async function serveFile(request, response, file, info, headers = {}) {
 
 export class Files {
   constructor(repo) { this.repo = repo; this.grants = new Map(); this.repoGrant = this.grant(repo); this.writes = Promise.resolve(); }
+  assertReportPath(file) {
+    const comparable = process.platform === 'win32'
+      ? file.replace(/^\\\\\?\\(?=[a-z]:)/i, '').split('\\').map(part => part.replace(/[. ]+$/, '')).join('\\')
+      : file;
+    if (within(sharedDriveMirror(this.repo), comparable)) {
+      throw Object.assign(new Error('Open Shared Drive from its registered Workspace tab.'), { status: 403 });
+    }
+  }
+  async resolveAllowed(file) {
+    const requested = await this.projectPath(file);
+    this.assertReportPath(requested);
+    const actual = await realpath(requested);
+    this.assertReportPath(actual);
+    return actual;
+  }
   grant(root) {
     for (const [token, value] of this.grants) if (value === root) return token;
     const token = secret(); this.grants.set(token, root); return token;
   }
   url(file) {
     const absolute = path.resolve(file);
+    this.assertReportPath(absolute);
     const relative = path.relative(this.repo, absolute);
     const root = within(this.repo, absolute) && !relative.split(/[\\/]/).some(secretPart) ? this.repo : path.dirname(absolute);
     return `${this.origin}/view/${this.grant(root)}/${path.relative(root, absolute).split(path.sep).map(encodeURIComponent).join('/')}`;
@@ -52,7 +69,7 @@ export class Files {
     return this.resolveProjectContent && within(this.repo, absolute) ? path.resolve(this.repo, await this.resolveProjectContent(path.relative(this.repo, absolute))) : absolute;
   }
   async list(folder = this.repo, mode = 'main', query = '') {
-    const actual = await realpath(await this.projectPath(folder));
+    const actual = await this.resolveAllowed(folder);
     const entries = await readdir(actual, { withFileTypes: true });
     const atRoot = actual.toLowerCase() === this.repo.toLowerCase();
     const filtered = entries.filter(entry => (!atRoot || mode === 'all' || ['inbox', 'projects', 'workspace.json', '_shared', 'workspace', 'knowledge', 'processes', 'context'].includes(entry.name)) && (!query || entry.name.toLowerCase().includes(query.toLowerCase())));
@@ -71,7 +88,7 @@ export class Files {
     return { path: actual, parent: path.dirname(actual), entries: result, truncated: filtered.length > 1500, mode };
   }
   async preview(file) {
-    const actual = await realpath(await this.projectPath(file));
+    const actual = await this.resolveAllowed(file);
     const info = await stat(actual);
     if (!info.isFile()) throw new Error('Choose a file to preview');
     const ext = path.extname(actual).toLowerCase();
@@ -90,7 +107,7 @@ export class Files {
   async saveMarkdown({ path: requested, text, revision }) {
     if (typeof requested !== 'string' || path.extname(requested).toLowerCase() !== '.md' || typeof text !== 'string' || Buffer.byteLength(text) > 50 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(revision || '')) throw new Error('Choose a Markdown file of up to 50 MB with a current revision.');
     const operation = this.writes.catch(() => {}).then(async () => {
-      const actual = await realpath(await this.projectPath(requested));
+      const actual = await this.resolveAllowed(requested);
       if (path.extname(actual).toLowerCase() !== '.md') throw new Error('Only Markdown files can be edited.');
       const original = await readFile(actual);
       if (createHash('sha256').update(original).digest('hex') !== revision) throw Object.assign(new Error('This file changed on disk. Your draft is kept. Reopen the file to compare before saving.'), { status: 409 });
@@ -116,9 +133,17 @@ export class Files {
     let relative = decodeURIComponent(match[2]);
     if (match[1] === this.repoGrant && this.resolveProjectContent) relative = await this.resolveProjectContent(relative);
     if (relative.split(/[\\/]/).some(secretPart)) throw Object.assign(new Error('Private application files cannot be loaded by reports'), { status: 403 });
-    const { file, info } = await realFile(this.grants.get(match[1]), relative);
+    const { file, info } = await realFile(this.grants.get(match[1]), relative, file => this.assertReportPath(file));
     if (!info.isFile()) throw Object.assign(new Error('File not found'), { status: 404 });
-    const serve = /\.html?$/i.test(file) ? serveReport : serveFile;
-    await serve(request, response, file, info, { 'Referrer-Policy': 'no-referrer', 'Access-Control-Allow-Origin': this.uiOrigin, 'Cross-Origin-Resource-Policy': 'cross-origin' });
+    const headers = { 'Referrer-Policy': 'no-referrer', 'Access-Control-Allow-Origin': this.uiOrigin, 'Cross-Origin-Resource-Policy': 'cross-origin' };
+    if (/\.html?$/i.test(file)) {
+      const sharedDriveGrant = match[1] === this.repoGrant && request.headers['sec-fetch-dest'] === 'iframe'
+        ? await this.sharedDriveGrant?.(file) : undefined;
+      if (sharedDriveGrant) {
+        headers['Content-Security-Policy'] = `frame-ancestors ${this.uiOrigin}`;
+        headers['Cache-Control'] = 'no-store';
+      }
+      await serveReport(request, response, file, info, headers, { sharedDriveGrant });
+    } else await serveFile(request, response, file, info, headers);
   }
 }

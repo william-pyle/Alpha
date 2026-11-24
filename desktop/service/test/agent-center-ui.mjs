@@ -89,7 +89,7 @@ try {
   await expect(health.getByText('Repeated delays observed in the fixture')).toBeVisible();
   await health.getByRole('button', { name: 'Mark resolved' }).click();
   await expect(health.getByText('No open health issues.')).toBeVisible();
-  await page.getByRole('button', { name: 'Close Alpha health', exact: true }).click();
+  await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('button', { name: 'Close Alpha health', exact: true }).click();
   const target = service.sessions.make({ id: 'restart-target', nativeId: 'native-target', agent: 'codex', name: 'Restart Target', cwd: repo, open: true, status: 'stopped', createdAt: new Date().toISOString() });
   service.sessions.items.set(target.id, target); service.sessions.changed(target);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
