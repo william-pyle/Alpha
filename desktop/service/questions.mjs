@@ -56,22 +56,26 @@ export class Questions extends EventEmitter {
     if (existing) return existing;
     const item = { id: randomUUID(), sessionId: source === 'project' ? sessionId : 'alpha', source, sourceId: sourceId || null, operationId: operationId || null, context: String(context || '').slice(0, 6000), chatName, text: text.trim(), options: options.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, source === 'project' ? 100 : 6), status: 'pending', createdAt: new Date().toISOString() };
     if (threadId) item.threadId = threadId;
-    this.items.push(item); await this.changed(); return item;
+    this.items.push(item); await this.changed([item]); return item;
   }
   async captureAlpha(operation) {
     const added = [];
     for (const question of extractQuestions(operation.result)) added.push(await this.ask({ ...question, sourceId: operation.id, operationId: operation.id, context: operation.text, threadId: operation.threadId }));
     return added;
   }
-  changed() {
+  changed(added = []) {
     this.writes = this.writes.catch(() => {}).then(() => saveJson(this.file, this.items));
-    return this.writes.then(() => this.emit('changed', this.list()));
+    return this.writes.then(() => {
+      const pending = this.list();
+      this.emit('changed', pending, added.filter(item => pending.includes(item)).map(item => item.id));
+    });
   }
   capture(session, source) {
     if (!['codex', 'claude', 'shell', 'gitbash'].includes(session.agent)) return [];
     const structured = Array.isArray(source.questions);
     const questions = structured ? source.questions : extractQuestions(source.message);
     const added = [];
+    const newItems = [];
     for (const [index, candidate] of questions.entries()) {
       const text = String(candidate.text || candidate.question || '').trim().slice(0, 500);
       // An explicit question tool may include context after its question mark.
@@ -95,15 +99,21 @@ export class Questions extends EventEmitter {
       const item = { id: randomUUID(), sessionId: session.id, nativeId: session.nativeId || null, requiresNative: structured && !asyncQuestion, ...(asyncQuestion ? { asyncQuestion } : {}), chatName: session.name, text, options, status: 'pending', sourceId: source.id || null, createdAt: new Date().toISOString() };
       item.threadId = session.alphaThreadId || session.id;
       if (structured) item.questionIndex = index;
-      this.items.push(item); added.push(item);
+      this.items.push(item); added.push(item); newItems.push(item);
     }
-    if (added.length) { this.items = this.items.slice(-500); this.changed().catch(error => this.emit('error', error)); }
+    if (added.length) { this.items = this.items.slice(-500); this.changed(newItems).catch(error => this.emit('error', error)); }
     return added;
   }
   async captureNative(session, state, binding) {
     if (!state.prompt) return null;
     const existing = this.items.find(item => item.nativePrompt?.generation === state.generation && item.sessionId === session.id);
     if (existing) return existing;
+    // A new native binding can replace an already visible prompt after reconnect.
+    const alreadyVisible = this.items.some(item => item.status === 'pending' && item.sessionId === session.id
+      && item.threadId === binding.threadId && (
+        (state.prompt.sourceId && item.requiresNative && item.sourceId === state.prompt.sourceId && item.nativeId === binding.nativeId)
+        || (item.nativePrompt?.fingerprint === binding.fingerprint && item.nativePrompt.nativeId === binding.nativeId)
+      ));
     for (const item of this.items) if (item.status === 'pending' && item.requiresNative && item.sessionId === session.id && item.sourceId === state.prompt.sourceId) { item.status = 'dismissed'; item.delivery = 'native-menu'; }
     // A new, settled native menu supersedes only older menus in this terminal.
     for (const item of this.items) if (item.status === 'pending' && item.source === 'native' && item.sessionId === session.id) { item.status = 'dismissed'; item.delivery = 'superseded'; }
@@ -112,7 +122,7 @@ export class Questions extends EventEmitter {
       options: state.prompt.choices.map(choice => choice.label), status: 'pending', createdAt: new Date().toISOString() };
     const uncertain = this.items.findLast(prior => prior.sessionId === session.id && prior.nativePrompt?.fingerprint === binding.fingerprint && prior.receipt?.intentAt && !prior.receipt.acceptedAt);
     if (uncertain) item.receipt = { ...uncertain.receipt, previousQuestionId: uncertain.id };
-    this.items.push(item); await this.changed(); return item;
+    this.items.push(item); await this.changed(alreadyVisible || uncertain ? [] : [item]); return item;
   }
   async nativeTransition(sessionId) {
     let changed = false;

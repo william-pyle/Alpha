@@ -118,9 +118,9 @@ try {
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await page.getByRole('button', { name: 'Close settings' }).click();
   const quietOne = await service.questions.ask({ text: 'Which quiet fixture should be reviewed?', sourceId: 'quiet-one', threadId: b.id, chatName: b.name });
   const questionsTab = page.getByRole('tab', { name: 'Questions', exact: true });
-  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
   const quietTwo = await service.questions.ask({ text: 'Which second quiet fixture should be reviewed?', sourceId: 'quiet-two', threadId: b.id, chatName: b.name });
-  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
   await service.questions.dismiss(quietOne.id); await service.questions.dismiss(quietTwo.id);
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).not.toBeChecked();
   await page.getByLabel('Enable awareness', { exact: true }).click(); await expect(page.getByLabel('Enable awareness', { exact: true })).not.toBeChecked();

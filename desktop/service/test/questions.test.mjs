@@ -80,3 +80,55 @@ test('Alpha questions persist, deduplicate and resume once without sending an an
   await Promise.all([restored.answer(question.id, 'Small change', sessions, resume), restored.answer(question.id, 'Small change', sessions, resume)]);
   assert.equal(resumes, 1); assert.equal(restored.list().length, 0);
 });
+
+test('signals newly saved pending questions once across provider updates and native rebindings', async () => {
+  await mkdir('.test-output', { recursive: true });
+  const root = await mkdtemp(path.resolve('.test-output/new-question-'));
+  const questions = await new Questions(root).init();
+  const changes = [];
+  const observe = store => store.on('changed', (pending, added) => changes.push({ pending: pending.map(item => item.id), added }));
+  observe(questions);
+  const request = { sourceId: 'ordinary-fixture', text: 'Which fixture should be kept?' };
+  const ordinary = await questions.ask(request);
+  assert.deepEqual(changes.at(-1), { pending: [ordinary.id], added: [ordinary.id] });
+  assert.equal((await questions.ask(request)).id, ordinary.id);
+  assert.equal(changes.length, 1);
+
+  const session = { id: 'worker', name: 'Worker', agent: 'codex', nativeId: 'provider', alphaThreadId: 'thread' };
+  const provider = { id: 'provider-fixture', questions: [{ text: 'Which worker fixture should be saved?' }] };
+  const [structured] = questions.capture(session, provider);
+  await questions.close();
+  assert.deepEqual(changes.at(-1).added, [structured.id]);
+  questions.capture(session, { ...provider, source: 'provider-record', tool: 'request_user_input_async', asyncDelivery: true });
+  await questions.close();
+  assert.deepEqual(changes.at(-1).added, []);
+
+  const menu = { id: 'menu-fixture', questions: [{ text: 'Which menu option should be used?' }] };
+  const [menuRecord] = questions.capture(session, menu);
+  await questions.close();
+  assert.deepEqual(changes.at(-1).added, [menuRecord.id]);
+  const prompt = { sourceId: menu.id, text: menu.questions[0].text, choices: [] };
+  const binding = { generation: 'first', sessionId: session.id, threadId: session.alphaThreadId, nativeId: session.nativeId, fingerprint: 'known-menu' };
+  const native = await questions.captureNative(session, { prompt, generation: binding.generation }, binding);
+  assert.deepEqual(changes.at(-1).added, []);
+  assert.ok(changes.at(-1).pending.includes(native.id));
+  assert.ok(!changes.at(-1).pending.includes(menuRecord.id));
+
+  changes.length = 0;
+  const restored = await new Questions(root).init();
+  observe(restored);
+  assert.deepEqual(restored.list().map(item => item.id), questions.list().map(item => item.id));
+  assert.deepEqual(changes, []);
+  assert.equal((await restored.ask(request)).id, ordinary.id);
+  assert.deepEqual(restored.capture(session, provider), []);
+  assert.deepEqual(changes, []);
+  const rebound = { ...binding, generation: 'new-binding' };
+  const replacement = await restored.captureNative(session, { prompt, generation: rebound.generation }, rebound);
+  assert.deepEqual(changes.at(-1).added, []);
+  assert.ok(changes.at(-1).pending.includes(replacement.id));
+  const changed = { ...rebound, generation: 'new-prompt', fingerprint: 'other-menu' };
+  const fresh = await restored.captureNative(session, { prompt, generation: changed.generation }, changed);
+  assert.deepEqual(changes.at(-1).added, [fresh.id]);
+  await restored.dismiss(ordinary.id);
+  assert.deepEqual(changes.at(-1).added, []);
+});

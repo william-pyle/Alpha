@@ -45,6 +45,7 @@ import { body, equalSecret, json, publicError, readJson, realFile, saveJson, sec
 import { ProjectAdapterRegistry } from './project-adapters/registry.mjs';
 import { KnowledgeManager, MarkdownKnowledgeProvider } from './knowledge/providers.mjs';
 import { IntegrationManager } from './integrations/manager.mjs';
+import { WorkerRequests } from './worker-requests.mjs';
 import { Dictation } from './dictation.mjs';
 import voiceOptions from './voice-options.json' with { type: 'json' };
 import { builtInThemeIds, changeTheme, validThemeProfiles } from './theme-profiles.mjs';
@@ -210,6 +211,34 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || workIsBusy(thread) || coordinatorBusy(coordinatorKey(thread.id, true)))),
     changed: () => broadcast('project-storage-changed', {}) });
   await projectStorage.initialize();
+  const workerProjectAllowed = session => (session.projectId || '').toLowerCase() !== 'mooseville' && common.allows(session.projectId, session.cwd);
+  const workerRequests = await new WorkerRequests({
+    stateDir,
+    async resolveOrigin(session, requireTask) {
+      try {
+        await projectStore.get(session.projectId, { allowRemoved: false });
+        projectStorage.assertAvailable(session.projectId);
+      } catch { return null; }
+      const thread = threads.owner(session.id);
+      if (!session.process || session.status !== 'running' || !session.open || session.projectPending || sessions.items.get(session.id) !== session ||
+          session.agent !== 'codex' || !session.nativeId || !session.projectId || !thread || thread.archived || thread.projectPending ||
+          (session.alphaThreadId && session.alphaThreadId !== thread.id) || thread.projectId !== session.projectId ||
+          !workerProjectAllowed(session) || threads.locks.has(thread.id)) return null;
+      const origin = { sessionId: session.id, threadId: thread.id, projectId: thread.projectId, nativeId: session.nativeId };
+      if (!requireTask) return origin;
+      const task = session.workerEvidence;
+      if (session.startupPrompt || task?.acceptance !== 'observed' || task.execution !== 'working' || task.certainty !== 'task-bound-native' ||
+          typeof task.taskId !== 'string' || !task.taskId || task.taskId.length > 400 ||
+          typeof task.nativeTaskId !== 'string' || !task.nativeTaskId || task.nativeTaskId.length > 400 ||
+          !Number.isFinite(task.providerAt) || !Number.isFinite(session.startedAt) || task.providerAt < session.startedAt) return null;
+      return { ...origin, taskId: task.taskId, nativeTaskId: task.nativeTaskId };
+    },
+    send(view, value) {
+      if (view.readyState !== WebSocket.OPEN || !clients.has(view)) return false;
+      send(view, 'worker-preview-close', value);
+      return true;
+    },
+  }).init();
   sessions.validateNativeBinding = session => {
     if (threads.deletedBinding(session)) throw Object.assign(new Error('This conversation was deleted from Alpha and cannot be imported or resumed here.'), { status: 409 });
   };
@@ -608,7 +637,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       if (record && !record.family && common.tasks.filter(task => !task.family).length % 3 === 0 && new Set(common.tasks.map(task => task.project)).size >= 2) scheduleMaintenance('New completed tasks across projects may contain a repeated workflow.');
     }).catch(error => broadcast('service-error', { error: publicError(error) }));
   });
-  questions.on('changed', items => broadcast('questions', { questions: items }));
+  questions.on('changed', (items, addedQuestionIds) => broadcast('questions', { questions: items, addedQuestionIds }));
   questions.on('continuation-failed', ({ question, error }) => {
     awareness.event({ id: `answer-continuation:${question.id}`, threadId: question.threadId, kind: 'error', text: 'A saved answer could not continue its task. Open the originating conversation to inspect the failure.', source: 'Questions continuation' });
     if (question.threadId) threads.message(question.threadId, { id: `answer-failed:${question.id}`, role: 'assistant', text: 'Your answer was saved, but continuation failed. Inspect Work details before retrying the task.', status: 'failed', error: publicError(error) });
@@ -641,6 +670,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     for (const id of sessionIds) await sessions.purge(id);
     await restartNotes.purgeSessions(sessionIds);
     await common.purgeSessions(sessionIds);
+    await workerRequests.purge(record.threadId, sessionIds);
     for (const id of sessionIds) { clearTimeout(questionTimers.get(id)); questionTimers.delete(id); }
     const removedReplies = await replies.purgeSessions([...sessionIds]);
     const removedQuestions = await questions.purgeConversation(record.threadId, [...sessionIds]);
@@ -687,6 +717,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     try {
       const url = new URL(request.url, origin);
       if (request.headers.host !== new URL(origin).host) throw Object.assign(new Error('Unexpected host'), { status: 403 });
+      if (url.pathname === '/worker-request') {
+        if (request.method !== 'POST' || request.headers.origin) throw Object.assign(new Error('Open this tool from its managed worker.'), { status: 403 });
+        const grant = workerRequests.authenticate(request.headers.authorization);
+        return json(response, 200, await workerRequests.handle(grant, await body(request, 4096)));
+      }
       if (/^\/(?:mobile|api\/mobile)(?:\/|$)/.test(url.pathname)) return json(response, 404, { error: 'Not found' });
       if (url.pathname === '/health') return json(response, 200, { service: 'alpha', version: product.version });
       if (url.pathname.startsWith('/api/')) {
@@ -1101,7 +1136,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (cardDocument && method === 'GET') return json(response, 200, await cards.read(decodeURIComponent(cardDocument[1]), Number(cardDocument[2])));
         if (cardDocument && method === 'PUT') return json(response, 200, await cards.save(decodeURIComponent(cardDocument[1]), Number(cardDocument[2]), data));
         if (method === 'GET' && url.pathname === '/api/library') return json(response, 200, sharedLibrary);
-        if (method === 'GET' && url.pathname === '/api/help') return json(response, 200, await files.preview(path.join(uiDir, 'help.html')));
+        if (method === 'GET' && url.pathname === '/api/help') return json(response, 200, { ...await files.preview(path.join(uiDir, 'help.html')), disposable: 'help' });
         if (method === 'GET' && url.pathname === '/api/preview') return json(response, 200, await files.preview(url.searchParams.get('path') || ''));
         if (method === 'POST' && url.pathname === '/api/files/markdown') {
           const preview = await files.saveMarkdown(data); await integrations.publish('artifact', { kind: 'updated', path: preview.path, name: preview.name }); broadcast('workspace-changed', {});
@@ -1231,6 +1266,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   });
   const origin = await listen(server);
   files.uiOrigin = origin;
+  sessions.issueWorkerBridge = session => {
+    if (!workerProjectAllowed(session)) return null;
+    const issued = workerRequests.issue(session);
+    return issued && { ...issued, env: { ALPHA_WORKER_REQUEST_ORIGIN: origin, ALPHA_WORKER_REQUEST_TOKEN: issued.token } };
+  };
   const wss = new WebSocketServer({ noServer: true, maxPayload: 128 * 1024 });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, origin);
@@ -1253,6 +1293,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           const snapshot = await sessions.snapshot(message.id);
           if (ws.sessionId === message.id) send(ws, 'snapshot', snapshot);
         } else if (message.type === 'input') sessions.input(message.id, message.data);
+        else if (message.type === 'worker-preview-inventory' && ws.surface === 'workspace') workerRequests.inventory(ws, message.targets);
+        else if (message.type === 'worker-preview-ack' && ws.surface === 'workspace') await workerRequests.acknowledge(ws, message);
         else if (message.type === 'resize') sessions.resize(message.id, message.cols, message.rows);
         else if (message.type === 'selected') { sessions.get(message.id); selectedId = message.id; settings.selectedId = selectedId; scheduleSettings(); }
         else if (message.type === 'seen' && ['chats', 'workspace'].includes(ws.surface) && ws.sessionId === message.id && selectedId === message.id) sessions.seen(message.id, message.completionVersion);
@@ -1260,7 +1302,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         else if (message.type === 'ping') send(ws, 'pong', {});
       } catch (error) { send(ws, 'service-error', { error: publicError(error) }); }
     });
-    ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); if (voiceOwner?.clientId === ws.clientId) { voiceOwner = null; broadcast('voice-owner', { owner: null }); } });
+    ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); void workerRequests.disconnect(ws).catch(() => {}); if (voiceOwner?.clientId === ws.clientId) { voiceOwner = null; broadcast('voice-owner', { owner: null }); } });
     ws.on('error', () => {});
   });
   let watcher;
@@ -1273,7 +1315,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
       nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); sharedDrive.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
       async close() {
-        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); sharedDrive.close(); workspaceLocation.close(); await files.writes.catch(() => {});
+        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); sharedDrive.close(); workspaceLocation.close(); await workerRequests.close().catch(() => {}); await files.writes.catch(() => {});
       await Promise.allSettled([...nativeDispatches.values()].flatMap(jobs => [...jobs]));
       watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       await Promise.all([...coordinators.values()].map(item => item.close()));

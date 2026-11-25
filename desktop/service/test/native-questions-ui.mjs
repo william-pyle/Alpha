@@ -118,9 +118,42 @@ try {
   assert.equal(sends, 0);
 
   const firstThread = service.threads.owner('First');
-  const lateQuestion = await service.questions.ask({ text: 'Which fixture detail should be retained?', source: 'maintenance', sourceId: 'closed-questions-fixture', threadId: firstThread.id, chatName: firstThread.name });
+  const selectedBefore = service.threads.selectedId;
+  const routeBefore = await page.evaluate(() => location.hash);
+  const decision = { text: 'Which fixture detail should be retained?', source: 'maintenance', sourceId: 'closed-questions-fixture', threadId: firstThread.id, chatName: firstThread.name };
+  const lateQuestion = await service.questions.ask(decision);
   const firstAttention = page.getByRole('button', { name: /^Attention for First: 1 pending question/ });
   await expect(firstAttention).toBeVisible();
+  await expect(questionsTab).toHaveCount(1);
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(questionsTab).toBeFocused();
+  await expect(colorAnswer).toHaveValue('Blue');
+  assert.equal(service.threads.selectedId, selectedBefore);
+  assert.equal(await page.evaluate(() => location.hash), routeBefore);
+  assert.equal(sends, 0);
+
+  await workspaceTab.click();
+  const followup = await service.questions.ask({ ...decision, sourceId: 'inactive-questions-fixture', text: 'Which follow-up detail should be retained?' });
+  await expect(questionsTab).toHaveCount(1);
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(questionsTab).toBeFocused();
+  await colorAnswer.focus();
+  const whileSelected = await service.questions.ask({ ...decision, sourceId: 'selected-questions-fixture', text: 'Which final detail should be retained?' });
+  await expect(panel.locator(`[data-question-id="${whileSelected.id}"]`)).toBeVisible();
+  await expect(questionsTab).toHaveCount(1);
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(colorAnswer).toBeFocused();
+  await expect(colorAnswer).toHaveValue('Blue');
+  await service.questions.dismiss(whileSelected.id);
+  await service.questions.dismiss(followup.id);
+  await closeQuestions.press('Enter');
+  await expect(questionsTab).toHaveCount(0);
+  await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+
+  assert.equal((await service.questions.ask(decision)).id, lateQuestion.id);
+  service.questions.emit('changed', service.questions.list(), [lateQuestion.id]);
+  await service.questions.changed();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(questionsTab).toHaveCount(0);
   await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: path.join(root, 'questions-closed-with-pending.png') });
@@ -129,6 +162,10 @@ try {
   await expect(firstAttention).toBeVisible();
   await expect(questionsTab).toHaveCount(0);
   await expect(workspaceTab).toHaveAttribute('aria-selected', 'true');
+  service.questions.emit('changed', service.questions.list(), [lateQuestion.id]);
+  await service.questions.changed();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(questionsTab).toHaveCount(0);
 
   await openFromView('Questions');
   await openFromView('Questions');
@@ -156,5 +193,5 @@ try {
   await expect(panel.locator('.question-card')).toHaveCount(0); assert.equal(sends, 1);
   await workspaceTab.click(); await expect(panel).toBeHidden();
   service.sessions.input = originalInput;
-  console.log(JSON.stringify({ passed: true, root, checks: ['pending Questions stay in a dedicated tab', 'keyboard selection and close', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'answered cards cleared', 'Workspace return', 'pending arrival while closed', 'closure persists on reload', 'singleton View reopen', 'origin-bound question navigation while closed', 'count and draft preservation', 'wide/narrow'] }));
+  console.log(JSON.stringify({ passed: true, root, checks: ['pending Questions stay in a dedicated tab', 'keyboard selection and close', 'actual choices', 'exact terminal', 'changed disclosure rejected', 'verified transition', 'answered cards cleared', 'Workspace return', 'fresh arrival opens and selects closed tab', 'fresh arrival selects inactive tab', 'fresh arrival keeps focused answer on selected singleton', 'refresh and duplicate delivery stay closed before and after reload', 'singleton View reopen', 'origin-bound question navigation while closed', 'count and draft preservation', 'wide/narrow'] }));
 } finally { for (const session of all) session.process = null; await browser.close(); await service.close(); }

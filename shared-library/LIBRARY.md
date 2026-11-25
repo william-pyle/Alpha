@@ -22,6 +22,7 @@ preserve the task and use project-local instructions rather than bypass exclusio
 - `knowledge/`: general reusable knowledge, including future additions.
 - `knowledge/mailcraft-mcp.md`: MailCraft CLI, MCP bridge, and owner approval behavior.
 - `processes/`: reusable workflows.
+- `processes/worker-requests.md`: typed requests from a managed Codex worker to Alpha.
 - `processes/computer-use-recovery.md`: bounded supported connection recovery,
   fresh window observations and checkpointed affected-session restart handling.
 - `.agents/skills/common-agent-maintenance/`: evidence-based upkeep of Alpha's common agents.

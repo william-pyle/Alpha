@@ -6,8 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.28**.
-See the [0.2.28 release notes](release-notes/v0.2.28.md).
+knowledge into one Windows desktop window. This source targets **0.2.29**.
+See the [0.2.29 release notes](release-notes/v0.2.29.md).
 
 ## What you can do
 
@@ -148,6 +148,12 @@ Advanced launchers**. Their existing approval settings still apply.
 
 Workspace and Questions stay available as document tabs. Questions collects pending items for their originating conversations. Use **File → Create project** for Gallery or Research content and **Help → Open Help** for the built-in guide. Close documents using their tab controls. The **…** beside the window controls opens Settings, which contains General, Speech-to-text,
 Voice, Updates, Theme, MCP, Categories and Skills. The **View** menu opens Conversation history, Needs attention, Questions, learned preferences, common agents and Alpha health.
+
+A new pending question opens or selects the Questions tab in Alpha. Restored
+questions leave the selected tab in place. Managed Codex sessions with the
+Alpha request tools can ask Alpha to close an exact built-in Help preview and
+check the receipt in that session. Terminal stop requests are denied. See the
+[worker request guide](shared-library/processes/worker-requests.md).
 
 Alpha checks GitHub shortly after startup and every six hours. To check now,
 choose **Help → Check for Updates**. Choose **Download update**, then

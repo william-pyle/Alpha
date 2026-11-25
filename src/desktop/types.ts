@@ -28,7 +28,7 @@ export interface AwarenessState { settings: { enabled: boolean; quiet: boolean; 
 export interface VoiceOwner { clientId: string; surface: 'chats' | 'workspace' }
 export interface FileEntry { name: string; path: string; directory: boolean; size: number; modifiedAt: string | null }
 export interface Folder { path: string; parent: string; entries: FileEntry[]; truncated: boolean; mode: string }
-export interface Preview { path: string; name: string; size: number; kind: 'document' | 'image' | 'video' | 'audio' | 'text' | 'unsupported'; url?: string; text?: string; revision?: string; reason?: string }
+export interface Preview { path: string; name: string; size: number; kind: 'document' | 'image' | 'video' | 'audio' | 'text' | 'unsupported'; url?: string; text?: string; revision?: string; reason?: string; disposable?: 'help' }
 export interface NativeWindowState { available: boolean; focused?: boolean; maximized: boolean; minimized: boolean; error?: string | null }
 export interface DesktopState {
   nativeWindow?: NativeWindowState
@@ -42,10 +42,12 @@ export interface DesktopState {
   voiceHistory: { id: string; threadId?: string | null; at: string; captions: { role: 'user' | 'assistant'; text: string; start: number; end: number }[] }[]
 }
 export interface ServiceEvent { inspectionId?: string; captureId?: string | null;
+  requestId?: string; targetId?: string; expiresAt?: number
   nativeWindow?: NativeWindowState
   threads?: AlphaThread[]; selectedThreadId?: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness?: AwarenessState; threadId?: string; sessionIds?: string[]; questionIds?: string[]; text?: string; lane?: 'reply'
   type: string; id?: string; cardId?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
   operation?: Operation; settings?: Settings; owner?: VoiceOwner | null; window?: string; route?: string; preview?: Preview; questions?: ChatQuestion[]
+  addedQuestionIds?: string[]
   reply?: AgentReply; speech?: SpeechState
 }

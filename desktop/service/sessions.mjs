@@ -176,12 +176,14 @@ export class Sessions extends EventEmitter {
     if (session.agent === 'antigravity' && resumeId && !validAntigravityId(resumeId)) throw new Error('Use the Antigravity conversation UUID from its /resume picker.');
     const antigravityLog = session.agent === 'antigravity' ? await prepareAntigravityLog(this.stateDir, session.id) : undefined;
     const initialPrompt = await this.restartNotes?.claim(session, resumeId);
+    const workerBridge = this.issueWorkerBridge?.(session);
     let command;
     try {
-      command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt });
+      command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, initialPrompt, workerBridge: !!workerBridge });
     }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `alpha_chat_${session.id}`;
+    if (workerBridge) Object.assign(env, workerBridge.env);
     // Creation and resume both cross this synchronous final boundary. The
     // caller can reject a start if the owning project/conversation became busy
     // or was removed while the asynchronous launch preparation ran.
@@ -190,6 +192,7 @@ export class Sessions extends EventEmitter {
     try { proc = guardWindowsPtyKill(pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }))); }
     catch (error) { await this.restartNotes?.failed(session, error); throw error; }
     session.process = proc;
+    workerBridge?.attach(proc);
     trace?.event('worker-ready', { worker: session.id, kind: 'running' });
     session.deviceReplies?.dispose();
     // Inactive tabs still have a terminal: answer device queries without needing
@@ -211,6 +214,7 @@ export class Sessions extends EventEmitter {
       this.dirty = true;
     });
     proc.onExit(({ exitCode }) => {
+      workerBridge?.revoke();
       this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId)?.event('worker-exit', { worker: session.id, kind: exitCode === 0 ? 'ok' : 'error' });
       this.flushOutput(session);
       session.process = null;

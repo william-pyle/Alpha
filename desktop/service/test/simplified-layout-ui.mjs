@@ -126,7 +126,7 @@ try {
   const questionsTab = page.getByRole('tab', { name: 'Questions', exact: true });
   const questionsRegion = page.getByRole('region', { name: 'Questions', exact: true });
   const workspaceTab = page.getByRole('tab', { name: 'Workspace', exact: true });
-  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
   await pane.getByRole('button', { name: /^Attention for Review project decision:/ }).click();
   await expect(picker).toHaveAttribute('id', `conversation-tab-${b.id}`);
   const card = page.locator(`[data-question-id="${q.id}"]`); await expect(card.getByRole('textbox')).toBeFocused();
@@ -170,7 +170,8 @@ try {
 
   await settings(); await page.getByLabel('Quiet mode', { exact: true }).click(); await expect(page.getByLabel('Quiet mode', { exact: true })).toBeChecked(); await closeSettings();
   const quiet = await service.questions.ask({ text: 'Which quiet decision should be kept?', threadId: a.id, sourceId: 'quiet' });
-  await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+  await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(editor).toHaveValue('Draft stays while panels open');
   await pane.getByRole('button', { name: /^Attention for Simplify conversation layout:/ }).click();
   await expect(page.locator(`[data-question-id="${quiet.id}"]`)).toBeVisible(); await service.questions.dismiss(quiet.id);
   await workspaceTab.click();
@@ -178,7 +179,7 @@ try {
   service.awareness.event({ id: 'review-layout', threadId: a.id, kind: 'review', text: 'Result ready for review; not verified.', source: 'Fixture' });
   await notification(); await expect(page.getByRole('tabpanel', { name: 'Needs attention' })).toContainText('not verified');
   await page.getByRole('tabpanel', { name: 'Needs attention' }).getByRole('button', { name: 'Snooze 30 minutes' }).last().click(); await page.getByRole('button', { name: 'Close Needs attention' }).click();
-  checks.push('Quiet mode in Settings does not auto-open new Questions; explicit notification origin still works. Review remains distinct from verified; snooze available.');
+  checks.push('New Questions select their tab during Quiet mode; explicit notification origin still works. Review remains distinct from verified; snooze available.');
 
   // Long/streaming Markdown stays inside message scroll, including an incomplete fence.
   ca.start = async () => { ca.threadId = 'fixture-provider'; }; ca.rpc = async () => ({ turn: { id: 'fixture-turn' } });
@@ -219,9 +220,8 @@ try {
     await expect(page.locator('.alpha-presence-stage')).toHaveAttribute('data-model-ready', 'true', { timeout: 30000 });
     await snap(`viewer-${theme}-960x520`);
     const pending = await service.questions.ask({ text: 'Which compact fixture should be reviewed?', threadId: a.id, sourceId: `short-${theme}` });
-    await expect(questionsTab).toHaveAttribute('aria-selected', 'false');
+    await expect(questionsTab).toHaveAttribute('aria-selected', 'true');
     const box = await editor.boundingBox(); assert(box.height >= 60);
-    await questionsTab.click();
     const compactCard = page.locator(`[data-question-id="${pending.id}"]`);
     await expect(compactCard).toBeVisible();
     await compactCard.getByRole('textbox').fill('Compact answer');

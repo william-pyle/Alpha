@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import App from '../App'
 import { useWorkspace } from '../lib/workspace'
 import { parseHash } from '../lib/route'
-import { api, reportError, setPreview, useDesktop } from './client'
+import { api, contentUrl, onServiceEvent, reportError, sendEvent, setPreview, surface, useDesktop } from './client'
 import { FilePreview } from './FilesRail'
 import QuestionsPanel from './QuestionsPanel'
 import Updates from './Updates'
@@ -18,13 +18,12 @@ import ConversationStatus from './ConversationStatus'
 import ThreadConversations from './ThreadConversations'
 import AgentCenter from './AgentCenter'
 import { categoryIcon } from '../lib/categories'
-import { contentUrl } from './client'
 import { Icon } from './Icons'
-import type { Preview } from './types'
+import type { Preview, ServiceEvent } from './types'
 import './unified.css'
 
 
-type DocumentTab = { id: string; title: string; kind: 'workspace' | 'entity' | 'file' | 'utility'; utility?: WorkspaceUtility; route?: string; preview?: Preview }
+type DocumentTab = { id: string; title: string; kind: 'workspace' | 'entity' | 'file' | 'utility'; utility?: WorkspaceUtility; route?: string; preview?: Preview; workerTargetId?: string }
 const home: DocumentTab = { id: 'workspace', title: 'Workspace', kind: 'workspace' }
 const questions: DocumentTab = { id: 'utility:questions', title: 'Questions', kind: 'utility', utility: 'questions' }
 
@@ -42,8 +41,11 @@ export default function UnifiedShell() {
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
   const previousQuestionsView = useRef<string | null>(null)
+  const [seenQuestionIds] = useState(() => new Set(state.questions.map(question => question.id)))
+  const focusQuestionsTab = useRef(false)
+  const pendingWorkerCloses = useRef(new Map<string, string>())
   // Keep the panel mounted while its tab is closed so in-flight answers and
-  // unsent drafts keep their state. It is hidden until explicitly reopened.
+  // unsent drafts keep their state.
   const panelTabs = tabs.some(tab => tab.id === questions.id) ? tabs : [...tabs, questions]
   useEffect(() => {
     if (active !== questions.id) previousQuestionsView.current = active
@@ -69,7 +71,12 @@ export default function UnifiedShell() {
       const preview = (event as CustomEvent<Preview | null>).detail
       if (!preview) return
       const id = `file:${preview.path}`
-      setTabs(current => current.some(tab => tab.id === id) ? current.map(tab => tab.id === id ? { ...tab, title: preview.name, preview } : tab) : [...current, { id, kind: 'file', title: preview.name, preview }])
+      const targetId = preview.kind === 'document' && preview.disposable === 'help' ? crypto.randomUUID() : undefined
+      setTabs(current => {
+        const existing = current.find(tab => tab.id === id)
+        const tab: DocumentTab = { id, kind: 'file', title: preview.name, preview, workerTargetId: targetId ? existing?.workerTargetId || targetId : undefined }
+        return existing ? current.map(item => item.id === id ? tab : item) : [...current, tab]
+      })
       setActive(id)
     }
     window.addEventListener('alpha-preview-changed', changed)
@@ -94,9 +101,9 @@ export default function UnifiedShell() {
     history.pushState(null, '', `${window.location.pathname}${window.location.search}${route}`)
     window.dispatchEvent(new HashChangeEvent('hashchange'))
   }
-  const close = (tab: DocumentTab) => {
+  const close = (tab: DocumentTab, workerTargetId?: string) => {
     if (tab.kind === 'workspace') return
-    setTabs(current => current.filter(item => item.id !== tab.id))
+    setTabs(current => current.filter(item => item.id !== tab.id || !!workerTargetId && item.workerTargetId !== workerTargetId))
     if (tab.id === questions.id) {
       const fallback = tab.id === active ? tabs.find(item => item.id === previousQuestionsView.current) ||
         tabs.find(item => item.id === `entity:${parseHash().id}`) || home : activeTab
@@ -108,6 +115,73 @@ export default function UnifiedShell() {
       setActive(current => current === tab.id ? fallback.id : current)
     } else if (tab.id === active) choose(home)
   }
+  const receiveWorkerPreviewEvent = useEffectEvent((event: ServiceEvent) => {
+    if (event.type === 'disconnected') {
+      pendingWorkerCloses.current.clear()
+      const targetId = crypto.randomUUID()
+      setTabs(current => current.map(tab => tab.workerTargetId ? { ...tab, workerTargetId: targetId } : tab))
+      return
+    }
+    if (event.type !== 'worker-preview-close' || !event.requestId || !event.targetId) return
+    const { requestId, targetId, expiresAt } = event
+    if (pendingWorkerCloses.current.has(requestId)) return
+    const tab = tabs.find(item => item.workerTargetId === targetId)
+    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || document.visibilityState !== 'visible' ||
+        tab?.kind !== 'file' || tab.preview?.kind !== 'document' || tab.preview.disposable !== 'help' ||
+        Array.from(pendingWorkerCloses.current.values()).includes(targetId)) {
+      sendEvent({ type: 'worker-preview-ack', requestId, targetId, closed: false })
+      return
+    }
+    pendingWorkerCloses.current.set(requestId, targetId)
+    close(tab, targetId)
+  })
+  const receiveQuestions = useEffectEvent((event: ServiceEvent) => {
+    if (event.type === 'connected') {
+      for (const question of event.questions ?? []) seenQuestionIds.add(question.id)
+      return
+    }
+    if (event.type !== 'questions' || !event.addedQuestionIds?.length) return
+    const pending = new Set(event.questions?.map(question => question.id))
+    let hasNewQuestion = false
+    for (const id of event.addedQuestionIds) {
+      if (!pending.has(id) || seenQuestionIds.has(id)) continue
+      seenQuestionIds.add(id)
+      hasNewQuestion = true
+    }
+    if (!hasNewQuestion || active === questions.id) return
+    focusQuestionsTab.current = true
+    setTabs(current => current.some(tab => tab.id === questions.id) ? current : [...current, questions])
+    setActive(questions.id)
+  })
+  useLayoutEffect(() => {
+    if (surface === 'workspace') return onServiceEvent(event => {
+      receiveQuestions(event)
+      receiveWorkerPreviewEvent(event)
+    })
+  }, [])
+  useLayoutEffect(() => {
+    if (!focusQuestionsTab.current) return
+    focusQuestionsTab.current = false
+    if (active === questions.id && document.hasFocus()) {
+      document.getElementById(`document-tab-${questions.id}`)?.focus({ preventScroll: true })
+    }
+  }, [active])
+  useLayoutEffect(() => {
+    if (surface !== 'workspace' || !state.connected) return
+    // Certify only a removal that reached the rendered documents tab list.
+    for (const [requestId, targetId] of pendingWorkerCloses.current) {
+      if (tabs.some(tab => tab.workerTargetId === targetId)) continue
+      pendingWorkerCloses.current.delete(requestId)
+      sendEvent({ type: 'worker-preview-ack', requestId, targetId, closed: true })
+    }
+    const inventory = () => {
+      const targets = document.visibilityState === 'visible' ? tabs.flatMap(tab => tab.workerTargetId ? [{ id: tab.workerTargetId }] : []) : []
+      sendEvent({ type: 'worker-preview-inventory', targets })
+    }
+    inventory()
+    document.addEventListener('visibilitychange', inventory)
+    return () => document.removeEventListener('visibilitychange', inventory)
+  }, [state.connected, tabs])
   const openHelp = async () => {
     try { const file = await api<Preview>('/help'); setPreview({ ...file, name: 'Help' }) }
     catch (error) { reportError(error) }

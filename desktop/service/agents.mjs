@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse as parseEnv } from 'dotenv';
 import { isWindows, resolveCommand, shellCommand, shellLabel, windowsAppDataFolders } from './platform.mjs';
 import { validAntigravityId } from './antigravity.mjs';
@@ -105,7 +106,7 @@ export function nativeConversationId(value) {
   return value;
 }
 
-export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt } = {}) {
+export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt, workerBridge = false } = {}) {
   if (!AGENTS.some(item => item.id === agent)) throw new Error('Unknown agent');
   resumeId = nativeConversationId(resumeId); nativeId = nativeConversationId(nativeId);
   if (initialPrompt !== undefined && (agent !== 'codex' || !resumeId || typeof initialPrompt !== 'string' || !initialPrompt.trim() || initialPrompt.length > 16000)) throw new Error('A restart prompt requires a saved Codex conversation and a bounded note.');
@@ -119,6 +120,12 @@ export function terminalCommand(agent, { bypass = false, resumeId, nativeId, eff
     args.push('--no-alt-screen');
     if (bypass) args.push('--dangerously-bypass-approvals-and-sandbox');
     if (effort) args.push('-c', `model_reasoning_effort="${effort}"`);
+    if (workerBridge === true) {
+      const script = fileURLToPath(new URL('./worker-request-mcp.mjs', import.meta.url));
+      // Use a complete per-invocation server entry. Credentials travel in the
+      // originating process environment, never in CLI arguments or config files.
+      args.push('-c', `mcp_servers.alpha_session_requests={command=${JSON.stringify(process.execPath)},args=${JSON.stringify([script])},env_vars=["ALPHA_WORKER_REQUEST_ORIGIN","ALPHA_WORKER_REQUEST_TOKEN"],enabled=true,tool_timeout_sec=20}`);
+    }
   } else if (agent === 'claude') {
     if (resumeId) args.push('--resume', resumeId);
     else if (nativeId) args.push('--session-id', nativeId);
@@ -156,6 +163,7 @@ export function childEnvironment(repo) {
   // Drop host-agent identity from the parent so every terminal is an independent CLI.
   for (const key of Object.keys(env)) {
     if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CODEX_THREAD_ID|CODEX_TURN_ID|CODEX_SHELL|ANTIGRAVITY_AGENT|ALPHA_TOKEN|ALPHA_PARENT_PID|ALPHA_WINDOWS_CLI_ROAMING|ALPHA_WINDOWS_CLI_LOCAL)$/.test(key) || key.startsWith('ALPHA_OPENCODE_')) delete env[key];
+    if (['ALPHA_WORKER_REQUEST_ORIGIN', 'ALPHA_WORKER_REQUEST_TOKEN'].includes(key.toUpperCase())) delete env[key];
   }
   return env;
 }
