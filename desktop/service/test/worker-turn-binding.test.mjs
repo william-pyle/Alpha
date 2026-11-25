@@ -62,9 +62,15 @@ test('reopened Messages keeps Codex MCP bound to the native turn in either recei
           bridge.attach(item.process);
           service.sessions.watchNative(item, boundary.file, boundary.offset);
         };
-        await service.sessions.resume(session.id);
+        const post = (endpoint, body) => fetch(service.origin + endpoint, {
+          method: 'POST', headers: { authorization: `Bearer ${service.token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const resumed = await post(`/api/threads/${thread.id}/resume`, {});
+        assert.equal(resumed.status, 200);
+        assert.equal((await resumed.json()).archived, false);
         service.sessions.submission.clock = () => time;
-        service.sessions.submission.wait = async ms => { time += ms; await delay(10); };
+        service.sessions.submission.wait = async ms => { time += ms; await delay(ms); };
         service.sessions.submission.view = async () => ({
           lines: ['OpenAI Codex', '› ' + draft, '? for shortcuts'], cursorY: 1,
           cursorX: 2 + draft.length, bracketedPaste: true, startupSettled: true,
@@ -79,10 +85,7 @@ test('reopened Messages keeps Codex MCP bound to the native turn in either recei
         }
         await list(409);
         const messageId = randomUUID();
-        const send = await fetch(`${service.origin}/api/threads/${thread.id}/input`, {
-          method: 'POST', headers: { authorization: `Bearer ${service.token}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ id: messageId, text: 'List eligible actions only', target: 'work' }),
-        });
+        const send = await post(`/api/threads/${thread.id}/input`, { id: messageId, text: 'List eligible actions only', target: 'work' });
         assert.equal(send.status, 202);
         await until(() => submitted);
         const [receipt] = session.submissions;
