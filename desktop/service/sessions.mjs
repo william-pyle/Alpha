@@ -53,6 +53,9 @@ export class Sessions extends EventEmitter {
         if (receipt && ['unconfirmed', 'blocked', 'timeout', 'failed'].includes(receipt.stage)) this.emit('notice', { id: `submission:${session.id}:${receipt.taskId}`, sessionId: session.id, name: session.name, kind: 'submission', text: receipt.note, at: new Date().toISOString() });
       },
       accepted: (session, receipt) => {
+        // Codex receipts confirm input delivery. The native lifecycle owns
+        // execution evidence and its identity, regardless of record order.
+        if (session.agent === 'codex') return;
         session.workerEvidence = { ...deliveredTask(session.workerEvidence, { taskId: receipt.taskId, at: receipt.pastedAt }), acceptance: 'observed', acceptedAt: receipt.acceptedAt, source: 'Exact native input record', certainty: 'native-input-observed' };
       },
     });
@@ -215,7 +218,7 @@ export class Sessions extends EventEmitter {
     });
     proc.onExit(({ exitCode }) => {
       workerBridge?.revoke();
-      this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId)?.event('worker-exit', { worker: session.id, kind: exitCode === 0 ? 'ok' : 'error' });
+      this.workerDiagnostic(session)?.event('worker-exit', { worker: session.id, kind: exitCode === 0 ? 'ok' : 'error' });
       this.flushOutput(session);
       session.process = null;
       session.deviceReplies?.dispose();
@@ -277,12 +280,19 @@ export class Sessions extends EventEmitter {
     session.stopNativeWatch = tailNativeFile(file, session.agent, event => this.nativeEvent(session, event), offset);
   }
 
+  workerDiagnostic(session) {
+    const task = session.workerEvidence;
+    const receipt = session.agent === 'codex' && task?.nativeTaskId && task.providerAt >= session.startedAt &&
+      session.submissions?.findLast(item => item.nativeTaskId === task.nativeTaskId && item.pastedAt >= session.startedAt);
+    return this.performanceDiagnostics?.worker(session.id, receipt?.taskId || task?.taskId);
+  }
+
   nativeEvent(session, event) {
     if (event.kind === 'question' && event.source === 'provider-record') session.promptQuestions = { id: event.id, tool: event.tool, items: event.questions || [] };
     this.submission.observe(session, event);
     const update = workerEvent(session.workerEvidence, event);
     if (event.kind === 'turn-completed' || event.kind === 'turn-failed' || event.kind === 'turn-interrupted') {
-      const trace = this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId);
+      const trace = this.workerDiagnostic(session);
       trace?.event('worker-completion-check', { worker: session.id, kind: update.accepted ? 'accepted' : 'rejected' });
       if (update.accepted) trace?.event('worker-completion', { worker: session.id, kind: event.kind === 'turn-completed' ? 'complete' : event.kind === 'turn-failed' ? 'failed' : 'interrupted' });
     }
@@ -380,7 +390,7 @@ export class Sessions extends EventEmitter {
     const reason = startupPrompt(lines.join('\n'));
     if (reason && reason !== session.startupPrompt) {
       session.startupPrompt = reason;
-      this.performanceDiagnostics?.worker(session.id, session.workerEvidence?.taskId)?.event('composer-state', { worker: session.id, kind: 'blocked' });
+      this.workerDiagnostic(session)?.event('composer-state', { worker: session.id, kind: 'blocked' });
       this.nativeEvent(session, { kind: 'attention', text: reason });
     } else if (!reason && session.startupPrompt) {
       session.startupPrompt = null;

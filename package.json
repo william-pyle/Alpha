@@ -1,7 +1,7 @@
 {
   "name": "alpha-desktop",
   "private": true,
-  "version": "0.2.30",
+  "version": "0.2.31",
   "type": "module",
   "scripts": {
     "icons:generate": "node scripts/generate-alpha-icons.mjs",

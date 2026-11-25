@@ -642,7 +642,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     for (const ws of clients) {
       if (ws.sessionId !== output.id) continue;
       if (ws.bufferedAmount > 2 * 1024 * 1024) {
-        diagnostics.worker(output.id, sessions.items.get(output.id)?.workerEvidence?.taskId)?.event('websocket-pressure', { worker: output.id, bytes: ws.bufferedAmount });
+        const session = sessions.items.get(output.id);
+        if (session) sessions.workerDiagnostic(session)?.event('websocket-pressure', { worker: output.id, bytes: ws.bufferedAmount });
         ws.close(1013, 'Reconnect to restore the terminal screen'); continue;
       }
       send(ws, 'output', output);

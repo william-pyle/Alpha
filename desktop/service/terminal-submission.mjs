@@ -43,6 +43,11 @@ export class TerminalSubmissions {
     const receipt = session.submissions?.findLast(item => item.hash === hash && item.pastedAt && !item.acceptedAt && (!event.at || Date.parse(event.at) >= item.pastedAt));
     if (!receipt) return;
     receipt.stage = 'accepted'; receipt.acceptance = 'observed'; receipt.acceptedAt = this.clock(); receipt.note = 'Exact request observed in the native provider input record; task completion is not verified.';
+    if (session.agent === 'codex' && event.kind === 'task-input' &&
+        typeof event.nativeTaskId === 'string' && event.nativeTaskId.length > 0 && event.nativeTaskId.length <= 400 &&
+        Number.isFinite(session.startedAt) && receipt.pastedAt >= session.startedAt && Date.parse(event.at) >= receipt.pastedAt) {
+      receipt.nativeTaskId = event.nativeTaskId;
+    }
     this.diagnostic?.(session, receipt)?.event('native-input', { worker: session.id, kind: 'provider-record' });
     this.accepted(session, receipt); this.changed(session);
     void this.persist().catch(() => {});

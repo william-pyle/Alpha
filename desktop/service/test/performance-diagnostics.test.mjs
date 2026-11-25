@@ -152,12 +152,16 @@ test('explicit direct worker route captures guarded native receipt without coord
   t.after(() => rm(repo, { recursive: true, force: true }));
   await writeFile(path.join(repo, 'workspace.json'), '{"entities":[]}');
   const service = await createService({ repo, uiDir: repo, mcpOptions: { home: repo, env: {} } });
-  const session = service.sessions.make({ id: 'PRIVATE-WORKER', agent: 'codex', name: 'Fixture worker', cwd: repo, projectId: 'conversations', status: 'running', open: true });
+  const session = service.sessions.make({ id: 'PRIVATE-WORKER', agent: 'codex', name: 'Fixture worker', cwd: repo, projectId: 'conversations', status: 'running', open: true, startedAt: 1000 });
   let draft = '', time = 1000;
   const writes = [];
   session.process = { write(value) {
     writes.push(value);
-    if (value === '\t') service.sessions.nativeEvent(session, { kind: 'task-input', source: 'provider-record', text: draft });
+    if (value === '\t') {
+      const nativeTurn = { source: 'provider-record', nativeTaskId: 'PRIVATE-TURN', at: new Date(time).toISOString() };
+      service.sessions.nativeEvent(session, { ...nativeTurn, kind: 'turn-started' });
+      service.sessions.nativeEvent(session, { ...nativeTurn, kind: 'task-input', text: draft });
+    }
     else draft = value.slice(6, -6).replaceAll('\r', '\n');
   } };
   service.sessions.items.set(session.id, session);
@@ -180,7 +184,7 @@ test('explicit direct worker route captures guarded native receipt without coord
     assert.equal(response.status, 202);
     for (let i = 0; i < 100 && !session.submissions?.[0]?.acceptedAt; i++) await delay(5);
     assert.equal(session.submissions?.[0]?.acceptance, 'observed');
-    service.sessions.nativeEvent(session, { kind: 'turn-completed', source: 'provider-record', id: 'PRIVATE-COMPLETION' });
+    service.sessions.nativeEvent(session, { kind: 'turn-completed', source: 'provider-record', nativeTaskId: 'PRIVATE-TURN', id: 'PRIVATE-COMPLETION' });
     const { last } = service.diagnostics.stop();
     const names = last.events.map(event => event.event);
     for (const name of ['worker-queue', 'worker-binding', 'receipt-created', 'composer-state', 'paste-intent', 'paste', 'submit-intent', 'submit', 'native-input', 'worker-completion']) assert.ok(names.includes(name), name);
