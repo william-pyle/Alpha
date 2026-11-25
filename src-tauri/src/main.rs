@@ -7,6 +7,8 @@ mod external_links;
 mod project_storage;
 mod shared_drive;
 mod window_chrome;
+mod worker_artifacts;
+mod worker_files;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(windows)]
@@ -484,6 +486,26 @@ fn main() {
                             let workspace = repo.clone();
                             std::thread::spawn(move || {
                                 let reply = shared_drive::response(event, &workspace);
+                                if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                    if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                                }
+                            });
+                        },
+                        "worker-file-operation" => {
+                            let handle = app_handle.clone();
+                            let workspace = repo.clone();
+                            std::thread::spawn(move || {
+                                let reply = worker_files::response(event, &workspace);
+                                if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
+                                    if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
+                                }
+                            });
+                        },
+                        "worker-artifact-operation" => {
+                            let handle = app_handle.clone();
+                            let workspace = repo.clone();
+                            std::thread::spawn(move || {
+                                let reply = worker_artifacts::response(event, &workspace);
                                 if let Some(child) = handle.state::<Service>().0.lock().unwrap().as_mut() {
                                     if let Some(stdin) = child.stdin.as_mut() { let _ = writeln!(stdin, "{reply}"); }
                                 }

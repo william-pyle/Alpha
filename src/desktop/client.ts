@@ -16,7 +16,7 @@ const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
   threads: [], selectedThreadId: null, awareness: { settings: { enabled: true, quiet: false, desktop: false }, desktop: null, items: [] },
-  ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [], questions: [],
+  ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [], questions: [], workerDecisions: [],
   settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], replies: [], speech: { speaking: false, error: null }, preview: null, voiceHistory: [],
 }
 let socket: WebSocket | null = null
@@ -159,7 +159,7 @@ function connect() {
     }
     if (event.type === 'window-state' && event.nativeWindow) { update({ nativeWindow: event.nativeWindow }); if (event.nativeWindow.error) reportError(event.nativeWindow.error) }
     if (event.type === 'awareness' && event.awareness) update({ awareness: event.awareness })
-    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, questions: event.questions || state.questions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
+    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, questions: event.questions || state.questions, workerDecisions: event.workerDecisions ?? state.workerDecisions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
     if (event.type === 'selection') update({ selectedId: event.selectedId || null })
     if (event.type === 'session' && event.session) {
       const next = event.session
@@ -182,6 +182,7 @@ function connect() {
         selectedId: state.selectedId && sessionIds.has(state.selectedId) ? sessions[0]?.id || null : state.selectedId,
         notices: state.notices.filter(item => !sessionIds.has(item.sessionId)),
         questions: state.questions.filter(item => item.threadId !== event.threadId && !sessionIds.has(item.sessionId)),
+        workerDecisions: state.workerDecisions.filter(item => !event.questionIds?.includes(item.questionId)),
         replies: state.replies.filter(item => !sessionIds.has(item.sessionId)),
         operations: state.operations.filter(item => item.threadId !== event.threadId),
         voiceHistory: state.voiceHistory.filter(item => item.threadId !== event.threadId),
@@ -201,7 +202,7 @@ function connect() {
       update({ settings: event.settings })
     }
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
-    if (event.type === 'questions' && event.questions) update({ questions: event.questions })
+    if (event.type === 'questions' && event.questions) update({ questions: event.questions, workerDecisions: event.workerDecisions ?? state.workerDecisions })
     if (event.type === 'voice-owner') update({ voice: { ...state.voice, owner: event.owner || null } })
     if (event.type === 'navigate') {
       if (event.sessionId) selectChat(event.sessionId)

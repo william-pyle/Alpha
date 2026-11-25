@@ -5,7 +5,7 @@ import { liveVoice } from './live'
 import VoiceInput from '../voice/VoiceInput'
 import { useDictation } from './useDictation'
 
-export default function ConversationSettings() {
+export default function ConversationSettings({ viewerVisible, onViewerDefaultChanged }: { viewerVisible?: boolean; onViewerDefaultChanged?: () => void }) {
   const state = useDesktop(), capture = useSyncExternalStore(captureState.subscribe, captureState.snapshot), live = useSyncExternalStore(liveVoice.subscribe, liveVoice.snapshot)
   const { info } = useDictation(), [, setBusy] = useState(false)
   const thread = state.threads.find(item => item.id === state.selectedThreadId)
@@ -13,7 +13,10 @@ export default function ConversationSettings() {
   const change = (value: object) => void api('/settings', value).catch(reportError)
   const awareness = (value: object) => void api('/awareness', value).catch(reportError)
   return <div className="settings-scroll conversation-settings"><h2>Conversation</h2>
-    <label><input type="checkbox" checked={!!state.settings.viewerEnabled} onChange={event => { if (!event.target.checked) captureState.set({ camera: false }); change({ viewerEnabled: event.target.checked }) }} />Enable 3D viewer</label>
+    <label><input type="checkbox" checked={!!state.settings.viewerEnabled} onChange={event => {
+      if (!event.target.checked) captureState.set({ camera: false })
+      void api('/settings', { viewerEnabled: event.target.checked }).then(onViewerDefaultChanged).catch(reportError)
+    }} />Enable 3D viewer</label>
     <p>Drag the viewer divider to resize it. Disabling releases its renderer and camera; its saved size is retained.</p>
     <h3>Reading</h3>
     <label>Text size<select aria-label="Conversation text size" value={state.settings.readingSize || 16} onChange={event => change({ readingSize: Number(event.target.value) })}>{[14, 16, 18, 20, 24].map(size => <option key={size} value={size}>{size}px</option>)}</select></label>
@@ -21,7 +24,7 @@ export default function ConversationSettings() {
     <label><input type="checkbox" checked={state.settings.reducedMotion ?? matchMedia('(prefers-reduced-motion: reduce)').matches} onChange={event => change({ reducedMotion: event.target.checked })} />Reduce motion</label>
     <p>Stops decorative viewer motion and interface animations. Manual resizing remains available.</p>
     <h3>Camera and microphone</h3><p>Camera eye contact uses local face position only. No identification, saved frames or upload. Capture starts only with your action and stops when the viewer is disabled or Alpha is hidden.</p>
-    <button disabled={!state.settings.viewerEnabled} onClick={() => captureState.set({ camera: !capture.camera, error: '' })}>{capture.camera ? 'Stop camera' : 'Start camera for eye contact'}</button>
+    <button disabled={!(viewerVisible ?? state.settings.viewerEnabled)} onClick={() => captureState.set({ camera: !capture.camera, error: '' })}>{capture.camera ? 'Stop camera' : 'Start camera for eye contact'}</button>
     {state.voice.configured && <button disabled={!thread || thread.projectPending} onClick={() => voiceActive ? liveVoice.stopImmediately() : void liveVoice.start()}>{voiceActive ? 'End live voice' : 'Start live voice'}</button>}
     {capture.error && <p role="alert">{capture.error}</p>}{live.error && <p role="alert">{live.error}</p>}
     <h3>Dictate into this conversation</h3><p>Recording stays recoverable if Settings closes. Review the transcribed draft before sending.</p>

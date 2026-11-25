@@ -1,6 +1,9 @@
 export interface WorkspaceStep {
+  id?: string
   name: string
   path: string
+  /** A removed tab retains its numbered deep link and backing report. */
+  removedAt?: string
   /**
    * Omitted = HTML in an iframe, formatted Markdown, or an image preview,
    * selected by file extension. `compare3d` = a Compare3DManifest JSON and

@@ -95,7 +95,7 @@ try {
   await expect(page.frameLocator('iframe').getByText('One Windows window holds selectable Alpha conversations', { exact: false })).toBeVisible();
   await page.screenshot({ path: '.test-output/unified-help.png' });
   await page.getByRole('tab', { name: 'Workspace' }).click();
-  await page.getByText('Example project', { exact: true }).last().click();
+  await page.getByRole('heading', { name: 'Example project', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Example project' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Example project' }).locator('img.mdi-card-tab-icon')).toHaveAttribute('src', /example\/icon\.png$/);
   await expect(page.locator('.topbar')).toHaveCount(0);

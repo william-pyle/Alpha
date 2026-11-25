@@ -270,7 +270,15 @@ try {
   await expect(page.getByText('No open conversations', { exact: true })).toBeVisible(); await expect(page.locator('.mdi-center')).toBeVisible(); await expect(page.getByRole('button', { name: 'New conversation', exact: true })).toBeInViewport(); await page.reload(); await expect(page.getByText('No open conversations', { exact: true })).toBeVisible();
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: new RegExp('^Research conversation') }).click(); await expect(editor).toHaveValue('Research draft'); assert.equal(service.sessions.items.size, 3);
   for (const id of [w1.id, w2.id, w3.id]) assert.equal(service.sessions.get(id).status, 'running');
-  const oldOrigin = service.origin; await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
+  const oldOrigin = service.origin;
+  const fixtureWorkers = [w1.id, w2.id, w3.id].map(id => service.sessions.get(id));
+  const conoutReaders = fixtureWorkers.map(session => session.process?._agent?._conoutSocketWorker);
+  await service.close();
+  assert.ok(fixtureWorkers.every(session => !session.process), 'Synthetic terminal processes exited before service reload');
+  // A quiet ConPTY reader can outlive the child exit callback. Drain these
+  // fixture-owned readers after normal shutdown so the test can exit naturally.
+  for (const reader of conoutReaders) reader?.dispose();
+  service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('I’m still working on this request.', { exact: true })).toHaveCount(1);
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
   checks.push('Visible × closes selected and background tabs, focuses neighbor or fixed + after last keyboard close, preserves workers/IDs, and History reopens draft and terminal mode across isolated service restart.');

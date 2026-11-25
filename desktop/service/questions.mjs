@@ -7,6 +7,26 @@ import { submissionHash } from './terminal-submission.mjs';
 const cleanLine = line => String(line || '').replace(/^\s*(?:#{1,6}\s*|[-*>]\s*)/, '').replace(/\*\*|__/g, '').trim();
 const optionLine = line => /^\s*(?:[-*•]|\d+[.)]|[A-D][.)])\s+(.{1,200})$/.exec(line)?.[1]?.trim();
 const validQuestion = value => value.length >= 8 && value.length <= 500 && value.endsWith('?') && !/^https?:\/\//i.test(value);
+const approved = 'Approve this request';
+const denied = 'Deny this request';
+const workerReceiptStatuses = new Set(['applied', 'closed', 'stale', 'denied', 'owner-denied', 'system-blocked', 'unavailable', 'unconfirmed', 'error']);
+const workerDecisionRecorded = item => item.source === 'worker-approval' && item.status === 'answered' && [approved, denied].includes(item.answer);
+
+function keepRecentQuestions(items) {
+  const recent = new Set(items.slice(-500));
+  // Retain owner decisions used to reconcile the bounded worker ledger after restart.
+  const workerDecisions = new Set(items.filter(workerDecisionRecorded).slice(-512));
+  return items.filter(item => recent.has(item) || workerDecisions.has(item));
+}
+
+function workerOutcome(receipt) {
+  if (!workerReceiptStatuses.has(receipt?.status)) return null;
+  return {
+    status: receipt.status,
+    ...(typeof receipt.message === 'string' && { message: receipt.message.slice(0, 300) }),
+    ...(typeof receipt.nextStep === 'string' && { nextStep: receipt.nextStep.slice(0, 300) }),
+  };
+}
 
 export function extractQuestions(message) {
   if (typeof message !== 'string' || !message.trim()) return [];
@@ -45,16 +65,40 @@ export class Questions extends EventEmitter {
   }
   async init() {
     const saved = await readJson(this.file, []);
-    this.items = Array.isArray(saved) ? saved.filter(item => item && typeof item.id === 'string' && typeof item.sessionId === 'string' && ['pending', 'answered', 'dismissed'].includes(item.status)).slice(-500) : [];
+    this.items = Array.isArray(saved) ? keepRecentQuestions(saved.filter(item => item && typeof item.id === 'string' && typeof item.sessionId === 'string' && ['pending', 'answered', 'dismissed'].includes(item.status))) : [];
+    for (const item of this.items) {
+      if (item.source === 'worker-approval' && item.status === 'answered' && item.continuation === 'queued') item.continuation = 'interrupted';
+    }
     return this;
   }
   list() { return this.items.filter(item => item.status === 'pending').sort((a, b) => a.createdAt.localeCompare(b.createdAt)); }
-  async ask({ text, options = [], source = 'coordinator', sourceId, operationId, context, chatName = 'Alpha', sessionId = 'alpha', threadId }) {
+  workerDecisions() {
+    return this.items.filter(item => workerDecisionRecorded(item) && typeof item.answeredAt === 'string')
+      .sort((a, b) => b.answeredAt.localeCompare(a.answeredAt)).slice(0, 12).map(item => {
+        const deny = item.answer === denied;
+        const saved = workerOutcome(this.workerReceipt?.(item)) || workerOutcome(item.workerReceipt);
+        return {
+          questionId: item.id, receiptId: item.sourceId, chatName: item.chatName, answeredAt: item.answeredAt,
+          decision: deny ? 'deny' : 'approve',
+          ...(deny ? { status: 'owner-denied' } : saved || {
+            status: item.continuation === 'queued' ? 'pending' : 'unconfirmed',
+          }),
+        };
+      });
+  }
+  async askWorkerApproval({ sourceId, sessionId, threadId, chatName, context }) {
+    return this.ask({
+      text: 'Allow this managed session request?',
+      options: [approved, denied],
+      source: 'worker-approval', sourceId, sessionId, threadId, chatName, context,
+    }, true);
+  }
+  async ask({ text, options = [], source = 'coordinator', sourceId, operationId, context, chatName = 'Alpha', sessionId = 'alpha', threadId }, workerApproval = false) {
     if (typeof text !== 'string' || text.trim().length < 8 || text.length > 500) throw new Error('Write a question between 8 and 500 characters.');
-    if (!['coordinator', 'maintenance', 'project'].includes(source)) throw new Error('Unknown question source.');
+    if (!['coordinator', 'maintenance', 'project'].includes(source) && !(source === 'worker-approval' && workerApproval)) throw new Error('Unknown question source.');
     const existing = this.items.find(item => item.source === source && item.sourceId === sourceId && (item.threadId || null) === (threadId || null) && item.text === text.trim() && (source !== 'project' || item.status === 'pending'));
     if (existing) return existing;
-    const item = { id: randomUUID(), sessionId: source === 'project' ? sessionId : 'alpha', source, sourceId: sourceId || null, operationId: operationId || null, context: String(context || '').slice(0, 6000), chatName, text: text.trim(), options: options.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, source === 'project' ? 100 : 6), status: 'pending', createdAt: new Date().toISOString() };
+    const item = { id: randomUUID(), sessionId: source === 'project' || source === 'worker-approval' ? sessionId : 'alpha', source, sourceId: sourceId || null, operationId: operationId || null, context: String(context || '').slice(0, 6000), chatName, text: text.trim(), options: options.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim().slice(0, 200)).slice(0, source === 'project' ? 100 : 6), status: 'pending', createdAt: new Date().toISOString() };
     if (threadId) item.threadId = threadId;
     this.items.push(item); await this.changed([item]); return item;
   }
@@ -101,7 +145,7 @@ export class Questions extends EventEmitter {
       if (structured) item.questionIndex = index;
       this.items.push(item); added.push(item); newItems.push(item);
     }
-    if (added.length) { this.items = this.items.slice(-500); this.changed(newItems).catch(error => this.emit('error', error)); }
+    if (added.length) { this.items = keepRecentQuestions(this.items); this.changed(newItems).catch(error => this.emit('error', error)); }
     return added;
   }
   async captureNative(session, state, binding) {
@@ -163,7 +207,7 @@ export class Questions extends EventEmitter {
     const question = this.items.find(item => item.id === id && item.status === 'pending');
     if (!question) throw Object.assign(new Error('Question is no longer pending.'), { status: 404 });
     if (typeof text !== 'string' || !text.trim() || text.length > 64000) throw new Error('Enter an answer before sending.');
-    if (['coordinator', 'maintenance', 'project'].includes(question.source)) {
+    if (['coordinator', 'maintenance', 'project', 'worker-approval'].includes(question.source)) {
       if (!resume) throw new Error('Alpha cannot receive this answer right now.');
       question.attempts = (question.attempts || 0) + 1;
       await this.changed();
@@ -175,7 +219,12 @@ export class Questions extends EventEmitter {
       try { await this.changed(); }
       catch (error) { question.status = 'pending'; delete question.answer; delete question.answeredAt; delete question.continuation; throw error; }
       if (typeof continuation === 'function') {
-        void Promise.resolve().then(continuation).then(() => { question.continuation = 'completed'; }, error => {
+        void Promise.resolve().then(continuation).then(receipt => {
+          question.continuation = 'completed';
+          if (question.source === 'worker-approval' && receipt?.receiptId === question.sourceId) {
+            question.workerReceipt = workerOutcome(receipt);
+          }
+        }, error => {
           question.continuation = 'failed'; question.continuationError = String(error.message || error);
           this.emit('continuation-failed', { question, error });
         }).then(() => this.changed()).catch(error => this.emit('error', error));
@@ -217,6 +266,7 @@ export class Questions extends EventEmitter {
     const question = this.items.find(item => item.id === id && item.status === 'pending');
     if (!question) throw Object.assign(new Error('Question is no longer pending.'), { status: 404 });
     if (question.source === 'project') throw new Error('Choose a project, or close this new chat to cancel it.');
+    if (question.source === 'worker-approval') throw new Error('Choose Deny this request to close this approval.');
     question.status = 'dismissed'; question.dismissedAt = new Date().toISOString();
     await this.changed();
     return { dismissed: true, questionId: id };

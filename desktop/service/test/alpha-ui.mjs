@@ -138,7 +138,7 @@ try {
   await expect(page.getByRole('button', { name: 'Older mixed Alpha history' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Conversation history' }).click();
 
-  await page.getByText('Example project', { exact: true }).last().click();
+  await page.getByRole('heading', { name: 'Example project', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Example project' })).toBeVisible();
   await expect(page.frameLocator('iframe.report-frame').getByRole('heading', { name: 'Example project report' })).toBeVisible();
   const saved = JSON.parse(await readFile(path.join(repo, '.alpha/settings.json')));

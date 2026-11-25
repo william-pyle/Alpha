@@ -157,8 +157,46 @@ try {
   assert.deepEqual(records.map(record => record.status).sort(), ['closed', 'denied', 'stale']);
   assert.equal(records.find(record => record.id === closed.receiptId).origin.nativeTaskId, 'turn-first');
   assert.equal(ledger.includes(first.token) || ledger.includes(second.token), false);
+
+  const ownerCall = async (route, data) => {
+    const response = await fetch(service.origin + '/api' + route, {
+      method: data ? 'POST' : 'GET',
+      headers: { authorization: `Bearer ${service.token}`, 'content-type': 'application/json' },
+      ...(data ? { body: JSON.stringify(data) } : {}),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    return response.json();
+  };
+  await service.questions.dismiss(ownerQuestion.id);
+  await documents.getByRole('button', { name: 'Close Questions', exact: true }).click();
+  await expect(questions).toHaveCount(0);
+  service.sessions.nativeEvent(first.session, { kind: 'turn-started', source: 'provider-record', nativeTaskId: 'project-turn', eventKey: 'project-turn' });
+  const create = { kind: 'request', action: 'create-project', requestKey: 'create-fixture-project', arguments: { title: 'Fixture cross project', template: 'research' } };
+  const created = await request(first.token, create);
+  assert.equal(created.status, 'applied');
+  assert.deepEqual(await request(first.token, create), created);
+  await expect(questions).toHaveCount(0);
+  const crossProject = { kind: 'request', action: 'update-project', requestKey: 'pin-different-project', arguments: { projectId: created.result.projectId, patch: { pinned: true } } };
+  const pending = await request(first.token, crossProject);
+  assert.equal(pending.status, 'pending-approval');
+  const [review] = await ownerCall('/questions');
+  assert.equal(review.sourceId, pending.receiptId);
+  assert.equal(review.threadId, first.thread.id);
+  await expect(questions).toHaveAttribute('aria-selected', 'true');
+  await expect(secondTab).toHaveAttribute('aria-selected', 'true');
+  const card = page.locator(`[data-question-id="${review.id}"]`);
+  await expect(card).toContainText(created.result.projectId);
+  await expect(card.getByRole('textbox')).toHaveCount(0);
+  await card.getByRole('button', { name: 'Approve this request', exact: true }).click();
+  await card.getByRole('button', { name: 'Confirm decision', exact: true }).click();
+  await expect(card).toHaveCount(0);
+  const resultQuery = { kind: 'result', receiptId: pending.receiptId };
+  await expect.poll(async () => (await request(first.token, resultQuery)).status).toBe('applied');
+  await request(second.token, resultQuery, 404);
+  assert.equal((await ownerCall(`/workspace/projects/${created.result.projectId}`)).project.pinned, true);
+  assert.deepEqual(terminalActions, []);
   assert.deepEqual(errors, []);
-  console.log('Worker requests UI passed exact Help closure, original-task receipt, reload, stale targets, denial, and no terminal input. A new owner question selected Questions while routine requests kept it closed.');
+  console.log('Worker requests UI passed legacy Help closure and routine project creation, exact cross-project approval, original-session receipt, reload, denied stops, and no terminal input.');
 } finally {
   for (const session of fixtureSessions) session.process = null;
   await browser?.close();

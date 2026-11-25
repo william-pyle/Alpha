@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import App from '../App'
 import { useWorkspace } from '../lib/workspace'
-import { parseHash } from '../lib/route'
-import { api, contentUrl, onServiceEvent, reportError, sendEvent, setPreview, surface, useDesktop } from './client'
+import { entityHash, parseHash } from '../lib/route'
+import { api, contentUrl, desktopState, onServiceEvent, reportError, sendEvent, setPreview, surface, useDesktop } from './client'
 import { FilePreview } from './FilesRail'
 import QuestionsPanel from './QuestionsPanel'
 import Updates from './Updates'
@@ -20,12 +20,24 @@ import AgentCenter from './AgentCenter'
 import { categoryIcon } from '../lib/categories'
 import { Icon } from './Icons'
 import type { Preview, ServiceEvent } from './types'
+import { captureState } from './captureState'
+import { type UiTarget, useWorkerUi } from './workerUi'
 import './unified.css'
 
 
-type DocumentTab = { id: string; title: string; kind: 'workspace' | 'entity' | 'file' | 'utility'; utility?: WorkspaceUtility; route?: string; preview?: Preview; workerTargetId?: string }
+type DocumentTab = { id: string; title: string; kind: 'workspace' | 'entity' | 'file' | 'utility'; utility?: WorkspaceUtility; route?: string; preview?: Preview; workerTargetId?: string; incarnation?: string }
 const home: DocumentTab = { id: 'workspace', title: 'Workspace', kind: 'workspace' }
 const questions: DocumentTab = { id: 'utility:questions', title: 'Questions', kind: 'utility', utility: 'questions' }
+
+const hasLayout = (element: Element | null) => {
+  const box = element?.getBoundingClientRect()
+  return Boolean(box?.width && box.height)
+}
+const reportIsRendered = (app: Element) => {
+  const image = app.querySelector<HTMLImageElement>('.report-image img')
+  if (image) return image.complete && image.naturalWidth > 0 && hasLayout(image)
+  return hasLayout(app.querySelector('.report-frame.loaded,.markdown-document,.editable-card,.c3d'))
+}
 
 export default function UnifiedShell() {
   useUiInspection()
@@ -38,6 +50,13 @@ export default function UnifiedShell() {
   const [tabs, setTabs] = useState<DocumentTab[]>(() => [home, ...restored.tools.map(utility => ({ id: `utility:${utility}`, kind: 'utility' as const, utility, title: workspaceUtilities[utility] }))])
   const [active, setActive] = useState(() => restored.active ? `utility:${restored.active}` : 'workspace')
   const [chatWidth, setChatWidth] = useState(() => state.settings.chatSidebarWidth || 500)
+  const [hiddenMessages, setHiddenMessages] = useState(() => new Set<string>())
+  const [viewerOverrides, setViewerOverrides] = useState(() => new Map<string, boolean>())
+  const selectedThread = state.threads.find(thread => thread.id === state.selectedThreadId)
+  const messagesAvailable = Boolean(selectedThread && selectedThread.viewMode !== 'terminal')
+  const messagesVisible = selectedThread ? !hiddenMessages.has(selectedThread.id) : true
+  const defaultViewerVisible = !!state.settings.viewerEnabled
+  const viewerVisible = selectedThread && messagesAvailable ? viewerOverrides.get(selectedThread.id) ?? defaultViewerVisible : defaultViewerVisible
   const drag = useRef<{ x: number; width: number } | null>(null)
   const activeTab = tabs.find(tab => tab.id === active) || home
   const previousQuestionsView = useRef<string | null>(null)
@@ -57,7 +76,9 @@ export default function UnifiedShell() {
       const parsed = parseHash()
       if (!parsed.id) { if (activate) setActive('workspace'); return }
       const id = `entity:${parsed.id}`
-      setTabs(current => current.some(tab => tab.id === id) ? current.map(tab => tab.id === id ? { ...tab, route: location.hash } : tab) : [...current, { id, kind: 'entity', title: parsed.id || 'Document', route: location.hash }])
+      const hash = location.hash
+      const incarnation = crypto.randomUUID()
+      setTabs(current => current.some(tab => tab.id === id) ? current.map(tab => tab.id === id ? { ...tab, route: hash } : tab) : [...current, { id, kind: 'entity', title: parsed.id || 'Document', route: hash, incarnation }])
       if (activate) setActive(id)
       setPreview(null)
     }
@@ -118,8 +139,7 @@ export default function UnifiedShell() {
   const receiveWorkerPreviewEvent = useEffectEvent((event: ServiceEvent) => {
     if (event.type === 'disconnected') {
       pendingWorkerCloses.current.clear()
-      const targetId = crypto.randomUUID()
-      setTabs(current => current.map(tab => tab.workerTargetId ? { ...tab, workerTargetId: targetId } : tab))
+      setTabs(current => current.map(tab => tab.workerTargetId ? { ...tab, workerTargetId: crypto.randomUUID() } : tab))
       return
     }
     if (event.type !== 'worker-preview-close' || !event.requestId || !event.targetId) return
@@ -182,10 +202,125 @@ export default function UnifiedShell() {
     document.addEventListener('visibilitychange', inventory)
     return () => document.removeEventListener('visibilitychange', inventory)
   }, [state.connected, tabs])
-  const openHelp = async () => {
-    try { const file = await api<Preview>('/help'); setPreview({ ...file, name: 'Help' }) }
+  const openHelp = async (mayOpen = () => true) => {
+    try {
+      const file = await api<Preview>('/help')
+      if (!mayOpen() || file.kind !== 'document' || file.disposable !== 'help') return false
+      setPreview({ ...file, name: 'Help' })
+      return true
+    }
     catch (error) { reportError(error) }
+    return false
   }
+  const changeMessages = (threadId: string, visible: boolean) => {
+    setHiddenMessages(current => {
+      const next = new Set(current)
+      if (visible) next.delete(threadId)
+      else next.add(threadId)
+      return next
+    })
+  }
+  const changeViewer = (threadId: string, visible: boolean) => {
+    setViewerOverrides(current => {
+      const next = new Map(current)
+      if (visible === defaultViewerVisible) next.delete(threadId)
+      else next.set(threadId, visible)
+      return next
+    })
+  }
+  const uiTargets = useMemo(() => {
+    const result: UiTarget[] = [
+      { key: 'workspace', kind: 'workspace-tab', documentId: home.id, label: home.title },
+      { key: 'help-launcher', kind: 'help-launcher', label: 'Help' },
+    ]
+    if (selectedThread?.projectId && selectedThread.viewMode !== 'terminal' && !selectedThread.archived && !selectedThread.projectPending) {
+      result.push({ key: `layout:${selectedThread.id}`, kind: 'conversation-layout', label: 'Message panel and 3D viewer', projectId: selectedThread.projectId, threadId: selectedThread.id })
+    }
+    const projects = new Map(workspace?.entities.filter(project => !project.removedAt).map(project => [project.id, project]))
+    const activeProjects = new Set(state.sessions.filter(session => session.open && session.status === 'running' &&
+      (session.agent === 'codex' || session.agent === 'claude')).map(session => session.projectId))
+    for (const tab of tabs) {
+      if (tab.workerTargetId) result.push({ key: `help:${tab.workerTargetId}`, kind: 'help-tab', label: 'Help', documentId: tab.id })
+      if (tab.kind !== 'entity' || !tab.incarnation) continue
+      const project = projects.get(tab.id.slice(7))
+      if (project) result.push({ key: `project-document:${tab.incarnation}`, kind: 'project-tab', documentId: tab.id, projectId: project.id, label: project.title })
+    }
+    for (const project of projects.values()) {
+      if (!activeProjects.has(project.id)) continue
+      project.steps.forEach((step, stepIndex) => {
+        if (step.removedAt) return
+        result.push({
+          key: JSON.stringify(['report', project.id, stepIndex, step.id, step.path, step.viewer]),
+          kind: 'project-launcher', projectId: project.id, stepIndex,
+          stepBinding: { path: step.path, id: step.id, viewer: step.viewer },
+          documentId: `entity:${project.id}`, route: entityHash(project.id, stepIndex), label: `${project.title} / ${step.name}`,
+        })
+      })
+    }
+    return result
+  }, [workspace, tabs, selectedThread, state.sessions])
+  useWorkerUi(surface === 'workspace' && state.connected, uiTargets, async (action, target, visible, stillCurrent) => {
+    const selected = (id: string) => document.getElementById(`document-tab-${id}`)
+    const noDialog = () => !document.querySelector('dialog[open],.desk-scrim') && !desktopState().nativeWindow?.minimized
+    if (!noDialog()) return 'unavailable'
+    if (target.kind === 'conversation-layout') {
+      const exactThread = () => {
+        const current = desktopState()
+        return current.selectedThreadId === target.threadId && current.threads.some(thread =>
+          thread.id === target.threadId && thread.projectId === target.projectId && thread.viewMode !== 'terminal' && !thread.archived && !thread.projectPending)
+      }
+      if (!exactThread() || visible === undefined || !target.threadId) return 'stale'
+      if (action === 'set-message-panel') {
+        changeMessages(target.threadId, visible)
+        return () => exactThread() && hasLayout(document.getElementById('conversation-content')) === visible &&
+          hasLayout(document.querySelector('.thread-conversation > .layout-composer')) === visible &&
+          document.querySelector('.thread-conversation')?.getAttribute('data-message-panel') === (visible ? 'visible' : 'hidden')
+      }
+      if (visible !== viewerVisible && captureState.snapshot().camera) return 'unavailable'
+      changeViewer(target.threadId, visible)
+      return () => exactThread() && hasLayout(document.querySelector('.thread-conversation > .layout-viewer')) === visible &&
+        hasLayout(document.querySelector('.thread-conversation .alpha-presence-stage')) === visible
+    }
+    const mayNavigate = () => {
+      if (!noDialog() || (selected(questions.id)?.getAttribute('aria-selected') === 'true' && desktopState().questions.length)) return false
+      if (document.activeElement instanceof HTMLIFrameElement) return false
+      return ![...document.querySelectorAll('.card-editor-form,.document-modes button:last-child[aria-pressed=true],.card-save-status,.document-status')].some(node =>
+        hasLayout(node) && (node.matches('.card-editor-form,.document-modes button') || /^(?:Unsaved draft|Saving)/.test(node.textContent || '')))
+    }
+    if (!mayNavigate()) return 'unavailable'
+    if (target.kind === 'help-launcher') {
+      const previous = location.hash
+      const permitted = () => stillCurrent() && location.hash === previous && selected(active)?.getAttribute('aria-selected') === 'true' && mayNavigate()
+      if (!await openHelp(permitted)) return 'unavailable'
+      return () => hasLayout(document.querySelector('.mdi-workspace-surface > .file-preview[data-disposable-help=true]'))
+    }
+    if (!target.documentId) return 'stale'
+    const documentId = target.documentId
+    if (target.kind === 'project-launcher' && target.route) {
+      const project = workspace?.entities.find(item => item.id === target.projectId && !item.removedAt)
+      const step = target.stepIndex === undefined ? undefined : project?.steps[target.stepIndex]
+      if (!project || !step || step.removedAt || !target.stepBinding || target.route !== entityHash(project.id, target.stepIndex) ||
+          step.path !== target.stepBinding.path || step.id !== target.stepBinding.id || step.viewer !== target.stepBinding.viewer) return 'stale'
+      const binding = JSON.stringify([step.id, step.path, step.viewer])
+      choose({ id: documentId, kind: 'entity', title: project.title, route: target.route })
+      return () => {
+        const app = document.querySelector('.mdi-app-view .app-layout')
+        return selected(documentId)?.getAttribute('aria-selected') === 'true' && location.hash === target.route &&
+          app?.getAttribute('data-entity') === project.id && app.getAttribute('data-report-step') === String(target.stepIndex) &&
+          app.getAttribute('data-report-binding') === binding && reportIsRendered(app)
+      }
+    }
+    const tab = tabs.find(item => item.id === documentId)
+    if (!tab || !selected(documentId)) return 'stale'
+    if (action === 'close-tab') {
+      close(tab)
+      return () => !selected(documentId)
+    }
+    if (target.kind === 'project-tab' && workspace?.entities.find(project => project.id === target.projectId)?.steps.some(
+      (step, index) => step.removedAt && entityHash(target.projectId!, index) === tab.route)) return 'stale'
+    choose(tab)
+    return () => selected(documentId)?.getAttribute('aria-selected') === 'true'
+  })
   const openTool = useCallback((utility: WorkspaceUtility) => {
     const id = `utility:${utility}`
     setTabs(current => current.some(tab => tab.id === id) ? current : [...current, { id, kind: 'utility', utility, title: workspaceUtilities[utility] }])
@@ -217,6 +352,11 @@ export default function UnifiedShell() {
     if (action === 'new-card') window.dispatchEvent(new Event('alpha-new-card'))
     if (action === 'workspace') choose(home)
     if (action === 'help') void openHelp()
+    if (action === 'toggle-messages' && selectedThread && messagesAvailable) changeMessages(selectedThread.id, !messagesVisible)
+    if (action === 'toggle-viewer' && selectedThread && messagesAvailable) {
+      if (viewerVisible) captureState.set({ camera: false })
+      changeViewer(selectedThread.id, !viewerVisible)
+    }
   }
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
@@ -237,11 +377,11 @@ export default function UnifiedShell() {
   }
 
   return <div className="unified-shell" data-reduced-motion={state.settings.reducedMotion ?? matchMedia('(prefers-reduced-motion: reduce)').matches} style={{ '--reading-size': `${state.settings.readingSize || 16}px`, '--reading-spacing': state.settings.readingSpacing || 1.6 } as React.CSSProperties}>
-    <TopMenus run={run} />
+    <TopMenus run={run} messagesVisible={messagesAvailable ? messagesVisible : undefined} viewerVisible={messagesAvailable ? viewerVisible : undefined} />
     <div className="mdi-body">
-      <aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><ThreadConversations /></aside>
+      <aside className="mdi-chats" style={{ width: Math.min(chatWidth, Math.max(300, window.innerWidth * .6)) }}><ThreadConversations messagesHidden={!messagesVisible} viewerVisible={viewerVisible} /></aside>
       {<div className="mdi-side-splitter" role="separator" aria-label="Resize Chats sidebar" aria-orientation="vertical" tabIndex={0} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = Math.min(Math.max(chatWidth + (event.key === 'ArrowRight' ? 20 : -20), 300), Math.max(300, window.innerWidth * .6)); setChatWidth(next); void api('/settings', { chatSidebarWidth: Math.round(next) }).catch(reportError) } }} />}
-      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span>{tab.utility === 'questions' && state.questions.length > 0 && <span className="mdi-questions-count" aria-hidden="true" title={state.questions.length + ' pending questions'}>{state.questions.length}</span>}</button>{tab.kind !== 'workspace' && <button type="button" className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{panelTabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} />}{tab.utility === 'learned-preferences' && <LearningPanel />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" />}{tab.utility === 'health' && <AgentCenter initialTab="Health" />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}{tab.utility === 'questions' && <QuestionsPanel />}{tab.utility === 'check-for-updates' && <div className="settings-scroll"><Updates /></div>}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
+      <div className="mdi-center"><div className="mdi-document-tabs" role="tablist" aria-label="Documents">{tabs.map(tab => <div className={`mdi-document-tab ${active === tab.id ? 'selected' : ''}`} key={tab.id}><button id={`document-tab-${tab.id}`} role="tab" type="button" aria-selected={active === tab.id} aria-controls={tab.kind === 'utility' ? `utility-panel-${tab.utility}` : undefined} onClick={() => choose(tab)} title={title(tab)}>{tabIcon(tab)}<span>{title(tab)}</span>{tab.utility === 'questions' && state.questions.length > 0 && <span className="mdi-questions-count" aria-hidden="true" title={state.questions.length + ' pending questions'}>{state.questions.length}</span>}</button>{tab.kind !== 'workspace' && <button type="button" className="mdi-tab-close" aria-label={`Close ${title(tab)}`} onClick={() => close(tab)}>×</button>}</div>)}</div><div className="workspace-surface mdi-workspace-surface"><div className="mdi-app-view" hidden={activeTab.kind === 'utility'}><App mdi /></div>{panelTabs.filter(tab => tab.kind === 'utility').map(tab => <section key={tab.id} id={`utility-panel-${tab.utility}`} role="tabpanel" aria-labelledby={`document-tab-${tab.id}`} className="mdi-utility-panel" hidden={active !== tab.id}>{tab.utility === 'settings' && <SettingsDialog onClose={() => close(tab)} viewerVisible={viewerVisible} onViewerDefaultChanged={() => setViewerOverrides(new Map())} />}{tab.utility === 'learned-preferences' && <LearningPanel />}{tab.utility === 'common-agents' && <AgentCenter initialTab="Agents" />}{tab.utility === 'health' && <AgentCenter initialTab="Health" />}{tab.utility === 'conversation-history' && <ConversationHistory />}{tab.utility === 'needs-attention' && <ImportantEvents panel />}{tab.utility === 'questions' && <QuestionsPanel />}{tab.utility === 'check-for-updates' && <div className="settings-scroll"><Updates /></div>}</section>)}{activeTab.kind === 'file' && activeTab.preview && <FilePreview file={activeTab.preview} onClose={() => close(activeTab)} />}</div></div>
     </div>
     <NewCard hideTrigger />
     <ConversationStatus />

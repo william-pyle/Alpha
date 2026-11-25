@@ -34,7 +34,7 @@ pub(super) fn response(request: Value, _workspace: &Path) -> Value {
 }
 
 #[cfg(windows)]
-mod windows_files {
+pub(crate) mod windows_files {
     use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine};
     use sha2::{Digest, Sha256};
@@ -56,8 +56,8 @@ mod windows_files {
         },
     };
 
-    pub(super) type Failure = (u16, &'static str);
-    pub(super) type Outcome<T> = Result<T, Failure>;
+    pub(crate) type Failure = (u16, &'static str);
+    pub(crate) type Outcome<T> = Result<T, Failure>;
     const TEXT_LIMIT: u64 = 128 * 1024;
     const IMAGE_LIMIT: u64 = 8 * 1024 * 1024;
     const UNSAFE_PATH: Failure = (
@@ -69,19 +69,21 @@ mod windows_files {
         409,
         "This original is offline or needs cloud recall. Open it in Explorer when available.",
     );
-    pub(super) const NO_RECALL: u32 = FILE_FLAG_OPEN_NO_RECALL.0 | FILE_FLAG_OPEN_REPARSE_POINT.0;
+    pub(crate) const OS_ACCESS_DENIED: Failure = (403, "Windows denied access to the original.");
+    pub(crate) const FILE_IN_USE: Failure = (409, "The original is in use. Review it before trying again.");
+    pub(crate) const NO_RECALL: u32 = FILE_FLAG_OPEN_NO_RECALL.0 | FILE_FLAG_OPEN_REPARSE_POINT.0;
 
     fn io_failure(error: io::Error) -> Failure {
         match error.raw_os_error() {
             Some(2 | 3) => (404, "The original or its folder is unavailable. It was not created."),
-            Some(5 | 19) => (403, "Windows denied access to the original."),
-            Some(32 | 33) => (409, "The original is in use. Review it before trying again."),
+            Some(5 | 19) => OS_ACCESS_DENIED,
+            Some(32 | 33) => FILE_IN_USE,
             Some(4350) => OFFLINE,
             _ => (503, "Shared Drive could not open the original. Review it in Explorer before trying again."),
         }
     }
 
-    pub(super) fn component_allowed(name: &str) -> bool {
+    pub(crate) fn component_allowed(name: &str) -> bool {
         if name.is_empty()
             || name.ends_with(['.', ' '])
             || name
@@ -110,7 +112,7 @@ mod windows_files {
             })
     }
 
-    pub(super) fn validate_attributes(file: &File, directory: bool) -> Outcome<()> {
+    pub(crate) fn validate_attributes(file: &File, directory: bool) -> Outcome<()> {
         let info = file.metadata().map_err(io_failure)?;
         validate_flags(info.file_attributes())?;
         if (directory && !info.is_dir()) || (!directory && !info.is_file()) {
@@ -130,7 +132,7 @@ mod windows_files {
         Ok(())
     }
 
-    pub(super) fn lock_directory(path: &Path) -> Outcome<File> {
+    pub(crate) fn lock_directory(path: &Path) -> Outcome<File> {
         // Hold each verified ancestor without SHARE_DELETE for the full operation.
         let file = OpenOptions::new()
             .access_mode(FILE_READ_ATTRIBUTES.0)
@@ -142,7 +144,7 @@ mod windows_files {
         Ok(file)
     }
 
-    pub(super) fn lock_local_tree(root: &Path) -> Outcome<(PathBuf, Vec<File>)> {
+    pub(crate) fn lock_local_tree(root: &Path) -> Outcome<(PathBuf, Vec<File>)> {
         let mut components = root.components();
         let Some(Component::Prefix(drive)) = components.next() else {
             return Err(INVALID_PATH);
@@ -167,7 +169,11 @@ mod windows_files {
         Ok((path, locks))
     }
 
-    fn open_original(root: &str, relative: &str, writing: bool) -> Outcome<(File, Vec<File>)> {
+    pub(crate) fn open_original(
+        root: &str,
+        relative: &str,
+        writing: bool,
+    ) -> Outcome<(File, Vec<File>)> {
         let parts: Vec<_> = relative.split(['/', '\\']).collect();
         if relative.len() > 4096 || parts.iter().any(|part| !component_allowed(part)) {
             return Err(INVALID_PATH);
@@ -197,11 +203,15 @@ mod windows_files {
         Ok((file, locks))
     }
 
-    pub(super) fn identity(file: &File) -> Outcome<[u8; 12]> {
+    pub(crate) fn identity(file: &File) -> Outcome<[u8; 12]> {
+        file_identity(file, true)
+    }
+
+    pub(crate) fn file_identity(file: &File, require_single_link: bool) -> Outcome<[u8; 12]> {
         let mut info = BY_HANDLE_FILE_INFORMATION::default();
         unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut info) }
             .map_err(|_| (503, "Windows could not verify the original file."))?;
-        if info.nNumberOfLinks != 1 {
+        if require_single_link && info.nNumberOfLinks != 1 {
             return Err(UNSAFE_PATH);
         }
         let mut id = [0; 12];
@@ -211,7 +221,7 @@ mod windows_files {
         Ok(id)
     }
 
-    fn revision(id: &[u8; 12], bytes: &[u8]) -> String {
+    pub(crate) fn revision(id: &[u8; 12], bytes: &[u8]) -> String {
         let mut digest = Sha256::new();
         digest.update(id);
         digest.update(bytes);

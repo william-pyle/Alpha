@@ -6,8 +6,8 @@
 [![MIT license](https://badgen.net/badge/license/MIT/green)](LICENSE)
 
 Alpha brings agent chats, Workspace documents, questions, voice and reusable
-knowledge into one Windows desktop window. This source targets **0.2.29**.
-See the [0.2.29 release notes](release-notes/v0.2.29.md).
+knowledge into one Windows desktop window. This source targets **0.2.30**.
+See the [0.2.30 release notes](release-notes/v0.2.30.md).
 
 ## What you can do
 

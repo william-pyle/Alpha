@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, reportError, useDesktop } from './client'
 
-export default function LayoutRegion({ kind, children }: { kind: 'composer' | 'viewer'; children: React.ReactNode }) {
+export default function LayoutRegion({ kind, children, viewerVisible }: { kind: 'composer' | 'viewer'; children: React.ReactNode; viewerVisible?: boolean }) {
   const { settings } = useDesktop()
   const key = kind === 'composer' ? 'composerHeight' : 'viewerHeight'
   const [chosen, setChosen] = useState(settings[key] || (kind === 'composer' ? 190 : 240))
   const [available, setAvailable] = useState(700)
   const host = useRef<HTMLDivElement>(null), drag = useRef<{ y: number; height: number } | null>(null)
   const min = kind === 'composer' ? 100 : Math.min(80, Math.max(24, available - 240))
-  const budget = kind === 'composer' ? available - (settings.viewerEnabled ? 210 : 130) : available - 240
+  const budget = kind === 'composer' ? available - ((viewerVisible ?? settings.viewerEnabled) ? 210 : 130) : available - 240
   const max = Math.max(min, Math.min(kind === 'composer' ? 520 : 420, budget, available * (kind === 'composer' ? .43 : .28)))
   const height = Math.round(Math.max(min, Math.min(max, chosen)))
   useEffect(() => {

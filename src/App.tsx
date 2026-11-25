@@ -41,9 +41,10 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
   const categories = workspace?.categories ?? []
   const entity = entities.find(e => e.id === route.id) ?? null
 
-  const stepIndex = entity
-    ? resolveStep(entity.steps.length, route.step, entity.defaultStep)
-    : -1
+  const resolvedStep = entity ? resolveStep(entity.steps.length, route.step, entity.defaultStep) : -1
+  const stepIndex = entity?.steps[resolvedStep]?.removedAt && resolvedStep !== route.step
+    ? entity.steps.reduce((last, step, index) => step.removedAt ? last : index, -1)
+    : resolvedStep
   const step = entity?.steps[stepIndex]
   const reportUrl = entity && step ? contentUrl(`/workspace/${entity.folder}/${step.path}`) : null
   const overviewTools = isDesktop && step?.name.toLowerCase() === 'overview'
@@ -105,7 +106,9 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
 
   return (
     <EntityControls entities={entities} categories={categories} onChanged={reload}>
-    <div className={`app-layout${collapsed || mdi ? ' sidebar-collapsed' : ''}${mdi ? ' mdi-layout' : ''}`} data-entity={route.id}>
+    <div className={`app-layout${collapsed || mdi ? ' sidebar-collapsed' : ''}${mdi ? ' mdi-layout' : ''}`} data-entity={route.id}
+      data-report-step={step && !step.removedAt ? stepIndex : undefined}
+      data-report-binding={mdi && step && !step.removedAt ? JSON.stringify([step.id, step.path, step.viewer]) : undefined}>
       {!mdi && <Sidebar
         categories={categories}
         pinned={pinned}
@@ -146,6 +149,7 @@ export default function App({ mdi = false }: { mdi?: boolean }) {
 
         <div className="content">
           <div className="workspace-tool-layout">
+          {step?.removedAt && <p role="status">This report is no longer listed in the project tabs. Its saved content is still available here.</p>}
           {overviewTools && entity?.tools?.length ? <WorkspaceToolControls key={entity.id} cardId={entity.id} /> : null}
           <div className="workspace-tool-body">
           <ReportBoundary key={reportUrl || 'home'} onHome={goHome}>

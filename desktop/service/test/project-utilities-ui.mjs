@@ -278,7 +278,8 @@ try {
     service.nativeMessage({ type: 'window-state', nativeWindow: { available: true, focused: true, maximized: false, minimized: false } });
     await view.focus(); await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Workspace', exact: true })).toBeFocused();
-    await page.keyboard.press('End'); await expect(page.getByRole('menuitem', { name: 'Alpha health', exact: true })).toBeFocused();
+    const viewerCommand = page.getByRole('menuitem', { name: /^(Show|Hide) 3D viewer$/ });
+    await page.keyboard.press('End'); await expect(viewerCommand).toBeFocused();
     await page.keyboard.press('Escape'); await expect(view).toBeFocused();
     await expect(page.locator('.mdi-menu-popup')).toHaveCount(0);
     checks.push('Exclusive menus dismiss outside pointer/focus/DOM blur/native deactivation; arrows, End and Escape preserve keyboard access.');

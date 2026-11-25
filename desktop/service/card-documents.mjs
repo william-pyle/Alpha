@@ -40,13 +40,14 @@ export class CardDocuments {
     let document; try { document = JSON.parse(source); } catch { fail('This project contains invalid JSON. Its original file has been kept.'); }
     return { document: validateCard(document), revision: hash(source) };
   }
-  async registryChange(update) {
+  async registryChange(update, authorize) {
     for (let attempt = 0; attempt < 6; attempt++) {
       const source = await readFile(this.workspace.file, 'utf8'), registry = parseWorkspaceRegistry(source);
       if (!Array.isArray(registry.entities)) fail('Workspace registry is not ready.');
       update(registry);
       try {
         await saveJson(this.workspace.file, registry, { beforeReplace: async () => {
+          await authorize?.();
           if (await readFile(this.workspace.file, 'utf8') !== source) throw Object.assign(new Error('Workspace changed while saving.'), { code: 'ESTALE' });
         } });
         return;
@@ -91,11 +92,12 @@ export class CardDocuments {
       return { document, revision: hash(replacement), ...(warning ? { warning } : {}) };
     });
   }
-  create(options) {
+  create(options, authorize) {
     if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(key => !['title', 'template'].includes(key))) fail('Enter a title and choose Gallery or Research.');
     const { title, template } = options;
     if (typeof title !== 'string' || !title.trim() || title.length > 200 || /[\x00-\x1f]/.test(title) || !cardTemplates.includes(template)) fail('Enter a title and choose Gallery or Research.');
     return this.write(async () => {
+      await authorize?.();
       const document = { format: CARD_FORMAT, version: CARD_VERSION, template, title: title.trim(), summary: '', items: [] };
       const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || template;
       const id = `${slug}-${randomUUID().slice(0, 8)}`, folder = id;
@@ -106,7 +108,7 @@ export class CardDocuments {
       const category = categories.some(item => item.id === preferred) ? preferred : categories[0]?.id || 'other';
       const entity = { id, title: document.title, description: '', type: 'standalone', category, created: localDay(), updated: localDay(), folder, workspacePath: paths.workspacePath, steps: [{ name: template === 'gallery' ? 'Gallery' : 'Research', path: 'content.card.json', viewer: 'card' }], defaultStep: 0, status: 'active' };
       await writeFile(file, sourceOf(document), { flag: 'wx' });
-      try { await this.registryChange(registry => { registry.entities.push(entity); }); }
+      try { await this.registryChange(registry => { registry.entities.push(entity); }, authorize); }
       catch (error) { await unlink(file).catch(() => {}); await rmdir(directory).catch(() => {}); throw error; }
       this.workspace.changed();
       return { entity, document, revision: hash(sourceOf(document)) };

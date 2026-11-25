@@ -35,10 +35,11 @@ function NewConversation({ close }: { close: () => void }) {
   }}><h2>New conversation</h2><label className="desk-field">Name<input autoFocus value={name} onChange={event => setName(event.target.value)} maxLength={100} placeholder="Example: Alpha response speed" /></label><label className="desk-field">Purpose<input required value={purpose} onChange={event => setPurpose(event.target.value)} maxLength={240} placeholder="What result should this conversation produce?" /></label><p>Leave the name blank to use the first words of your purpose.</p><label className="desk-field">Project<span className="project-repository-field"><select aria-label="Project for conversation" value={projectId} onChange={event => setProject(event.target.value)}><option value="conversations" hidden>Conversations</option>{projects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button type="button" aria-label="Create project for conversation" title="Create project" onClick={() => setCreateProject(true)}>+</button></span></label><p>One Alpha. A separate history and draft for this conversation.</p><button disabled={busy} type="submit">Create conversation</button><button type="button" onClick={close}>Cancel</button><details><summary>Advanced launchers</summary><button type="button" onClick={() => setNative(true)}>New native conversation</button></details></form></div>{createProject && <NewCardDialog onClose={() => setCreateProject(false)} onCreated={entity => { setProjects(current => [...current.filter(item => item.id !== entity.id), entity]); setProject(entity.id) }} />}</>
 }
 
-export default function ThreadConversations() {
+export default function ThreadConversations({ messagesHidden = false, viewerVisible }: { messagesHidden?: boolean; viewerVisible?: boolean }) {
   const state = useDesktop(), live = useSyncExternalStore(liveVoice.subscribe, liveVoice.snapshot)
   const thread = state.threads.find(item => item.id === state.selectedThreadId)
   const raw = thread?.viewMode === 'terminal'
+  const hideMessages = messagesHidden && !raw
   const [visited, setVisited] = useState<string[]>([])
   if (thread && raw && !visited.includes(thread.id)) setVisited([...visited, thread.id])
   const [context, setContext] = useState<ConversationMenuOrigin | null>(null)
@@ -151,8 +152,8 @@ export default function ThreadConversations() {
   useLayoutEffect(() => { followLatest.current = true }, [thread?.id, raw])
   useLayoutEffect(() => {
     const pane = transcript.current
-    if (!raw && pane && followLatest.current) pane.scrollTop = pane.scrollHeight
-  }, [raw, thread?.id, thread?.messages.length, pendingSend, receipt, progress.work, progress.reply, live.captions])
+    if (!raw && !hideMessages && pane && followLatest.current) pane.scrollTop = pane.scrollHeight
+  }, [raw, hideMessages, thread?.id, thread?.messages.length, pendingSend, receipt, progress.work, progress.reply, live.captions])
   useEffect(() => {
     const create = () => setNewThread(true)
     window.addEventListener('alpha-new-conversation', create)
@@ -186,17 +187,17 @@ export default function ThreadConversations() {
       })
     }
   }
-  return <section className="alpha-conversation-pane thread-conversation" aria-label="Alpha conversation">
+  return <section className="alpha-conversation-pane thread-conversation" aria-label="Alpha conversation" data-message-panel={hideMessages ? 'hidden' : 'visible'}>
     <div className="thread-picker">
       <ConversationTabs threads={state.threads} selectedId={state.selectedThreadId} context={setContext} close={(id, origin) => void closeTab(id, origin)} />
       <button ref={newThreadButton} aria-label="New conversation" title="New conversation" onClick={() => setNewThread(true)}>+</button>
 
     </div>
-    {state.settings.viewerEnabled && <LayoutRegion kind="viewer"><Suspense fallback={<div>Loading viewer...</div>}><AlphaPresence /></Suspense></LayoutRegion>}
-    <div id="conversation-content" role="tabpanel" aria-labelledby={thread ? `conversation-tab-${thread.id}` : undefined} className="conversation-content">
+    {(viewerVisible ?? state.settings.viewerEnabled) && <LayoutRegion kind="viewer"><Suspense fallback={<div>Loading viewer...</div>}><AlphaPresence /></Suspense></LayoutRegion>}
+    <div id="conversation-content" role="tabpanel" aria-labelledby={thread ? `conversation-tab-${thread.id}` : undefined} className="conversation-content" hidden={hideMessages}>
     <div ref={transcript} className="alpha-conversation-scroll" aria-live="polite" hidden={raw} tabIndex={0} aria-label="Conversation feed" onScroll={event => {
       const pane = event.currentTarget
-      if (!pane.hidden) followLatest.current = pane.scrollHeight - pane.clientHeight - pane.scrollTop <= 2
+      if (!pane.hidden && !hideMessages) followLatest.current = pane.scrollHeight - pane.clientHeight - pane.scrollTop <= 2
     }} onContextMenu={event => {
       if ((event.target as HTMLElement).closest('[data-message-id],button,input,textarea,a,.terminal-area')) return
       event.preventDefault(); setContext({ id: thread?.id || null, x: event.clientX, y: event.clientY, origin: event.currentTarget })
@@ -222,7 +223,7 @@ export default function ThreadConversations() {
     {visited.map(id => { const item = state.threads.find(candidate => candidate.id === id); return item && <WorkerActivity key={id} thread={item} active={id === thread?.id && !!raw && !workOpen} /> })}
     </div>
     {raw && <div className="composer-destination">Alpha draft saved below. Switch to Alpha view to send it.</div>}
-    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={!!pendingSend} onSend={send} backgroundWorkActive={thread.backgroundWorkActive} autoSendVoice />}
+    {thread && <MakComposer key={`composer:${thread.id}`} draftId={thread.id} initialDraft={thread.draft} connected={state.connected && !thread.projectPending && !thread.archived && !raw} sending={!!pendingSend} onSend={send} backgroundWorkActive={thread.backgroundWorkActive} viewerVisible={viewerVisible} autoSendVoice />}
     {context && <ConversationContextMenu target={context} items={contextItems} close={() => setContext(null)} />}
     {searchOpen && thread && <ConversationSearch key={thread.id} threadId={thread.id} close={() => setSearchOpen(false)} jump={(found, id) => { setOlder(current => ({ ...current, [thread.id]: [...new Map([...(current[thread.id] || []), ...found].map(message => [message.id, message])).values()].sort((a, b) => a.at.localeCompare(b.at)) })); requestAnimationFrame(() => requestAnimationFrame(() => { const node = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]')).find(element => element.dataset.messageId === id); node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true }) })) }} />}
     {workOpen && <ConversationDialog title="Work details" close={() => setWorkOpen(false)}>{thread && <WorkerActivity key={thread.id} thread={thread} active />}</ConversationDialog>}

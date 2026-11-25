@@ -46,6 +46,10 @@ import { ProjectAdapterRegistry } from './project-adapters/registry.mjs';
 import { KnowledgeManager, MarkdownKnowledgeProvider } from './knowledge/providers.mjs';
 import { IntegrationManager } from './integrations/manager.mjs';
 import { WorkerRequests } from './worker-requests.mjs';
+import { WorkerArtifactActions } from './worker-artifact-actions.mjs';
+import { WorkerProjectActions } from './worker-project-actions.mjs';
+import { WorkerFileActions } from './worker-file-actions.mjs';
+import { createWorkerScriptActions } from './worker-script-actions.mjs';
 import { Dictation } from './dictation.mjs';
 import voiceOptions from './voice-options.json' with { type: 'json' };
 import { builtInThemeIds, changeTheme, validThemeProfiles } from './theme-profiles.mjs';
@@ -211,34 +215,89 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     active: id => threads.items.some(thread => thread.projectId === id && (threads.locks.has(thread.id) || workIsBusy(thread) || coordinatorBusy(coordinatorKey(thread.id, true)))),
     changed: () => broadcast('project-storage-changed', {}) });
   await projectStorage.initialize();
-  const workerProjectAllowed = session => (session.projectId || '').toLowerCase() !== 'mooseville' && common.allows(session.projectId, session.cwd);
+  const workerTargetProjectAllowed = id => typeof id === 'string' && id.toLowerCase() !== 'mooseville' && common.allows(id);
+  const workerProjectAllowed = session => workerTargetProjectAllowed(session.projectId) && common.allows(session.projectId, session.cwd);
+  const workerProjectActions = Object.assign(new WorkerProjectActions({
+    projects: projectStore, workspace, cards,
+    assertAvailable: id => projectStorage.assertAvailable(id), allowsProject: workerTargetProjectAllowed,
+  }), { group: 'projects' });
+  const workerFileActions = Object.assign(new WorkerFileActions({
+    projectStore, projectStorage, send: native, projectAllowed: workerTargetProjectAllowed,
+    changed: () => broadcast('workspace-changed', {}),
+  }), { group: 'files' });
+  const workerScriptActions = Object.assign(createWorkerScriptActions({ projectStore, projectStorage }), { group: 'scripts' });
+  const workerArtifactActions = new WorkerArtifactActions({
+    projects: projectStore, projectStorage, repositories: projectRepositories, projectAllowed: workerTargetProjectAllowed,
+    send: native, changed: () => broadcast('workspace-changed', {}),
+  });
+  const resolveWorkerOrigin = async (session, requireTask, exposeAccessError = false) => {
+    if (!session) return null;
+    const thread = threads.owner(session.id);
+    if (!session.process || session.status !== 'running' || !session.open || session.projectPending || sessions.items.get(session.id) !== session ||
+        session.agent !== 'codex' || !session.nativeId || !session.projectId || !thread || thread.archived || thread.projectPending ||
+        (session.alphaThreadId && session.alphaThreadId !== thread.id) || thread.projectId !== session.projectId ||
+        !workerProjectAllowed(session) || threads.locks.has(thread.id)) return null;
+    try {
+      await projectStore.get(session.projectId, { allowRemoved: false });
+      projectStorage.assertAvailable(session.projectId);
+    } catch (error) {
+      if (exposeAccessError && (error?.workerAccess || error?.status === 403 || ['EACCES', 'EPERM', 'EROFS', 'ERR_ACCESS_DENIED'].includes(error?.code))) throw error;
+      return null;
+    }
+    const origin = { sessionId: session.id, threadId: thread.id, projectId: thread.projectId, nativeId: session.nativeId };
+    if (!requireTask) return origin;
+    const task = session.workerEvidence;
+    if (session.startupPrompt || task?.acceptance !== 'observed' || task.execution !== 'working' || task.certainty !== 'task-bound-native' ||
+        typeof task.taskId !== 'string' || !task.taskId || task.taskId.length > 400 ||
+        typeof task.nativeTaskId !== 'string' || !task.nativeTaskId || task.nativeTaskId.length > 400 ||
+        !Number.isFinite(task.providerAt) || !Number.isFinite(session.startedAt) || task.providerAt < session.startedAt) return null;
+    return { ...origin, taskId: task.taskId, nativeTaskId: task.nativeTaskId };
+  };
   const workerRequests = await new WorkerRequests({
     stateDir,
-    async resolveOrigin(session, requireTask) {
-      try {
-        await projectStore.get(session.projectId, { allowRemoved: false });
-        projectStorage.assertAvailable(session.projectId);
-      } catch { return null; }
-      const thread = threads.owner(session.id);
-      if (!session.process || session.status !== 'running' || !session.open || session.projectPending || sessions.items.get(session.id) !== session ||
-          session.agent !== 'codex' || !session.nativeId || !session.projectId || !thread || thread.archived || thread.projectPending ||
-          (session.alphaThreadId && session.alphaThreadId !== thread.id) || thread.projectId !== session.projectId ||
-          !workerProjectAllowed(session) || threads.locks.has(thread.id)) return null;
-      const origin = { sessionId: session.id, threadId: thread.id, projectId: thread.projectId, nativeId: session.nativeId };
-      if (!requireTask) return origin;
-      const task = session.workerEvidence;
-      if (session.startupPrompt || task?.acceptance !== 'observed' || task.execution !== 'working' || task.certainty !== 'task-bound-native' ||
-          typeof task.taskId !== 'string' || !task.taskId || task.taskId.length > 400 ||
-          typeof task.nativeTaskId !== 'string' || !task.nativeTaskId || task.nativeTaskId.length > 400 ||
-          !Number.isFinite(task.providerAt) || !Number.isFinite(session.startedAt) || task.providerAt < session.startedAt) return null;
-      return { ...origin, taskId: task.taskId, nativeTaskId: task.nativeTaskId };
+    resolveOrigin: resolveWorkerOrigin,
+    resolveApprovalOrigin: origin => resolveWorkerOrigin(sessions.items.get(origin.sessionId), false, true),
+    ownerDecisions: questions.items.filter(item => item.source === 'worker-approval' && item.status === 'answered'),
+    handlers: {
+      'create-project': workerProjectActions,
+      'update-project': workerProjectActions,
+      'create-report-tab': workerProjectActions,
+      'rename-report-tab': workerProjectActions,
+      'remove-report-tab': workerProjectActions,
+      'copy-file': workerFileActions,
+      'modify-file': workerFileActions,
+      'run-script': workerScriptActions,
+      'import-artifact': workerArtifactActions,
+    },
+    askOwner(record, review) {
+      const detail = typeof review === 'string' ? review : [review?.text, review?.context].filter(Boolean).join('\n');
+      const context = `Request ${record.id} from project ${record.origin.projectId}. Approval applies once to the exact reviewed revision.\n${detail}`;
+      const thread = threads.get(record.origin.threadId);
+      return questions.askWorkerApproval({
+        sourceId: record.id, sessionId: record.origin.sessionId, threadId: thread.id,
+        chatName: thread.name, context,
+      });
+    },
+    async validateUI(target, origin) {
+      if (target.kind === 'conversation-layout') return target.threadId === origin.threadId && threads.selectedId === origin.threadId;
+      if (target.kind !== 'project-launcher') return true;
+      const project = await projectStore.get(origin.projectId, { allowRemoved: false });
+      const step = project.steps?.[target.stepIndex];
+      return !!step && !step.removedAt && step.id === target.stepBinding.id &&
+        step.path === target.stepBinding.path && step.viewer === target.stepBinding.viewer;
     },
     send(view, value) {
       if (view.readyState !== WebSocket.OPEN || !clients.has(view)) return false;
       send(view, 'worker-preview-close', value);
       return true;
     },
+    sendUI(view, value) {
+      if (view.readyState !== WebSocket.OPEN || !clients.has(view)) return false;
+      send(view, 'worker-ui-action', value);
+      return true;
+    },
   }).init();
+  questions.workerReceipt = question => workerRequests.ownerReceipt(question);
   sessions.validateNativeBinding = session => {
     if (threads.deletedBinding(session)) throw Object.assign(new Error('This conversation was deleted from Alpha and cannot be imported or resumed here.'), { status: 409 });
   };
@@ -637,7 +696,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       if (record && !record.family && common.tasks.filter(task => !task.family).length % 3 === 0 && new Set(common.tasks.map(task => task.project)).size >= 2) scheduleMaintenance('New completed tasks across projects may contain a repeated workflow.');
     }).catch(error => broadcast('service-error', { error: publicError(error) }));
   });
-  questions.on('changed', (items, addedQuestionIds) => broadcast('questions', { questions: items, addedQuestionIds }));
+  questions.on('changed', (items, addedQuestionIds) => broadcast('questions', { questions: items, addedQuestionIds, workerDecisions: questions.workerDecisions() }));
   questions.on('continuation-failed', ({ question, error }) => {
     awareness.event({ id: `answer-continuation:${question.id}`, threadId: question.threadId, kind: 'error', text: 'A saved answer could not continue its task. Open the originating conversation to inspect the failure.', source: 'Questions continuation' });
     if (question.threadId) threads.message(question.threadId, { id: `answer-failed:${question.id}`, role: 'assistant', text: 'Your answer was saved, but continuation failed. Inspect Work details before retrying the task.', status: 'failed', error: publicError(error) });
@@ -983,8 +1042,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           changeTheme(settings, data); await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
         }
         if (method === 'GET' && url.pathname === '/api/questions') return json(response, 200, questions.list());
+        const requestFileTargets = /^\/api\/worker-request-files\/([a-z0-9-]+)$/.exec(url.pathname);
+        if (method === 'GET' && requestFileTargets) return json(response, 200, { targets: await workerFileActions.listOwner(requestFileTargets[1]) });
         const questionRoute = /^\/api\/questions\/([\w-]+)\/(answer|dismiss)$/.exec(url.pathname);
         if (method === 'POST' && questionRoute?.[2] === 'answer') return json(response, 200, await questions.answer(questionRoute[1], data.answer, sessions, async (question, answer) => {
+          if (question.source === 'worker-approval') return workerRequests.approval(question, answer);
           if (question.source === 'project') {
             const registryData = await registry(), choice = answer.trim().toLowerCase();
             const card = registryData.entities.find(card => [card.id, card.title, `${card.id} - ${card.title}`].some(value => value.toLowerCase() === choice));
@@ -1007,7 +1069,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'GET' && url.pathname === '/api/bootstrap') {
           trace?.event('service-ready', { category: 'startup', durationMs: readyAt - bootStartedAt });
           const keys = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
-          return json(response, 200, { repo, sharedLibrary, nativeWindow, ...threads.snapshot(), awareness: awareness.snapshot(), contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), questions: questions.list(), settings, selectedId, notices, coordinator: coordinator.state, voice: { configured: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY), owner: voiceOwner }, voiceHistory, operations: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-30), replies: replies.items, speech: speech.state });
+          return json(response, 200, { repo, sharedLibrary, nativeWindow, ...threads.snapshot(), awareness: awareness.snapshot(), contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), questions: questions.list(), workerDecisions: questions.workerDecisions(), settings, selectedId, notices, coordinator: coordinator.state, voice: { configured: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY), owner: voiceOwner }, voiceHistory, operations: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-30), replies: replies.items, speech: speech.state });
         }
         if (method === 'GET' && url.pathname === '/api/learning') return json(response, 200, learning.items);
         if (method === 'GET' && url.pathname === '/api/restart-notes') return json(response, 200, restartNotes.items);
@@ -1286,7 +1348,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (!ws.authenticated) {
           if (message.type !== 'auth' || !equalSecret(message.token, token)) return ws.close(1008, 'Authentication failed');
           ws.authenticated = true; ws.clientId = message.clientId; ws.surface = message.surface; clients.add(ws); clearTimeout(authTimer);
-          send(ws, 'connected', { sessions: sessions.list(), questions: questions.list(), selectedId, coordinator: coordinator.state }); return;
+          send(ws, 'connected', { sessions: sessions.list(), questions: questions.list(), workerDecisions: questions.workerDecisions(), selectedId, coordinator: coordinator.state }); return;
         }
         if (message.type === 'subscribe') {
           ws.sessionId = message.id;
@@ -1295,6 +1357,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         } else if (message.type === 'input') sessions.input(message.id, message.data);
         else if (message.type === 'worker-preview-inventory' && ws.surface === 'workspace') workerRequests.inventory(ws, message.targets);
         else if (message.type === 'worker-preview-ack' && ws.surface === 'workspace') await workerRequests.acknowledge(ws, message);
+        else if (message.type === 'worker-ui-inventory' && ws.surface === 'workspace') workerRequests.uiInventory(ws, message.targets);
+        else if (message.type === 'worker-ui-ack' && ws.surface === 'workspace') await workerRequests.acknowledgeUI(ws, message);
         else if (message.type === 'resize') sessions.resize(message.id, message.cols, message.rows);
         else if (message.type === 'selected') { sessions.get(message.id); selectedId = message.id; settings.selectedId = selectedId; scheduleSettings(); }
         else if (message.type === 'seen' && ['chats', 'workspace'].includes(ws.surface) && ws.sessionId === message.id && selectedId === message.id) sessions.seen(message.id, message.completionVersion);
@@ -1313,9 +1377,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   return {
     diagnostics, origin, contentOrigin: files.origin, token, sessions, questions, coordinator, getCoordinator, threads, awareness, quick, workspace, workspaceTools, replies, speech, learning, common, health, restartNotes, cards, files, projects, knowledge, integrations, projectStorage,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
-      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); sharedDrive.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
+      nativeMessage: event => { if (event.type === 'window-state' && event.nativeWindow) { nativeWindow = event.nativeWindow; broadcast('window-state', { nativeWindow }); } nativeSettings.receive(event); nativeStorage.receive(event); sharedDrive.receive(event); workerFileActions.receive(event); workerArtifactActions.receive(event); workspaceLocation.receive(event); if (event.type === 'desktop-context') awareness.sample(event.application); },
       async close() {
-        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); sharedDrive.close(); workspaceLocation.close(); await workerRequests.close().catch(() => {}); await files.writes.catch(() => {});
+        if (closing) return; closing = true; diagnostics.stop(); clearTimeout(maintenanceTimer); updates.close(); uiInspection.close(); mcp.close(); nativeSettings.close(); projectStorage.close(); nativeStorage.close(); sharedDrive.close(); workerFileActions.close(); workerArtifactActions.close(); workspaceLocation.close(); await workerRequests.close().catch(() => {}); await files.writes.catch(() => {});
       await Promise.allSettled([...nativeDispatches.values()].flatMap(jobs => [...jobs]));
       watcher?.close(); for (const timer of questionTimers.values()) clearTimeout(timer); questionTimers.clear(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await questions.close(); await workspace.writes;
       await Promise.all([...coordinators.values()].map(item => item.close()));

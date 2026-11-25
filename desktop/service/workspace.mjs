@@ -11,7 +11,7 @@ import defaultCategories from './default-categories.json' with { type: 'json' };
 
 const execute = promisify(execFile);
 export const localDay = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const brief = ({ id, title, description, status, category, created, updated, pinned, steps }) => ({ id, title, description, status, category, created, updated, pinned: !!pinned, steps: (steps || []).map(({ name }, index) => ({ name, index })) });
+const brief = ({ id, title, description, status, category, created, updated, pinned, steps }) => ({ id, title, description, status, category, created, updated, pinned: !!pinned, steps: (steps || []).flatMap(({ name, removedAt }, index) => removedAt ? [] : [{ name, index }]) });
 const fingerprint = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const invalid = message => Object.assign(new Error(message), { status: 400 });
 const categoryId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
@@ -85,7 +85,7 @@ export class Workspace {
     const cards = registry.entities.filter(item => item.created === date || item.updated === date || paths.some(file => file.startsWith(`workspace/${item.folder}/`) || (item.workspacePath && file.startsWith(item.workspacePath + '/')))).map(brief);
     return { date, cards, commits: [...new Set(lines.filter(line => !isPath(line)))].slice(0, 15), basis: 'Workspace dates and recorded Git changes; not a complete record of unsaved work.' };
   }
-  update(id, patch, undoId = null) {
+  update(id, patch, undoId = null, { guard, authorize } = {}) {
     const operation = this.writes.catch(() => {}).then(async () => {
       if (patch.status !== undefined && !['active', 'done', 'archived'].includes(patch.status)) throw invalid('Use active, done or archived status.');
       if (patch.pinned !== undefined && typeof patch.pinned !== 'boolean') throw invalid('Pinned must be true or false.');
@@ -103,6 +103,7 @@ export class Workspace {
         if (undo && fingerprint(entity) !== undo.after) throw Object.assign(new Error('This project changed after that action. Undo would overwrite newer edits; review its current values.'), { status: 409 });
         if (entity.removedAt) throw invalid('Removed projects retain their history but cannot be reorganized.');
         if ((entity.builtin || id === CONVERSATIONS_PROJECT) && (patch.status && patch.status !== 'active' || patch.pinned === false || undoId)) throw invalid('Conversations stays active and pinned.');
+        await guard?.(entity, registry);
         const before = structuredClone(entity);
         if (undo) {
           for (const key of undo.keys) { if (Object.hasOwn(undo.before, key)) entity[key] = undo.before[key]; else delete entity[key]; }
@@ -118,6 +119,7 @@ export class Workspace {
         // Preserve other agents' latest registry changes instead of saving a stale snapshot.
         if (await readFile(this.file, 'utf8') !== source) continue;
         try { await saveJson(this.file, registry, { beforeReplace: async () => {
+          await authorize?.();
           if (await readFile(this.file, 'utf8') !== source) throw Object.assign(new Error('Workspace changed while saving.'), { code: 'ESTALE' });
         } }); }
         catch (error) {

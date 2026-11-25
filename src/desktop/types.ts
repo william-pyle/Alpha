@@ -14,7 +14,11 @@ export interface ChatSession {
   open: boolean; pinned: boolean; updatedAt: string; preview?: string; hasConversation?: boolean; restoreError?: string | null
 }
 export interface Notice { id: string; sessionId: string; name: string; kind: string; text: string; at: string }
-export interface ChatQuestion { threadId?: string; id: string; sessionId: string; source?: 'coordinator' | 'maintenance' | 'project' | 'native'; context?: string; chatName: string; text: string; options: string[]; status: 'pending'; createdAt: string }
+export interface ChatQuestion { threadId?: string; id: string; sessionId: string; source?: 'coordinator' | 'maintenance' | 'project' | 'native' | 'worker-approval'; context?: string; chatName: string; text: string; options: string[]; status: 'pending'; createdAt: string }
+export interface WorkerDecision {
+  questionId: string; receiptId: string; chatName: string; answeredAt: string
+  decision: 'approve' | 'deny'; status: string; message?: string; nextStep?: string
+}
 export interface Operation { threadId?: string | null; id: string; text: string; status: string; result?: string; at: string; images?: string[]; origin?: string }
 export interface ThemeProfile { id: string; label: string; controller: string; icon: string; backdrop: string; background: string; foreground: string; accent: string }
 export interface Settings { performanceDiagnostics?: boolean; utilityTabs?: string[]; activeUtilityTab?: string | null; trustProjectsScope?: boolean; readingSize?: number; readingSpacing?: number; reducedMotion?: boolean; workspaceFilters?: { scope: 'active' | 'archived' | 'all'; category: string; query: string }; viewerEnabled?: boolean; viewerHeight?: number; composerHeight?: number; appTheme?: string; themeProfiles?: ThemeProfile[]; defaultAgent: AgentId; transcribeProvider?: 'local' | 'openai' | 'openrouter' | 'off'; defaultBypass: boolean; terminalFontSize?: number; terminalAppearance?: 'focus' | 'original'; workspaceTheme?: 'dark' | 'light' | 'system'; workspaceRoute?: string | null; selectedId?: string | null; chatSidebarWidth?: number; chatEditorHeights?: Record<string, number>; coordinatorEffort?: 'medium' | 'high'; voiceName?: string; voiceStyle?: string; conversationStyle?: string; speakReplies?: boolean; speechVoice?: string }
@@ -35,7 +39,7 @@ export interface DesktopState {
   threads: AlphaThread[]; selectedThreadId: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness: AwarenessState
   sharedLibrary?: { root: string; version: string; skills: string[]; files: number; conflicts: { path: string; reason: string; incoming: string }[] } | null
   ready: boolean; connected: boolean; error: string | null; repo: string; contentBase: string
-  agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]; questions: ChatQuestion[]
+  agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]; questions: ChatQuestion[]; workerDecisions: WorkerDecision[]
   settings: Settings; coordinator: string; voice: { configured: boolean; owner: VoiceOwner | null }
   operations: Operation[]; preview: Preview | null
   replies: AgentReply[]; speech: SpeechState
@@ -43,11 +47,12 @@ export interface DesktopState {
 }
 export interface ServiceEvent { inspectionId?: string; captureId?: string | null;
   requestId?: string; targetId?: string; expiresAt?: number
+  action?: string; arguments?: Record<string, unknown>
   nativeWindow?: NativeWindowState
   threads?: AlphaThread[]; selectedThreadId?: string | null; pendingConversationDeletions?: { id: string; name: string; deletedAt: string }[]; awareness?: AwarenessState; threadId?: string; sessionIds?: string[]; questionIds?: string[]; text?: string; lane?: 'reply'
   type: string; id?: string; cardId?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
   operation?: Operation; settings?: Settings; owner?: VoiceOwner | null; window?: string; route?: string; preview?: Preview; questions?: ChatQuestion[]
-  addedQuestionIds?: string[]
+  addedQuestionIds?: string[]; workerDecisions?: WorkerDecision[]
   reply?: AgentReply; speech?: SpeechState
 }

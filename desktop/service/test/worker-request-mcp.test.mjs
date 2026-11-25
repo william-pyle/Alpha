@@ -25,6 +25,7 @@ test('the Codex stdio adapter keeps identity out of typed requests and returns s
       return;
     }
     const result = body.kind === 'targets' ? { targets: [{ id: targetId, title: 'Help' }] }
+      : body.kind === 'capabilities' ? { projectId: 'fixture', actions: ['create-report-tab'] }
       : body.kind === 'request' ? { receiptId, status: 'pending' }
         : { receiptId, status: 'completed' };
     response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -38,7 +39,24 @@ test('the Codex stdio adapter keeps identity out of typed requests and returns s
   try {
     await client.connect(transport);
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map(tool => tool.name), ['alpha_list_disposable_previews', 'alpha_request', 'alpha_request_result']);
+    const actionTools = [
+      ['create_project', { title: 'Fixture', template: 'research' }],
+      ['update_project', { projectId: 'fixture', patch: { status: 'active', category: 'other', pinned: true } }],
+      ['create_report_tab', { projectId: 'fixture', title: 'Fixture report' }],
+      ['rename_report_tab', { projectId: 'fixture', tabId: 'step-3', title: 'Renamed' }],
+      ['remove_report_tab', { projectId: 'fixture', tabId: 'legacy-' + 'a'.repeat(64) }],
+      ['open_tab', { targetId }],
+      ['activate_tab', { targetId }],
+      ['close_tab', { targetId }],
+      ['set_3d_view', { targetId, visible: true }],
+      ['set_message_panel', { targetId, visible: false }],
+      ['copy_file', { targetId, destinationProjectId: 'other-fixture', expectedRevision: 'a'.repeat(64) }],
+      ['modify_file', { targetId, expectedRevision: 'b'.repeat(64), edit: 'ensure-final-newline' }],
+      ['run_script', { scriptId: 'alpha-runtime-check', expectedRevision: 'c'.repeat(64) }],
+      ['import_project_artifact', { sourceProjectId: 'fixture-source', kind: 'skill', artifactId: 'review-guide' }, 'import-artifact'],
+    ];
+    assert.deepEqual(tools.map(tool => tool.name),
+      ['alpha_list_disposable_previews', 'alpha_request', 'alpha_request_result', 'alpha_list_session_actions', ...actionTools.map(([name]) => 'alpha_' + name)]);
     assert.ok(tools.every(tool => tool.inputSchema.additionalProperties === false));
     const invoke = (name, args = {}) => client.callTool({ name, arguments: args });
     const args = { requestKey: 'close-help', action: 'close-preview', targetId };
@@ -46,13 +64,36 @@ test('the Codex stdio adapter keeps identity out of typed requests and returns s
     assert.equal((await invoke('alpha_request', { ...args, action: 'run-command' })).isError, true);
     assert.equal((await invoke('alpha_request', { ...args, targetId: 'file:private' })).isError, true);
     assert.equal((await invoke('alpha_request', { ...args, requestKey: 'a'.repeat(65) })).isError, true);
+    const base = { requestKey: 'typed-fixture' };
+    assert.equal((await invoke('alpha_open_tab', { ...base, targetId, route: 'https://example.test/' })).isError, true);
+    assert.equal((await invoke('alpha_set_3d_view', { ...base, targetId, visible: 'yes' })).isError, true);
+    assert.equal((await invoke('alpha_create_project', { ...base, title: 'Fixture', template: 'arbitrary' })).isError, true);
+    assert.equal((await invoke('alpha_update_project', { ...base, projectId: 'fixture', patch: { repo: 'elsewhere' } })).isError, true);
+    assert.equal((await invoke('alpha_update_project', { ...base, projectId: 'fixture', patch: {} })).isError, true);
+    assert.equal((await invoke('alpha_update_project', { ...base, projectId: '..\\outside', patch: { pinned: true } })).isError, true);
+    assert.equal((await invoke('alpha_create_report_tab', { ...base, projectId: 'fixture', title: ' ' })).isError, true);
+    assert.equal((await invoke('alpha_modify_file', { ...base, targetId, expectedRevision: 'b'.repeat(64), edit: 'replace-all', text: 'replacement' })).isError, true);
+    assert.equal((await invoke('alpha_modify_file', { ...base, targetId, expectedRevision: 'b'.repeat(64), edit: 'trim-trailing-whitespace' })).isError, true);
+    assert.equal((await invoke('alpha_run_script', { ...base, scriptId: 'alpha-runtime-check', expectedRevision: 'c'.repeat(64), args: ['fixture'] })).isError, true);
+    assert.equal((await invoke('alpha_import_project_artifact', { ...base, sourceProjectId: 'fixture-source', kind: 'skill', artifactId: '../other' })).isError, true);
+    assert.equal((await invoke('alpha_import_project_artifact', { ...base, sourceProjectId: 'fixture-source', kind: 'agent', artifactId: 'reviewer', destinationProjectId: 'other' })).isError, true);
     assert.equal(requests.length, 0);
     assert.equal((await invoke('alpha_list_disposable_previews')).structuredContent.targets[0].id, targetId);
     assert.deepEqual((await invoke('alpha_request', args)).structuredContent, { receiptId, status: 'pending' });
     assert.deepEqual((await invoke('alpha_request_result', { receiptId })).structuredContent, { receiptId, status: 'completed' });
+    assert.deepEqual((await invoke('alpha_list_session_actions')).structuredContent, { projectId: 'fixture', actions: ['create-report-tab'] });
+    const expandedBodies = [];
+    for (const [name, values, action = name.replaceAll('_', '-')] of actionTools) {
+      const requestKey = 'fixture-' + name;
+      assert.deepEqual((await invoke('alpha_' + name, { requestKey, ...values })).structuredContent, { receiptId, status: 'pending' });
+      const { targetId, ...args } = values;
+      expandedBodies.push({ kind: 'request', action, requestKey, ...(targetId ? { targetId } : {}), ...(Object.keys(args).length ? { arguments: args } : {}) });
+    }
     redirect = true;
     assert.equal((await invoke('alpha_list_disposable_previews')).isError, true);
-    assert.deepEqual(requests.map(entry => entry.body), [{ kind: 'targets' }, { kind: 'request', ...args }, { kind: 'result', receiptId }, { kind: 'targets' }]);
+    assert.deepEqual(requests.map(entry => entry.body), [
+      { kind: 'targets' }, { kind: 'request', ...args }, { kind: 'result', receiptId }, { kind: 'capabilities' }, ...expandedBodies, { kind: 'targets' },
+    ]);
     assert.ok(requests.every(entry => entry.method === 'POST' && entry.url === '/worker-request' && entry.authorization === `Bearer ${token}`));
   } finally {
     await client.close();

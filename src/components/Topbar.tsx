@@ -18,8 +18,9 @@ interface TopbarProps {
 }
 
 export default function Topbar({ mdi = false, entity, categories, entities, onCategoriesChanged, stepIndex, onStep, onHome, reportUrl }: TopbarProps) {
-  if (mdi) return entity && entity.steps.length > 1 ? <nav className="mdi-document-nav" aria-label="Document pages">
-    {entity.steps.map((step, index) => <button key={index} type="button" aria-current={index === stepIndex ? 'page' : undefined} onClick={() => onStep(entity.id, index)}>{step.name}</button>)}
+  const steps = entity?.steps.flatMap((step, index) => step.removedAt ? [] : [{ step, index }]) ?? []
+  if (mdi) return entity && (steps.length > 1 || entity.steps[stepIndex]?.removedAt) ? <nav className="mdi-document-nav" aria-label="Document pages">
+    {steps.map(({ step, index }) => <button key={index} type="button" data-report-step={index} aria-current={index === stepIndex ? 'page' : undefined} onClick={() => onStep(entity.id, index)}>{step.name}</button>)}
   </nav> : null
   return (
     <div className="topbar">
@@ -41,9 +42,9 @@ export default function Topbar({ mdi = false, entity, categories, entities, onCa
 
       {entity && (
         <div className="topbar-right">
-          {entity.steps.length > 0 && (
+          {steps.length > 0 && (
             <div className="step-tabs" role="tablist">
-              {entity.steps.map((s, i) => (
+              {steps.map(({ step: s, index: i }) => (
                 <button
                   key={i}
                   role="tab"

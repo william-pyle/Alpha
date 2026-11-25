@@ -20,12 +20,15 @@ export class Projects {
     if (!allowRemoved && item.deletionPending) fail('Project deletion is incomplete. Choose Delete project again to finish removing its local files.', 409);
     return item;
   }
-  transaction(change) {
+  transaction(change, { authorize } = {}) {
     const operation = this.workspace.writes.catch(() => {}).then(async () => {
       for (let attempt = 0; attempt < 6; attempt++) {
         const source = await readFile(this.workspace.file, 'utf8'), registry = parseWorkspaceRegistry(source);
         const result = await change(registry);
-        try { await saveJson(this.workspace.file, registry, { beforeReplace: async () => { if (await readFile(this.workspace.file, 'utf8') !== source) throw Object.assign(new Error('Project registry changed; retry.'), { code: 'ESTALE' }); } }); }
+        try { await saveJson(this.workspace.file, registry, { beforeReplace: async () => {
+          await authorize?.();
+          if (await readFile(this.workspace.file, 'utf8') !== source) throw Object.assign(new Error('Project registry changed; retry.'), { code: 'ESTALE' });
+        } }); }
         catch (error) { if (error.code === 'ESTALE' && attempt < 5) continue; throw error; }
         this.workspace.changed(); return result;
       }

@@ -10,10 +10,15 @@ const menus: Record<string, Array<[string, string]>> = {
 }
 const labels = Object.keys(menus)
 
-export default function TopMenus({ run }: { run: (action: string) => void }) {
+export default function TopMenus({ run, messagesVisible, viewerVisible }: { run: (action: string) => void; messagesVisible?: boolean; viewerVisible?: boolean }) {
   const [open, setOpen] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const { nativeWindow } = useDesktop()
+  const viewMenus = messagesVisible === undefined || viewerVisible === undefined ? menus : {
+    ...menus,
+    View: [...menus.View, [messagesVisible ? 'Hide message panel' : 'Show message panel', 'toggle-messages'],
+      [viewerVisible ? 'Hide 3D viewer' : 'Show 3D viewer', 'toggle-viewer']],
+  }
   const trigger = (label: string) => root.current?.querySelector<HTMLButtonElement>(`[data-menu-trigger="${label}"]`)
   const focusItem = (label: string, last = false) => requestAnimationFrame(() => {
     const items = root.current?.querySelectorAll<HTMLButtonElement>(`[data-menu="${label}"] [role=menuitem]`)
@@ -50,7 +55,7 @@ export default function TopMenus({ run }: { run: (action: string) => void }) {
     if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(null)
   }}>
     <div className="mdi-brand"><Nose size={20} /><strong>Alpha</strong></div>
-    {Object.entries(menus).map(([label, items]) => <div className="mdi-menu-group" key={label}>
+    {Object.entries(viewMenus).map(([label, items]) => <div className="mdi-menu-group" key={label}>
       <button type="button" data-menu-trigger={label} aria-haspopup="menu" aria-controls={`top-menu-${label}`} aria-expanded={open === label}
         onClick={() => setOpen(current => current === label ? null : label)}
         onKeyDown={event => {

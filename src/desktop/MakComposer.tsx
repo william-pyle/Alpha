@@ -16,7 +16,7 @@ function saveDraft(id: string, draft: Draft) {
   return write
 }
 
-export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft, backgroundWorkActive = false }: {
+export default function MakComposer({ connected, sending, onSend, draftId = 'legacy', initialDraft, backgroundWorkActive = false, viewerVisible }: {
   draftId?: string
   initialDraft?: Draft
   connected: boolean
@@ -24,6 +24,7 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
   onSend: (text: string, images: string[]) => Promise<void>
   backgroundWorkActive?: boolean
   autoSendVoice?: boolean
+  viewerVisible?: boolean
 }) {
   const [error, setError] = useState('')
   const [saved] = useState(() => {
@@ -134,7 +135,7 @@ export default function MakComposer({ connected, sending, onSend, draftId = 'leg
     finally { busy.current = false; setSubmitting(false) }
   }
 
-  return <LayoutRegion kind="composer"><div className="mak-composer">
+  return <LayoutRegion kind="composer" viewerVisible={viewerVisible}><div className="mak-composer">
     {error && <div className="voice-error" role="alert"><span>{error}</span><button className="desk-icon" aria-label="Dismiss message error" onClick={() => setError('')}><Icon name="close" size={14} /></button></div>}
     {!sendPending && images.length > 0 && <div className="voice-attachments" aria-label="Attached images">{images.map(image => <div className="voice-attachment" key={image.path}>
       <ZoomImage src={image.url} alt={image.name} />

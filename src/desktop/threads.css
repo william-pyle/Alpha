@@ -88,6 +88,7 @@
 .conversation-tab button:focus-visible,.thread-picker summary:focus-visible{outline:2px solid var(--pink);outline-offset:-3px}
 .conversation-content{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}
 .conversation-content [hidden]{display:none!important}
+.conversation-content[hidden],.thread-conversation[data-message-panel=hidden]>.layout-composer{display:none!important}
 .conversation-worker{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}
 .worker-toolbar{display:flex;flex:none;align-items:end;gap:8px;padding:6px 10px;flex-wrap:wrap}
 .worker-toolbar label{display:flex;flex:1;min-width:0;gap:5px;align-items:center;font-size:12px}

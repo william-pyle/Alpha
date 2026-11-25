@@ -19,7 +19,7 @@ function configuredRepository(value?: string) {
  * scripts/shared/report_style.py for generated reports.
  */
 export default function MakCard({ entity, categories }: { entity: WorkspaceEntity; categories: CardCategory[] }) {
-  const tabCount = entity.steps.length
+  const tabCount = entity.steps.filter(step => !step.removedAt).length
   const repository = configuredRepository(entity.projectRepositoryUrl)
   return (
     <div className="entity-card-wrap" data-card={entity.id}>
