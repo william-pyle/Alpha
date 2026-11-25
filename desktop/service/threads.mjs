@@ -186,7 +186,7 @@ export class Threads {
     }
     this.publish();
   }
-  context(id) { const item = this.get(id); return { thread: { id, name: item.name, projectId: item.projectId, purpose: item.purpose }, recentConversation: item.messages.slice(-30), otherThreads: this.directory().filter(other => other.id !== id) }; }
+  context(id) { const item = this.get(id); return { thread: { id, name: item.name, projectId: item.projectId, purpose: item.purpose }, recentConversation: item.messages.slice(-30).filter(message => message.source !== 'coordinator-status'), otherThreads: this.directory().filter(other => other.id !== id) }; }
   assertSession(threadId, sessionId) { if (!this.get(threadId).sessionIds.includes(sessionId)) throw Object.assign(new Error('This worker belongs to another conversation. Switch to that conversation to work with it.'), { status: 403 }); }
   undoArchive(id, undoId) {
     const item = this.get(id), undo = item.archiveUndo;

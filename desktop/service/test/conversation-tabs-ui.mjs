@@ -53,6 +53,83 @@ try {
   const messageIcon = await mode(a.name).locator('path').getAttribute('d');
   await expect(page.getByRole('button', { name: /Return to conversation/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Needs attention:/ })).toHaveCount(0);
+  {
+    let clock = 0, timer;
+    const statusClock = {
+      setTimeout(callback, delay) { timer = { callback, at: clock + delay }; return timer; },
+      clearTimeout(handle) { if (timer === handle) timer = undefined; },
+    };
+    const tick = ms => {
+      clock += ms;
+      if (!timer || timer.at > clock) return;
+      const { callback } = timer; timer = undefined; callback();
+    };
+    const methods = [];
+    const fixture = async replyOnly => {
+      const item = await service.getCoordinator(b.id, { replyOnly });
+      item.statusClock = statusClock;
+      item.start = async () => { item.threadId = replyOnly ? 'reply-provider' : 'work-provider'; };
+      item.rpc = async method => { methods.push(method); return { turn: { id: item.active.operationId } }; };
+      return item;
+    };
+    let coordinator = await fixture(false);
+    const submit = async id => {
+      await request(`/threads/${b.id}/input`, { id, text: `Fixture ${id}`, target: coordinator.replyOnly ? 'reply' : 'work' });
+      await expect.poll(() => coordinator.active?.turnId).toBe(id);
+    };
+    const finish = async (id, status, error) => {
+      const pending = coordinator.operationPromises.get(id);
+      if (status === 'completed') await coordinator.message({ method: 'item/completed', params: { threadId: coordinator.threadId, turnId: id, item: { type: 'agentMessage', text: `Finished ${id}` } } });
+      await coordinator.message({ method: 'turn/completed', params: { threadId: coordinator.threadId, turn: { id, status, error } } });
+      return pending;
+    };
+    const progress = page.getByText('I’m still working on this request.', { exact: true });
+    const notices = () => b.messages.filter(message => message.source === 'coordinator-status');
+    const attention = page.getByRole('button', { name: /^Needs attention:/ });
+    await tab(b.id).click();
+    await submit('slow-turn');
+    tick(179_999);
+    assert.equal(notices().length, 0);
+    await tab(a.id).click();
+    tick(1);
+    assert.equal(notices().length, 1);
+    assert.equal(b.status, 'working');
+    assert.equal(coordinator.active.turnId, 'slow-turn');
+    assert.equal(coordinator.operations.get('slow-turn').status, 'running');
+    assert.equal(a.messages.some(message => message.source === 'coordinator-status'), false);
+    assert.deepEqual(service.awareness.snapshot().items, []);
+    await expect(progress).toHaveCount(0);
+    await expect(attention).toHaveCount(0);
+    await tab(b.id).click();
+    await expect(progress).toBeVisible();
+    assert.equal(await progress.evaluate(element => !!element.closest('[role="alert"]')), false);
+    tick(180_000);
+    assert.equal(notices().length, 1);
+    assert.deepEqual(methods, ['turn/start']);
+    assert.equal((await finish('slow-turn', 'completed')).status, 'completed');
+    await expect(page.getByText('Finished slow-turn', { exact: true })).toBeVisible();
+    await expect(attention).toHaveCount(0);
+
+    await submit('early-turn');
+    await finish('early-turn', 'completed');
+    tick(180_000);
+    // Foreground failures still reach Needs attention and leave work-lane health maintenance idle.
+    coordinator = await fixture(true);
+    await submit('canceled-turn');
+    await finish('canceled-turn', 'interrupted');
+    tick(180_000);
+    assert.equal(notices().length, 1);
+    service.awareness.resolve(item => item.id === 'operation:canceled-turn');
+
+    await submit('failed-turn');
+    await finish('failed-turn', 'failed', { message: 'Fixture provider failure' });
+    await expect(page.getByRole('alert').filter({ hasText: 'Fixture provider failure' })).toBeVisible();
+    await expect(attention).toBeVisible();
+    assert.ok(service.awareness.snapshot().items.some(item => item.id === 'operation:failed-turn' && item.threadId === b.id && item.kind === 'error'));
+    service.awareness.resolve(item => item.id === 'operation:failed-turn');
+    await tab(a.id).click();
+    checks.push('An injected clock crosses three minutes on a running turn and shows one ordinary message only in its owner conversation. Work completes without interrupt or attention; early completion and cancellation send no status, and provider failure still surfaces.');
+  }
   await page.getByRole('button', { name: 'New conversation', exact: true }).click(); await expect(page.getByRole('heading', { name: 'New conversation', exact: true })).toBeVisible(); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await editor.fill('Architecture draft'); await tab(a.id).focus(); await tab(a.id).press('ArrowRight'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true'); await expect(tab(b.id)).toBeFocused(); await expect(editor).toHaveValue('');
   await editor.fill('Research draft'); await tab(b.id).press('Home'); await expect(editor).toHaveValue('Architecture draft'); await page.reload(); await expect(editor).toHaveValue('Architecture draft');
@@ -194,6 +271,7 @@ try {
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: new RegExp('^Research conversation') }).click(); await expect(editor).toHaveValue('Research draft'); assert.equal(service.sessions.items.size, 3);
   for (const id of [w1.id, w2.id, w3.id]) assert.equal(service.sessions.get(id).status, 'running');
   const oldOrigin = service.origin; await service.close(); service = await createService({ repo, uiDir: path.resolve('dist'), mcpOptions: { home: repo, env: {} } }); assert.notEqual(service.origin, oldOrigin); await page.goto(service.urls.workspace); await expect(editor).toHaveValue('Research draft'); await expect(tab(b.id)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('I’m still working on this request.', { exact: true })).toHaveCount(1);
   await history(); await page.getByRole('tabpanel', { name: 'Conversation history' }).getByRole('button', { name: /^Architecture review/ }).click(); await expect(mode(a.name)).toHaveAttribute('aria-pressed', 'true'); await expect(activity.getByRole('combobox')).toHaveValue(w2.id); assert.ok(service.sessions.list().every(session => session.status === 'stopped'));
   checks.push('Visible × closes selected and background tabs, focuses neighbor or fixed + after last keyboard close, preserves workers/IDs, and History reopens draft and terminal mode across isolated service restart.');
   assert.deepEqual(errors, []); await writeFile(path.join(repo, 'results.json'), JSON.stringify({ status: 'passed', fixtureOnly: true, nativeWindowsPTY: process.platform === 'win32', checks, transcriptScroll, screenshots }, null, 2)); console.log(`Conversation tabs UI passed. Evidence: ${repo}`);

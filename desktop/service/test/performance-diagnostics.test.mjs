@@ -101,15 +101,16 @@ test('real loopback Settings endpoint persists preference but never restores a c
   assert.equal(diagnosticRoute('GET', '/api/performance-diagnostics'), null);
 });
 
-test('coordinator exposes early, wrong-thread, wrong-turn, ignored, late, timeout and interrupt boundaries', async t => {
+test('coordinator traces protocol boundaries, elapsed status and failure interrupts', { timeout: 5000 }, async t => {
   const stateDir = await mkdtemp(path.join(tmpdir(), 'alpha-diagnostics-protocol-'));
   t.after(() => rm(stateDir, { recursive: true, force: true }));
   const diagnostics = new PerformanceDiagnostics({ enabled: true });
   diagnostics.arm('conversation');
   const trace = diagnostics.begin('conversation');
-  let interrupted = false;
+  let interrupted = false, reportStatus;
   const coordinator = new Coordinator({ stateDir, repo: stateDir, context: () => ({}),
-    execute() { assert.fail('Synthetic status tool call must never run'); }, diagnosticTimeoutMs: 30 });
+    execute() { assert.fail('Synthetic status tool call must never run'); },
+    statusClock: { setTimeout(callback) { reportStatus = callback; }, clearTimeout() { reportStatus = null; } } });
   coordinator.start = async () => { coordinator.threadId = 'private-thread'; };
   coordinator.rpc = async method => {
     if (method === 'turn/interrupt') { interrupted = true; return {}; }
@@ -120,14 +121,20 @@ test('coordinator exposes early, wrong-thread, wrong-turn, ignored, late, timeou
       error: { message: 'secret raw error', codexErrorInfo: { responseStreamConnectionFailed: { httpStatusCode: 429 } } } } });
     return { turn: { id: 'private-turn' } };
   };
-  const result = await coordinator.ask({ id: 'private-op', text: 'synthetic local status', trace });
+  const request = coordinator.ask({ id: 'private-op', text: 'synthetic local status', threadId: 'alpha-thread', trace });
+  while (!coordinator.active?.turnId) await delay(1);
+  reportStatus();
+  assert.equal(interrupted, false);
+  assert.equal(coordinator.operations.get('private-op').status, 'running');
+  await coordinator.message({ method: 'turn/completed', params: { threadId: 'private-thread', turn: { id: 'private-turn', status: 'failed', error: { message: 'Provider failed' } } } });
+  const result = await request;
   assert.equal(result.status, 'failed');
   assert.equal(interrupted, true);
   await coordinator.message({ method: 'turn/completed', params: { threadId: 'private-thread', turn: { id: 'private-turn', status: 'completed' } } });
   const saved = diagnostics.stop().last;
   assert.ok(saved.events.some(item => item.method === 'turn/started' && item.match === 'early'));
   for (const kind of ['wrong-thread', 'stale-rpc', 'unhandled', 'late', 'no-active']) assert.ok(saved.events.some(item => item.kind === kind), kind);
-  for (const phase of ['turn-timeout', 'interrupt-start', 'interrupt-end']) assert.ok(saved.events.some(item => item.event === phase), phase);
+  for (const phase of ['turn-status', 'interrupt-start', 'interrupt-end']) assert.ok(saved.events.some(item => item.event === phase), phase);
   assert.ok(saved.events.some(item => item.event === 'ipc-frame' && item.kind === 'provider-retry' && item.statusCode === 429));
   assert.equal(saved.events.some(item => item.event === 'first-text'), false);
   assert.doesNotMatch(JSON.stringify(saved), /private|secret|synthetic/);

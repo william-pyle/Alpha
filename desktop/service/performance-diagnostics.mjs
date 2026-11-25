@@ -5,7 +5,7 @@ export const diagnosticCategories = ['conversation', 'worker', 'workspace', 'set
 const events = new Set(`capture-start capture-end http-start http-body http-finish ui-request ui-response ui-render
   ui-task service-ready coordinator-route coordinator-init coordinator-queue coordinator-dequeue coordinator-ready
   context-start context-end process-spawn process-exit ipc-send ipc-backpressure ipc-drain ipc-reply
-  ipc-timeout ipc-frame ipc-decision first-text tool-scheduled tool-start tool-end turn-timeout interrupt-start
+  ipc-timeout ipc-frame ipc-decision first-text tool-scheduled tool-start tool-end turn-status interrupt-start
   interrupt-end coordinator-result persist-start persist-end broadcast websocket-pressure worker-route
   worker-queue worker-dequeue worker-binding worker-launch worker-ready worker-exit worker-completion-check receipt-created receipt-state
   composer-state paste-intent paste submit-intent submit native-input worker-completion worker-notice

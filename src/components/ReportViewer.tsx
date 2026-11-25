@@ -21,6 +21,7 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
   const [error, setError] = useState('')
   const [available, setAvailable] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [sharedDriveSync, setSharedDriveSync] = useState(false)
   const [toolSelection, setToolSelection] = useState<{ query: string; ids: string[] } | null>(null)
   const reportFrame = useRef<{ element: HTMLIFrameElement; query: string } | null>(null)
   const sharedDriveFrame = useRef<{ element: HTMLIFrameElement } | null>(null)
@@ -31,6 +32,7 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
     cancelAnimationFrame(paint.current)
     paint.current = requestAnimationFrame(() => { paint.current = requestAnimationFrame(() => setLoaded(true)) })
     if (sharedDrive) {
+      setSharedDriveSync(false)
       sharedDriveFrame.current = { element }
       element.contentWindow?.postMessage({ type: 'alpha:shared-drive-ready' }, reportOrigin)
     }
@@ -63,7 +65,7 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
           location.hash !== '#/author-ashlyn-brooks/8' ||
           event.source !== frame.element.contentWindow || event.origin !== reportOrigin ||
           message?.type !== 'alpha:shared-drive-request' || typeof message.grant !== 'string' || !port) return
-      const { requestId, action, relativePath, text, revision, rejected } = message.request || {}
+      const { requestId, action, relativePath, text, revision, rejected, choice } = message.request || {}
       if (typeof requestId !== 'string' || !requestId.length || requestId.length > 100) {
         port.close()
         return
@@ -76,8 +78,11 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
         }
         port.close()
       }
-      void api('/workspace/shared-drive-original', { grant: message.grant, action, relativePath, text, revision, rejected })
-        .then(result => reply({ result }), (error: Error & { status?: number }) => {
+      void api('/workspace/shared-drive-original', { grant: message.grant, action, relativePath, text, revision, rejected, choice })
+        .then(result => {
+          if (action === 'sync-list' && frame === sharedDriveFrame.current) setSharedDriveSync(true)
+          reply({ result })
+        }, (error: Error & { status?: number }) => {
           reply({ error: error.status ? error.message : 'Shared Drive is unavailable.', status: error.status || 503 })
         })
     }
@@ -109,7 +114,7 @@ export default function ReportViewer({ url, title, relativePath, toolProject, sh
   if (image) return <div className="report-image"><nav><span>{title}</span><a href={url} target="_blank" rel="noreferrer">Open original</a><a href={url} onClick={event => { event.preventDefault(); void downloadImage(url).catch(error => setError(error.message)) }}>Download</a></nav><ZoomImage src={url} alt={title} /></div>
   const ready = available && loaded
   return <div className="workspace-tool-layout">
-    {toolProject && toolIds.length > 0 && <WorkspaceToolControls cardId={toolProject.id} toolIds={toolIds} onRunFinished={notifyFinished} />}
+    {toolProject && toolIds.length > 0 && <WorkspaceToolControls cardId={toolProject.id} toolIds={toolIds} onRunFinished={notifyFinished} launchesOnly={sharedDriveSync ? 'shared-drive-scan' : undefined} />}
     <div className="workspace-tool-body">
       <div className="report-document" aria-busy={!ready}>
         <ReportFrame url={url} title={title} className={`report-frame${ready ? ' loaded' : ''}`} sandbox={isDesktop ? 'allow-scripts allow-same-origin allow-forms allow-popups allow-downloads' : undefined} onLoad={reveal} onError={() => setError('This page could not be loaded.')} />

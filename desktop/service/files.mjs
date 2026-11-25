@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { realFile, secret, within } from './util.mjs';
 import { serveReport } from './report-chrome.mjs';
-import { sharedDriveMirror, sharedDrivePrivateDirectory } from './shared-drive-originals.mjs';
+import { sharedDriveJournalDirectory, sharedDriveMirror, sharedDrivePrivateDirectory } from './shared-drive-originals.mjs';
 
 const mime = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -42,7 +42,8 @@ export async function serveFile(request, response, file, info, headers = {}) {
 export class Files {
   constructor(repo) { this.repo = repo; this.grants = new Map(); this.repoGrant = this.grant(repo); this.writes = Promise.resolve(); }
   isSharedDrivePrivate(file) {
-    return within(sharedDrivePrivateDirectory(this.repo), comparablePath(file));
+    const absolute = comparablePath(file);
+    return within(sharedDrivePrivateDirectory(this.repo), absolute) || within(sharedDriveJournalDirectory(this.repo), absolute);
   }
   assertNotSharedDriveState(file) {
     if (this.isSharedDrivePrivate(file)) {

@@ -23,7 +23,7 @@ import { Workspace, localDay, metadataPatch } from './workspace.mjs';
 import { Projects } from './projects.mjs';
 import { ProjectRepositories } from './project-repositories.mjs';
 import { NativeStorage, ProjectStorage } from './project-storage.mjs';
-import { SharedDriveOriginals } from './shared-drive-originals.mjs';
+import { SharedDriveOriginals, sharedDriveProjectId } from './shared-drive-originals.mjs';
 import { safeProjectPaths } from './project-layout.mjs';
 import { WorkspaceTools } from './workspace-tools.mjs';
 import { Replies } from './replies.mjs';
@@ -374,7 +374,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     const thread = threads.get(threadId);
     return {
       thread: { name: thread.name, purpose: thread.purpose, projectId: thread.projectId },
-      recentConversation: thread.messages.slice(-24).map(({ id, role, text, status }) => ({ id, role, text: text.slice(0, 1600), status })),
+      recentConversation: thread.messages.slice(-24).filter(message => message.source !== 'coordinator-status').map(({ id, role, text, status }) => ({ id, role, text: text.slice(0, 1600), status })),
       work: {
         nativeDispatches: nativeDispatches.get(threadId)?.size || 0,
         operationPhase: thread.operation?.phase || null,
@@ -404,6 +404,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       item.on('progress', progress => {
         item.active?.trace?.event('broadcast', { operation: progress.id, kind: 'text', count: clients.size });
         broadcast('thread-progress', { threadId, ...progress, ...(replyOnly ? { lane: 'reply' } : {}) });
+      });
+      item.on('status-update', notice => {
+        if (notice.threadId !== threadId) return;
+        threads.message(threadId, { id: `coordinator-status:${notice.id}`, role: 'assistant', text: 'I’m still working on this request.', source: 'coordinator-status' });
       });
       item.on('result', operation => {
         if (replyOnly) operation = { ...operation, origin: 'foreground' };
@@ -723,7 +727,17 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && cardImage) return json(response, 201, await cards.image(decodeURIComponent(cardImage[1]), Number(cardImage[2]), request, url.searchParams.get('name')));
         if (method === 'POST' && url.pathname === '/api/workspace/shared-drive-original') {
           // Allow JSON escaping overhead, then cap decoded text in SharedDriveOriginals.
-          return json(response, 200, await sharedDrive.run(await body(request, 128 * 1024 * 6 + 4096)));
+          const data = await body(request, 128 * 1024 * 6 + 4096);
+          const run = () => sharedDrive.run(data);
+          if (data?.action === 'sync-run' && data.grant === sharedDrive.grant) {
+            if (projectStore.operations.has(sharedDriveProjectId)) throw Object.assign(new Error('Wait for the current Shared Drive action to finish.'), { status: 409 });
+            return json(response, 200, await projectStore.exclusive(sharedDriveProjectId, async () => {
+              await projectStore.get(sharedDriveProjectId, { allowRemoved: false });
+              projectStorage.assertAvailable(sharedDriveProjectId);
+              return run();
+            }));
+          }
+          return json(response, 200, await run());
         }
         const bodyStartedAt = trace ? performance.now() : 0;
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname.startsWith('/api/performance-diagnostics') ? 2048 : url.pathname === '/api/files/markdown' ? (50 * 1024 * 1024 * 6 + 64 * 1024) : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};

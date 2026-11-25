@@ -13,6 +13,7 @@ use std::os::windows::process::CommandExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 
 struct Service(Mutex<Option<Child>>);
+struct PackagedUiFixture(PathBuf);
 #[cfg(windows)]
 struct ServiceJob(Mutex<Option<OwnedHandle>>);
 #[cfg(windows)]
@@ -99,6 +100,25 @@ fn configure_cli_profile(command: &mut Command) {
 fn configuration_folder(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
     if let Some(root) = std::env::var_os("ALPHA_TEST_DIR") { return Ok(PathBuf::from(root)); }
     Ok(app.path().app_config_dir()?)
+}
+
+fn packaged_ui_fixture() -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
+    if std::env::var("ALPHA_PACKAGED_UI_TEST").as_deref() != Ok("1") { return Ok(None); }
+    if std::env::var("ALPHA_TEST").as_deref() != Ok("1") { return Err("Packaged UI testing requires ALPHA_TEST=1".into()); }
+    let config = fs::canonicalize(PathBuf::from(std::env::var_os("ALPHA_TEST_DIR").ok_or("Missing fixture config path")?))?;
+    let fixture = config.parent().ok_or("Missing fixture root")?;
+    let temp = fs::canonicalize(std::env::temp_dir())?;
+    let args: Vec<_> = std::env::args_os().collect();
+    let supplied = args.windows(2).find_map(|pair| (pair[0] == "--repo").then_some(&pair[1])).ok_or("Missing fixture Workspace")?;
+    let workspace = fs::canonicalize(supplied)?;
+    let executable = fs::canonicalize(std::env::current_exe()?)?;
+    if fixture.parent() != Some(temp.as_path())
+        || !fixture.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("alpha-packaged-ui-"))
+        || config != fixture.join("Config") || workspace != fixture.join("Workspace")
+        || !executable.starts_with(fixture.join("Package")) {
+        return Err("Packaged UI testing requires one disposable folder for the package, Config, and Workspace".into());
+    }
+    Ok(Some(normalize_node_path(fixture.to_path_buf())))
 }
 
 fn reveal(app: &tauri::AppHandle, label: &str) {
@@ -227,13 +247,17 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result
         x = area.position.x as f64 / scale; y = area.position.y as f64 / scale;
         width = area.size.width as f64 / scale; height = area.size.height as f64 / scale;
     }
-    let workspace_window = WebviewWindowBuilder::new(app, "workspace", WebviewUrl::External(workspace.parse()?))
+    let mut builder = WebviewWindowBuilder::new(app, "workspace", WebviewUrl::External(workspace.parse()?))
         .on_new_window(|url, _| external_links::open_popup(url))
         .visible(false)
         .decorations(!cfg!(windows)).resizable(true)
         .title(app.config().product_name.as_deref().unwrap_or("Alpha")).inner_size((width - 6.0).max(750.0), (height - 6.0).max(500.0))
         .position(x + 2.0, y + 2.0).min_inner_size(700.0, 500.0)
-        .theme(Some(tauri::Theme::Dark)).background_color(tauri::webview::Color(12, 13, 16, 255)).build()?;
+        .theme(Some(tauri::Theme::Dark)).background_color(tauri::webview::Color(12, 13, 16, 255));
+    if let Some(fixture) = app.try_state::<PackagedUiFixture>() {
+        builder = builder.data_directory(fixture.0.join("WebView"));
+    }
+    let workspace_window = builder.build()?;
     // Native drops expose original file and folder paths to the embedded Chats pane.
     let drop_window = workspace_window.clone();
     workspace_window.on_window_event(move |event| {
@@ -268,7 +292,7 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, _chats: &str) -> Result
     #[cfg(debug_assertions)]
     window_chrome::self_test(app);
     #[cfg(windows)]
-    window_identity::refresh_shortcuts(app);
+    if app.try_state::<PackagedUiFixture>().is_none() { window_identity::refresh_shortcuts(app); }
     Ok(())
 }
 
@@ -317,6 +341,19 @@ fn install_chats_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
 }
 
 fn main() {
+    let fixture = packaged_ui_fixture().unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2);
+    });
+    let mut context = tauri::generate_context!();
+    if let Some(root) = &fixture {
+        use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+        let mut hash = DefaultHasher::new();
+        root.hash(&mut hash);
+        let config = context.config_mut();
+        config.identifier = format!("{}.fixture.{:016x}", config.identifier, hash.finish());
+        config.app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(root.join("Tauri")));
+    }
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if args.iter().any(|arg| arg == "--quit") { app.exit(0); }
@@ -326,8 +363,9 @@ fn main() {
         .plugin(recall_plugin())
         .plugin(tauri_plugin_window_state::Builder::default().with_filename(std::env::var_os("ALPHA_TEST_DIR").map(|root| PathBuf::from(root).join("window-state.json").to_string_lossy().into_owned()).unwrap_or_else(|| ".window-state.json".to_owned())).with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED).build())
         .manage(Service(Mutex::new(None)))
-        .setup(|app| {
+        .setup(move |app| {
             if std::env::args().any(|arg| arg == "--quit") { app.handle().exit(0); return Ok(()); }
+            if let Some(root) = &fixture { app.manage(PackagedUiFixture(root.clone())); }
             #[cfg(windows)]
             window_identity::initialize(app.handle())?;
             let resource_dir = app.path().resource_dir()?;
@@ -351,7 +389,12 @@ fn main() {
                 .env("ALPHA_APP_VERSION", app.package_info().version.to_string())
                 .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::from(log));
             #[cfg(windows)]
-            configure_cli_profile(&mut command);
+            if let Some(root) = &fixture {
+                command.env("ALPHA_WINDOWS_CLI_ROAMING", root.join("CliRoaming"))
+                    .env("ALPHA_WINDOWS_CLI_LOCAL", root.join("CliLocal"));
+            } else {
+                configure_cli_profile(&mut command);
+            }
             #[cfg(target_os = "macos")]
             command.env("PATH", login_path::discover());
             let mut child = hidden(&mut command).spawn()?;
@@ -524,6 +567,8 @@ fn main() {
                     app_handle.exit(1);
                 }
             });
+            // Open the real WebView without registering desktop-wide UI hooks in the fixture.
+            if fixture.is_some() { return Ok(()); }
             #[cfg(target_os = "macos")]
             install_chats_menu(app.handle())?;
             let workspace_item = MenuItem::with_id(app, "workspace", "Show Alpha", true, None::<&str>)?;
@@ -559,7 +604,7 @@ fn main() {
                 .on_tray_icon_event(|tray, event| { if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event { reveal(tray.app_handle(), "workspace"); } })
                 .build(app)?;
             Ok(())
-        }).build(tauri::generate_context!());
+        }).build(context);
     match result {
         Ok(app) => app.run(|app, event| {
             #[cfg(target_os = "macos")]

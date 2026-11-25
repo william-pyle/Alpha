@@ -118,8 +118,8 @@ function errorHttpStatus(error) {
 }
 
 export class Coordinator extends EventEmitter {
-  constructor({ repo, stateDir, execute, context, orientation = async () => '', settings = () => ({}), learning = () => '', replyOnly = false, diagnosticTimeoutMs = 180000 }) {
-    super(); Object.assign(this, { repo, stateDir, execute, context, orientation, settings, learning, diagnosticTimeoutMs });
+  constructor({ repo, stateDir, execute, context, orientation = async () => '', settings = () => ({}), learning = () => '', replyOnly = false, statusClock = globalThis }) {
+    super(); Object.assign(this, { repo, stateDir, execute, context, orientation, settings, learning, statusClock });
     this.replyOnly = replyOnly === true;
     this.model = settings().coordinatorModel || null;
     this.pending = new Map(); this.nextId = 1; this.child = null; this.threadId = null;
@@ -327,14 +327,23 @@ export class Coordinator extends EventEmitter {
         try { await this.start(); } finally { this.startTrace = null; }
         this.setState('working'); operation.timings.readyAt = Date.now();
         trace?.event('coordinator-ready', { thread: this.threadId, durationMs: operation.timings.readyAt - operation.timings.dequeuedAt });
-        const completion = new Promise((resolve, reject) => { this.active = { resolve, reject, text: '', finalText: '', calls: new Map(), operationId: id, trace }; });
-        // Child exits and timeouts can arrive before the turn/start RPC resolves.
+        let statusTimer;
+        const clearStatus = () => this.statusClock.clearTimeout(statusTimer);
+        const completion = new Promise((resolve, reject) => {
+          this.active = {
+            resolve(value) { clearStatus(); resolve(value); },
+            reject(error) { clearStatus(); reject(error); },
+            text: '', finalText: '', calls: new Map(), operationId: id, trace,
+          };
+        });
+        // Child exits and completion notifications can arrive before turn/start returns.
         void completion.catch(() => {});
-        // Install the completion listener before turn/start (notifications may arrive first).
-        const timer = setTimeout(() => {
-          trace?.event('turn-timeout', { operation: id, turn: this.active?.turnId });
-          this.active?.reject(new Error('The coordinator timed out. Inspect chats before retrying; actions may already have been delivered.'));
-        }, this.diagnosticTimeoutMs);
+        const active = this.active;
+        if (threadId) statusTimer = this.statusClock.setTimeout(() => {
+          if (this.closed || this.active !== active || !active.turnId || operation.waitingForUser) return;
+          trace?.event('turn-status', { operation: id, turn: active.turnId });
+          this.emit('status-update', { id, threadId });
+        }, 3 * 60_000);
         try {
           trace?.event('context-start', { operation: id });
           const context = this.context();
@@ -360,13 +369,14 @@ export class Coordinator extends EventEmitter {
           operation.timings.firstTextAt = this.active.firstTextAt || null;
           operation.status = 'completed';
         } catch (error) {
+          clearStatus();
           if (this.active?.turnId && this.threadId) {
             trace?.event('interrupt-start', { turn: this.active.turnId });
             await this.rpc('turn/interrupt', { threadId: this.threadId, turnId: this.active.turnId })
               .then(() => trace?.event('interrupt-end', { kind: 'ok' }), () => trace?.event('interrupt-end', { kind: 'error' }));
           }
           throw error;
-        } finally { clearTimeout(timer); this.active = null; this.tailTrace = trace; }
+        } finally { this.active = null; this.tailTrace = trace; }
       } catch (error) { operation.status = 'failed'; operation.result = publicError(error); }
       operation.timings.completedAt = Date.now();
       this.phase(operation, operation.status === 'failed' ? 'failed' : operation.waitingForUser ? 'waiting-for-user' : 'completed');

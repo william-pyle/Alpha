@@ -13,10 +13,14 @@ test('Shared Drive originals require the approved report grant and use only the 
   const root = path.join(repo, 'projects', project, 'SharedDrive');
   const privateDirectory = path.join(repo, 'projects', project, '.alpha-shared-drive');
   const privateFile = path.join(privateDirectory, 'rejections.json');
+  const journalDirectory = path.join(repo, 'projects', project, '.shared-drive-sync');
+  const journalFile = path.join(journalDirectory, 'state.json');
   await mkdir(reportDirectory, { recursive: true });
   await mkdir(root);
   await mkdir(privateDirectory);
+  await mkdir(journalDirectory);
   await writeFile(privateFile, '{"version":1,"rejections":["synthetic.txt"]}');
+  await writeFile(journalFile, '{"synthetic":true}');
   const canonicalRoot = await realpath(root);
   await writeFile(path.join(root, 'private.txt'), 'Synthetic private original');
   const config = path.join(repo, 'projects', project, 'project.json');
@@ -66,9 +70,11 @@ test('Shared Drive originals require the approved report grant and use only the 
   assert.equal((await fetch(service.origin + '/' + privateRelative, { method: 'HEAD' })).status, 403);
   assert.equal((await fetch(service.origin + '/api/preview?path=' + encodeURIComponent(privateFile), { headers: auth })).status, 403);
   assert.equal((await fetch(service.origin + '/api/files?path=' + encodeURIComponent(privateDirectory), { headers: auth })).status, 403);
+  assert.equal((await fetch(configuration.contentBase + `/projects/${project}/.shared-drive-sync/state.json`)).status, 403);
+  assert.equal((await fetch(service.origin + '/api/preview?path=' + encodeURIComponent(journalFile), { headers: auth })).status, 403);
   const projectListing = await fetch(service.origin + '/api/files?mode=all&path=' + encodeURIComponent(path.dirname(privateDirectory)), { headers: auth });
   assert.equal(projectListing.status, 200);
-  assert.ok(!(await projectListing.json()).entries.some(entry => entry.name === '.alpha-shared-drive'));
+  assert.ok(!(await projectListing.json()).entries.some(entry => ['.alpha-shared-drive', '.shared-drive-sync'].includes(entry.name)));
   if (process.platform === 'win32') {
     await symlink(root, path.join(repo, 'mirror-alias'), 'junction');
     assert.equal((await fetch(`${configuration.contentBase}/mirror-alias/private.txt`)).status, 403);
@@ -100,6 +106,17 @@ test('Shared Drive originals require the approved report grant and use only the 
     assert.equal((await send(data, {})).status, 401);
     assert.equal((await send({ ...data, grant }, { ...auth, Origin: service.contentOrigin })).status, 403);
     assert.equal((await send({ ...data, grant: 'forged' })).status, 403);
+  }
+  for (const action of ['sync-list', 'sync-choice', 'sync-run']) {
+    assert.equal((await send({ grant, action }, {})).status, 401);
+    assert.equal((await send({ grant, action }, { ...auth, Origin: service.contentOrigin })).status, 403);
+    assert.equal((await send({ grant: 'forged', action })).status, 403);
+    assert.equal((await send({ grant, action })).status, 404);
+  }
+  if (process.platform === 'win32') {
+    await writeFile(config, JSON.stringify({ sharedDrive: { sync: { mirrorFolder: 'SharedDrive', bridge: 'one-button-v1' } } }));
+    assert.equal((await send({ grant, action: 'sync-list', executable: 'powershell.exe' })).status, 503);
+    assert.equal((await send({ grant, action: 'sync-choice', relativePath: '../outside.txt', revision: 'a'.repeat(64), choice: 'Delete Locally' })).status, 400);
   }
   assert.equal((await send({ grant, action: 'execute', relativePath: 'notes.txt' })).status, 400);
   for (const relativePath of ['../notes.txt', '/notes.txt', 'X:/notes.txt', 'nested\\..\\notes.txt', 'notes.txt:stream']) {

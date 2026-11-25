@@ -134,7 +134,7 @@ export default function ThreadConversations() {
       const key = `${item.id}:${message.id}`
       if (seen.current.has(key)) continue
       seen.current.add(key)
-      if (hydrated.current && !switched && item.id === state.selectedThreadId && message.role === 'assistant' && message.status !== 'failed' && message.source !== 'voice') {
+      if (hydrated.current && !switched && item.id === state.selectedThreadId && message.role === 'assistant' && message.status !== 'failed' && message.source !== 'voice' && message.source !== 'coordinator-status') {
         if (active) liveVoice.announce(message.text)
         else if (state.settings.speakReplies !== false && !state.voice.owner && !state.awareness.settings.quiet) void api('/speech/speak', { source: 'thread', threadId: item.id, id: message.id }).catch(reportError)
       }

@@ -13,9 +13,10 @@ const labels: Record<ToolState, string> = {
   stopped: 'Stopped', starting: 'Starting…', running: 'Running', 'running-external': 'Running (external)', stopping: 'Stopping…', error: 'Error',
 }
 
-export default function WorkspaceToolControls({ cardId, toolIds, onRunFinished }: {
+export default function WorkspaceToolControls({ cardId, toolIds, onRunFinished, launchesOnly }: {
   cardId: string
   toolIds?: readonly string[]
+  launchesOnly?: string
   onRunFinished?: (id: string, success: boolean) => void
 }) {
   const [tools, setTools] = useState<ToolView[]>([])
@@ -53,7 +54,7 @@ export default function WorkspaceToolControls({ cardId, toolIds, onRunFinished }
       return <div className="workspace-tool" key={tool.id}>
         <div className="workspace-tool-name"><strong>{tool.name}</strong><span className={`workspace-tool-state state-${tool.state}`}>{labels[tool.state]}</span>{tool.error && <small title={tool.error}>{tool.error}</small>}{tool.lastResult && <small>Last run: {tool.lastResult.error ? 'failed' : 'completed'}</small>}</div>
         <div className="workspace-tool-actions">
-          {action && <button type="button" disabled={changing} onClick={() => void act(tool, action)}>{tool.kind === 'one-shot' ? 'Run' : action === 'stop' ? 'Stop' : 'Start'}</button>}
+          {action && tool.id !== launchesOnly && <button type="button" disabled={changing} onClick={() => void act(tool, action)}>{tool.kind === 'one-shot' ? 'Run' : action === 'stop' ? 'Stop' : 'Start'}</button>}
           {tool.launches.map(launch => <button type="button" key={launch.id} disabled={changing || !launch.available} onClick={() => void act(tool, 'launch', launch.id)}>{launch.name}</button>)}
         </div>
       </div>
