@@ -14,8 +14,8 @@ const syncActions = new Set(['sync-list', 'sync-choice', 'sync-run']);
 const syncChoices = new Set(['Ignore', 'Update Local', 'Update GoogleDrive', 'Delete Locally', 'Delete GoogleDrive']);
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
-function rejectionPath(value) {
-  if (typeof value !== 'string' || value.length > 1024) return null;
+function relativeWindowsPath(value) {
+  if (typeof value !== 'string') return null;
   const parts = value.split(/[\\/]/);
   for (const part of parts) {
     const device = part.split('.', 1)[0].replace(/[\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u, '');
@@ -77,7 +77,8 @@ export class SharedDriveOriginals {
     if (syncActions.has(data.action)) return this.sync(data, registration);
     if (data.action === 'list-rejections' || data.action === 'set-rejection') {
       const { action, rejected } = data;
-      const relativePath = action === 'set-rejection' ? rejectionPath(data.relativePath) : null;
+      const relativePath = action === 'set-rejection' && typeof data.relativePath === 'string' && data.relativePath.length <= 1024
+        ? relativeWindowsPath(data.relativePath) : null;
       if (action === 'set-rejection' && (relativePath === null || typeof rejected !== 'boolean')) {
         throw fail(400, 'Choose a Shared Drive relative file path and a rejection value.');
       }
@@ -106,7 +107,9 @@ export class SharedDriveOriginals {
     }
     const input = { action };
     if (action === 'sync-choice') {
-      const relative = rejectionPath(relativePath);
+      // Match the private sync engine's 2,000 Unicode-character path limit.
+      const relative = typeof relativePath === 'string' && relativePath.length <= 4000 && [...relativePath].length <= 2000
+        ? relativeWindowsPath(relativePath) : null;
       if (relative === null || typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision) || choice !== null && !syncChoices.has(choice)) {
         throw fail(400, 'Choose an action for the current Shared Drive conflict.');
       }

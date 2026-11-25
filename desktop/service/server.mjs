@@ -692,7 +692,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       if (url.pathname.startsWith('/api/')) {
         authorize(request);
         const startedAt = performance.now();
-        response.once('finish', () => health.measure(url.pathname, performance.now() - startedAt, response.statusCode));
+        let healthRoute = url.pathname;
+        response.once('finish', () => health.measure(healthRoute, performance.now() - startedAt, response.statusCode));
         const method = request.method;
         const category = diagnostics.armed ? diagnosticRoute(method, url.pathname) : null;
         const trace = category ? diagnostics.begin(category) : null;
@@ -730,6 +731,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           const data = await body(request, 128 * 1024 * 6 + 4096);
           const run = () => sharedDrive.run(data);
           if (data?.action === 'sync-run' && data.grant === sharedDrive.grant) {
+            healthRoute += '/sync-run';
             if (projectStore.operations.has(sharedDriveProjectId)) throw Object.assign(new Error('Wait for the current Shared Drive action to finish.'), { status: 409 });
             return json(response, 200, await projectStore.exclusive(sharedDriveProjectId, async () => {
               await projectStore.get(sharedDriveProjectId, { allowRemoved: false });

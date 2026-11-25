@@ -8,7 +8,7 @@ export class Health {
   measure(route, durationMs, status) {
     if (!route.startsWith('/api/') || ['/api/health', '/api/bootstrap'].includes(route)) return;
     const name = route.replace(/[a-f\d]{8}-[a-f\d-]{27,}/gi, ':id');
-    const limit = /coordinator/.test(name) ? 45000 : /transcribe/.test(name) ? 30000 : 3000;
+    const limit = name === '/api/workspace/shared-drive-original/sync-run' ? 280_000 : /coordinator/.test(name) ? 45000 : /transcribe/.test(name) ? 30000 : 3000;
     const sample = { route: name.slice(0, 180), durationMs: Math.round(durationMs), status, slow: durationMs > limit, at: new Date().toISOString() };
     this.samples.push(sample); this.samples = this.samples.slice(-200);
     if (this.samples.filter(item => item.route === name && (item.slow || item.status >= 500)).length >= 3) void this.report({ id: `slow:${name}`, area: name, symptom: 'Repeated slow or failed requests', proposal: 'Inspect these request timings and failures. Fix the bottleneck; consider moving long work out of the request path if it blocks normal interaction.' }).catch(() => {});

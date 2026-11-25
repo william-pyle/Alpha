@@ -117,6 +117,9 @@ test('Shared Drive originals require the approved report grant and use only the 
     await writeFile(config, JSON.stringify({ sharedDrive: { sync: { mirrorFolder: 'SharedDrive', bridge: 'one-button-v1' } } }));
     assert.equal((await send({ grant, action: 'sync-list', executable: 'powershell.exe' })).status, 503);
     assert.equal((await send({ grant, action: 'sync-choice', relativePath: '../outside.txt', revision: 'a'.repeat(64), choice: 'Delete Locally' })).status, 400);
+    const longPath = Array(7).fill('a'.repeat(200)).concat('image.png').join('/');
+    // Path validation allows long engine paths before rejecting the missing interpreter.
+    assert.equal((await send({ grant, action: 'sync-choice', relativePath: longPath, revision: 'a'.repeat(64), choice: 'Ignore' })).status, 503);
   }
   assert.equal((await send({ grant, action: 'execute', relativePath: 'notes.txt' })).status, 400);
   for (const relativePath of ['../notes.txt', '/notes.txt', 'X:/notes.txt', 'nested\\..\\notes.txt', 'notes.txt:stream']) {
